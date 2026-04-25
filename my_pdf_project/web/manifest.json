@@ -1,6 +1,6 @@
 {
-    "name": "my_pdf_project",
-    "short_name": "my_pdf_project",
+    "name": "my_pdf",
+    "short_name": "my_pdf",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "marionette": {
+      "command": "dart",
+      "args": [
+        "run",
+        "marionette_mcp",
+        "ws://127.0.0.1:56406/I2mHBjMZceQ=/ws"
+      ],
+      "cwd": "C:\\Users\\pun\\Desktop\\beta my pdf"
+    }
+  }
+}

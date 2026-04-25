@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__plugin_figma_figma__get_metadata",
+      "Bash(python3 *)",
+      "mcp__plugin_figma_figma__get_design_context",
+      "Bash(flutter create *)",
+      "Bash(flutter pub *)",
+      "Bash(flutter analyze *)",
+      "WebFetch(domain:pub.dev)",
+      "Bash(claude mcp *)",
+      "Bash(gh api *)",
+      "Bash(flutter run *)",
+      "Bash(echo \"LAUNCHED PID: $!\")",
+      "WebSearch",
+      "Bash(flutter test *)"
+    ]
+  },
+  "enabledPlugins": {}
+}
