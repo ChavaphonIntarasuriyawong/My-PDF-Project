@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../core/theme/app_typography.dart';
-import '../../../shared/widgets/labeled_text_field.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../../library/presentation/library_providers.dart';
 
@@ -30,13 +28,28 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     if (name.isEmpty) return;
     setState(() => _saving = true);
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
-    await ref.read(firestoreDataSourceProvider).updateUserProfile(uid, name: name);
-    if (mounted) {
-      setState(() => _saving = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profile updated')),
-      );
-      context.pop();
+    try {
+      await ref.read(firestoreDataSourceProvider).updateUserProfile(
+            uid,
+            name: name,
+          );
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Profile updated')),
+        );
+        if (context.canPop()) {
+          context.pop();
+        } else {
+          context.go('/profile');
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _saving = false);
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('Update failed. Try again.')));
+      }
     }
   }
 
@@ -55,77 +68,113 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
-            Padding(
+            // ── Header ─────────────────────────────────────────────
+            Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.arrow_back, color: AppColors.primary, size: 20),
-                    onPressed: () => context.pop(),
+                  GestureDetector(
+                    onTap: () => context.canPop()
+                        ? context.pop()
+                        : context.go('/profile'),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      child: const Icon(Icons.arrow_back,
+                          color: AppColors.primary, size: 18),
+                    ),
                   ),
                   const Spacer(),
-                  Text('Edit Profile', style: AppTypography.titleLarge),
+                  const Text(
+                    'Edit Profile',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 18,
+                      letterSpacing: -0.45,
+                      color: AppColors.primary,
+                    ),
+                  ),
                   const Spacer(),
-                  TextButton(
-                    onPressed: _saving ? null : _save,
-                    child: _saving
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primary),
-                          )
-                        : Text(
-                            'Save',
-                            style: AppTypography.bodyMedium.copyWith(
-                              color: AppColors.primary,
-                              fontWeight: FontWeight.w700,
+                  GestureDetector(
+                    onTap: _saving ? null : _save,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      child: _saving
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: AppColors.primary),
+                            )
+                          : const Text(
+                              'Save',
+                              style: TextStyle(
+                                fontFamily: 'Inter',
+                                fontWeight: FontWeight.w600,
+                                fontSize: 16,
+                                color: AppColors.primary,
+                              ),
                             ),
-                          ),
+                    ),
                   ),
                 ],
               ),
             ),
+            Container(height: 1, color: AppColors.surfaceMuted),
+
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    LabeledTextField(
-                      label: 'Username',
-                      hint: 'Your display name',
-                      controller: _nameCtrl,
+                    // ── Username ────────────────────────────────────
+                    _ProfileFieldLabel('USERNAME'),
+                    const SizedBox(height: 8),
+                    _ProfileInputBox(
+                      child: TextField(
+                        controller: _nameCtrl,
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontSize: 18,
+                          color: AppColors.textPrimary,
+                        ),
+                        decoration: const InputDecoration(
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(
+                              vertical: 12, horizontal: 16),
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 24),
-                    // Email (read-only display)
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'EMAIL ADDRESS',
-                          style: AppTypography.labelSmall.copyWith(color: AppColors.textSecondary),
+
+                    // ── Email (read-only) ────────────────────────────
+                    _ProfileFieldLabel('EMAIL ADDRESS'),
+                    const SizedBox(height: 8),
+                    _ProfileInputBox(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: 16, horizontal: 16),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                user?.email ?? '',
+                                style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  fontSize: 16,
+                                  color: AppColors.textMuted
+                                      .withValues(alpha: 0.5),
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: AppColors.surfaceMuted,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.borderSubtle),
-                          ),
-                          child: Text(
-                            user?.email ?? '',
-                            style: AppTypography.bodyLarge.copyWith(color: AppColors.textSecondary),
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Email cannot be changed.',
-                          style: AppTypography.bodySmall.copyWith(color: AppColors.textMuted),
-                        ),
-                      ],
+                      ),
                     ),
                   ],
                 ),
@@ -134,6 +183,52 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _ProfileFieldLabel extends StatelessWidget {
+  final String text;
+  const _ProfileFieldLabel(this.text);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4),
+      child: Text(
+        text,
+        style: const TextStyle(
+          fontFamily: 'Inter',
+          fontWeight: FontWeight.w500,
+          fontSize: 10,
+          letterSpacing: 0.5,
+          color: AppColors.textSecondary,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProfileInputBox extends StatelessWidget {
+  final Widget child;
+  const _ProfileInputBox({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFBFC8CC).withValues(alpha: 0.2),
+            blurRadius: 0,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+      padding: const EdgeInsets.all(4),
+      child: child,
     );
   }
 }

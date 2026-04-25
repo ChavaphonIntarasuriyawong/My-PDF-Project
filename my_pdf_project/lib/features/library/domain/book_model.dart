@@ -2,7 +2,6 @@ class BookModel {
   final String id;
   final String title;
   final String link;
-  final String coverUrl;
   final int totalPages;
   final int currentPage;
   final double progress;
@@ -15,7 +14,6 @@ class BookModel {
     required this.id,
     required this.title,
     required this.link,
-    this.coverUrl = '',
     required this.totalPages,
     required this.currentPage,
     required this.progress,
@@ -28,7 +26,6 @@ class BookModel {
   BookModel copyWith({
     String? title,
     String? link,
-    String? coverUrl,
     int? totalPages,
     int? currentPage,
     double? progress,
@@ -40,7 +37,6 @@ class BookModel {
       id: id,
       title: title ?? this.title,
       link: link ?? this.link,
-      coverUrl: coverUrl ?? this.coverUrl,
       totalPages: totalPages ?? this.totalPages,
       currentPage: currentPage ?? this.currentPage,
       progress: progress ?? this.progress,
@@ -54,7 +50,6 @@ class BookModel {
   Map<String, dynamic> toMap() => {
     'title': title,
     'link': link,
-    'coverUrl': coverUrl,
     'totalPages': totalPages,
     'currentPage': currentPage,
     'progress': progress,
@@ -71,7 +66,6 @@ class BookModel {
       id: id,
       title: map['title'] ?? '',
       link: map['link'] ?? '',
-      coverUrl: map['coverUrl'] ?? '',
       totalPages: total,
       currentPage: current,
       progress: total > 0 ? (current / total * 100) : 0,

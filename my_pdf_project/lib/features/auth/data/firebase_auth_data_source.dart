@@ -46,7 +46,6 @@ class FirebaseAuthDataSource {
       uid: uid,
       name: data['name'] ?? '',
       email: data['email'] ?? '',
-      avatarUrl: data['avatarUrl'] ?? '',
     );
   }
 }

@@ -14,37 +14,53 @@ class ShelfContentScreen extends ConsumerWidget {
   final String shelfId;
   const ShelfContentScreen({super.key, required this.shelfId});
 
-  void _showShelfMenu(BuildContext context, WidgetRef ref, String shelfName) {
-    showModalBottomSheet(
+  Future<void> _showShelfMenu(
+      BuildContext context, WidgetRef ref, String shelfName, Offset anchor) async {
+    final selected = await showMenu<String>(
       context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+      position: RelativeRect.fromLTRB(
+        anchor.dx - 149, anchor.dy + 8, 16, 0,
       ),
-      builder: (_) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.edit_outlined, color: AppColors.primary),
-              title: Text('Rename Shelf', style: AppTypography.labelLarge),
-              onTap: () {
-                Navigator.pop(context);
-                _showRenameModal(context, ref, shelfName);
-              },
+      color: AppColors.surface,
+      elevation: 8,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      items: [
+        PopupMenuItem<String>(
+          value: 'edit',
+          height: 51,
+          child: Center(
+            child: Text(
+              'Edit',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 16,
+                color: AppColors.primary,
+              ),
             ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline, color: AppColors.error),
-              title: Text('Delete Shelf', style: AppTypography.labelLarge.copyWith(color: AppColors.error)),
-              onTap: () {
-                Navigator.pop(context);
-                _showDeleteModal(context, ref);
-              },
-            ),
-          ],
+          ),
         ),
-      ),
+        PopupMenuItem<String>(
+          value: 'delete',
+          height: 51,
+          child: Center(
+            child: Text(
+              'Delete',
+              style: TextStyle(
+                fontFamily: 'Inter',
+                fontSize: 16,
+                color: AppColors.primary,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
+    if (!context.mounted) return;
+    if (selected == 'edit') {
+      _showRenameModal(context, ref, shelfName);
+    } else if (selected == 'delete') {
+      _showDeleteModal(context, ref);
+    }
   }
 
   void _showRenameModal(BuildContext context, WidgetRef ref, String current) {
@@ -52,13 +68,22 @@ class ShelfContentScreen extends ConsumerWidget {
     showAppModal(
       context: context,
       builder: (ctx) => AppModal(
-        title: 'Edit Shelf Name',
-        confirmLabel: 'Save',
+        title: 'Edit shelf name',
+        confirmLabel: 'Confirm',
         body: LabeledTextField(label: 'Shelf Name', hint: current, controller: ctrl),
         onConfirm: () async {
           if (ctrl.text.trim().isEmpty) return;
-          await ref.read(libraryControllerProvider.notifier).updateShelfName(shelfId, ctrl.text.trim());
-          if (ctx.mounted) Navigator.of(ctx).pop();
+          final ok = await ref
+              .read(libraryControllerProvider.notifier)
+              .updateShelfName(shelfId, ctrl.text.trim());
+          if (ok && ctx.mounted) {
+            Navigator.of(ctx).pop();
+          } else if (ctx.mounted) {
+            final err = ref.read(libraryControllerProvider).error;
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(content: Text(err?.toString() ?? 'Could not rename shelf')),
+            );
+          }
         },
       ),
     );
@@ -68,17 +93,22 @@ class ShelfContentScreen extends ConsumerWidget {
     showAppModal(
       context: context,
       builder: (ctx) => AppModal(
-        title: 'Delete Shelf',
-        confirmLabel: 'Delete',
+        title: 'Delete shelf',
+        confirmLabel: 'Confirm',
+        confirmDestructive: true,
         body: Text(
-          'This will permanently delete the shelf. Books inside will not be deleted.',
+          'Are you sure you want to delete this shelf? If you delete this shelf, all PDF links will disappear.',
           style: AppTypography.bodyMedium,
         ),
         onConfirm: () async {
           await ref.read(libraryControllerProvider.notifier).deleteShelf(shelfId);
           if (ctx.mounted) {
             Navigator.of(ctx).pop();
-            context.pop();
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/home');
+            }
           }
         },
       ),
@@ -103,7 +133,8 @@ class ShelfContentScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => context.pop(),
+                    onTap: () =>
+                        context.canPop() ? context.pop() : context.go('/home'),
                     child: Container(
                       width: 40,
                       height: 40,
@@ -120,13 +151,34 @@ class ShelfContentScreen extends ConsumerWidget {
                       style: AppTypography.titleLarge,
                     ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.more_vert, color: AppColors.primary),
-                    onPressed: shelf == null
-                        ? null
-                        : () => _showShelfMenu(context, ref, shelf.name),
+                  Builder(
+                    builder: (btnCtx) => IconButton(
+                      icon: const Icon(Icons.more_vert, color: AppColors.primary),
+                      onPressed: shelf == null
+                          ? null
+                          : () {
+                              final box = btnCtx.findRenderObject() as RenderBox?;
+                              final anchor = box != null
+                                  ? box.localToGlobal(Offset(box.size.width, 0))
+                                  : Offset.zero;
+                              _showShelfMenu(context, ref, shelf.name, anchor);
+                            },
+                    ),
                   ),
                 ],
+              ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+              child: Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'COLLECTION',
+                  style: AppTypography.labelSmall.copyWith(
+                    letterSpacing: 1.1,
+                    color: AppColors.textSecondary,
+                  ),
+                ),
               ),
             ),
             Expanded(
@@ -136,12 +188,12 @@ class ShelfContentScreen extends ConsumerWidget {
                         child: Text('No books in this shelf.', style: AppTypography.bodyMedium),
                       )
                     : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 128),
+                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),
                         itemCount: list.length,
                         itemBuilder: (_, i) => Padding(
                           padding: const EdgeInsets.only(bottom: 24),
                           child: SizedBox(
-                            height: 420,
+                            height: 548,
                             child: PdfCard(
                               book: list[i],
                               onTap: () => context.push('/book/${list[i].id}'),
@@ -157,7 +209,7 @@ class ShelfContentScreen extends ConsumerWidget {
         ),
       ),
       bottomNavigationBar: AppBottomNavBar(
-        active: NavTab.library,
+        
         onTap: (tab) {
           if (tab == NavTab.library) context.go('/home');
           if (tab == NavTab.create) context.push('/book/new');

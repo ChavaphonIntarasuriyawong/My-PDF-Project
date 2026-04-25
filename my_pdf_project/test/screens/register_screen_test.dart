@@ -71,6 +71,7 @@ void main() {
       await tester.enterText(find.byType(TextField).at(0), 'Alice');
       await tester.enterText(find.byType(TextField).at(1), 'alice@test.com');
       await tester.enterText(find.byType(TextField).at(2), 'password123');
+      await tester.enterText(find.byType(TextField).at(3), 'password123');
       await tester.ensureVisible(find.widgetWithText(GradientButton, 'Sign Up'));
       await tester.tap(find.widgetWithText(GradientButton, 'Sign Up'));
       await tester.pumpAndSettle();
@@ -79,8 +80,8 @@ void main() {
 
     testWidgets('password toggle works', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeRepo()));
-      expect(find.byIcon(Icons.visibility_off_outlined), findsOneWidget);
-      await tester.tap(find.byIcon(Icons.visibility_off_outlined));
+      expect(find.byIcon(Icons.visibility_off_outlined), findsWidgets);
+      await tester.tap(find.byIcon(Icons.visibility_off_outlined).first);
       await tester.pump();
       expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
     });

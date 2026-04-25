@@ -15,13 +15,20 @@ class AuthState {
     this.user,
   });
 
-  AuthState copyWith({AuthStatus? status, String? errorMessage, UserModel? user}) {
+  AuthState copyWith({
+    AuthStatus? status,
+    UserModel? user,
+    Object? errorMessage = _sentinel,
+  }) {
     return AuthState(
       status: status ?? this.status,
-      errorMessage: errorMessage,
+      errorMessage:
+          identical(errorMessage, _sentinel) ? this.errorMessage : errorMessage as String?,
       user: user ?? this.user,
     );
   }
+
+  static const _sentinel = Object();
 }
 
 class AuthController extends StateNotifier<AuthState> {

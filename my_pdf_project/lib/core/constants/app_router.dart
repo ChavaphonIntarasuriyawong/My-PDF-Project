@@ -9,6 +9,7 @@ import '../../features/library/presentation/new_book_screen.dart';
 import '../../features/library/presentation/shelf_content_screen.dart';
 import '../../features/profile/presentation/edit_profile_screen.dart';
 import '../../features/profile/presentation/profile_screen.dart';
+import '../../features/reader/presentation/note_edit_screen.dart';
 import '../../features/reader/presentation/note_screen.dart';
 import '../../features/reader/presentation/reading_screen.dart';
 import 'app_routes.dart';
@@ -19,6 +20,10 @@ final routerProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: AppRoutes.login,
     redirect: (context, state) {
+      // Don't redirect while auth is still loading — avoids /login flash
+      // for users with cached Firebase sessions on cold start.
+      if (authState.isLoading) return null;
+
       final isLoggedIn = authState.valueOrNull != null;
       final isAuthRoute = state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.register;
@@ -50,6 +55,13 @@ final routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: AppRoutes.note,
         builder: (ctx, state) => NoteScreen(bookId: state.pathParameters['id']!),
+      ),
+      GoRoute(
+        path: AppRoutes.noteEdit,
+        builder: (ctx, state) => NoteEditScreen(
+          bookId: state.pathParameters['id']!,
+          noteId: state.uri.queryParameters['id'],
+        ),
       ),
       GoRoute(path: AppRoutes.profile, builder: (ctx, state) => const ProfileScreen()),
       GoRoute(path: AppRoutes.editProfile, builder: (ctx, state) => const EditProfileScreen()),

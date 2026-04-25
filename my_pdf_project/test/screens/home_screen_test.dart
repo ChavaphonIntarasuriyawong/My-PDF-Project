@@ -34,6 +34,7 @@ Widget _buildScreen({
   return ProviderScope(
     overrides: [
       authStateProvider.overrideWith((_) => Stream.value(_user)),
+      userProfileProvider.overrideWith((_) => Stream.value(_user)),
       shelvesProvider.overrideWith((_) => Stream.value(shelves)),
       allBooksProvider.overrideWith((_) => Stream.value(books)),
     ],

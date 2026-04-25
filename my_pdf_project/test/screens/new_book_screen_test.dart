@@ -10,7 +10,6 @@ import 'package:my_pdf/features/library/domain/bookshelf_model.dart';
 import 'package:my_pdf/features/library/domain/note_model.dart';
 import 'package:my_pdf/features/library/presentation/library_providers.dart';
 import 'package:my_pdf/features/library/presentation/new_book_screen.dart';
-import 'package:my_pdf/shared/widgets/gradient_button.dart';
 
 const _user = UserModel(uid: 'u1', name: 'Alice', email: 'a@b.com');
 
@@ -34,11 +33,18 @@ class _FakeDataSource implements FirestoreDataSource {
   @override Future<void> updateBook(BookModel b) => throw UnimplementedError();
   @override Future<void> updateReadingProgress({required String bookId, required int currentPage, required int totalPages}) => throw UnimplementedError();
   @override Future<void> updateBookStatus(String b, String s) => throw UnimplementedError();
+  @override Future<void> updateBookTitle(String b, String t) => throw UnimplementedError();
   @override Future<void> moveBook(String b, String s) => throw UnimplementedError();
   @override Future<void> updateUserProfile(String uid, {String? name}) => throw UnimplementedError();
-  @override Future<BookModel> getBook(String b) => throw UnimplementedError();
-  @override Future<NoteModel?> getNoteByBookId(String b) => throw UnimplementedError();
-  @override Future<NoteModel> upsertNote({required String bookId, required String content}) => throw UnimplementedError();
+
+  @override
+  Stream<int> watchUserNotesCount(List<String> bookIds) => Stream.value(0);
+  @override Future<BookModel?> getBook(String b) => throw UnimplementedError();
+  @override Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
+  @override Future<NoteModel> createNote({required String bookId, required String content}) => throw UnimplementedError();
+  @override Future<void> updateNoteContent(String noteId, String content) => throw UnimplementedError();
+  @override Future<void> deleteNote(String noteId) => throw UnimplementedError();
+  @override Stream<List<NoteModel>> watchNotesByBookId(String bookId) => const Stream.empty();
   @override Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
   @override Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();
   @override Stream<List<BookModel>> watchBooksByShelf(String s) => const Stream.empty();
@@ -64,20 +70,19 @@ Widget _buildScreen(_FakeDataSource ds) {
 
 void main() {
   group('NewBookScreen (5.5)', () {
-    testWidgets('shows Add Book title and form fields', (tester) async {
+    testWidgets('shows form fields and create button', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeDataSource()));
       await tester.pump();
-      expect(find.text('Add PDF Link'), findsOneWidget);
-      expect(find.text('PDF LINK'), findsOneWidget);
-      expect(find.text('BOOK TITLE'), findsOneWidget);
-      expect(find.widgetWithText(GradientButton, 'Add to Library'), findsOneWidget);
+      expect(find.text('PUBLIC PDF URL'), findsOneWidget);
+      expect(find.text('PDF FILE'), findsOneWidget);
+      expect(find.text('Create PDF'), findsWidgets);
     });
 
     testWidgets('does not submit with empty fields', (tester) async {
       final ds = _FakeDataSource();
       await tester.pumpWidget(_buildScreen(ds));
       await tester.pump();
-      await tester.tap(find.widgetWithText(GradientButton, 'Add to Library'));
+      await tester.tap(find.text('Create PDF').first);
       await tester.pump();
       expect(ds.createdBook, isNull);
     });
@@ -86,21 +91,20 @@ void main() {
       final ds = _FakeDataSource();
       await tester.pumpWidget(_buildScreen(ds));
       await tester.pump();
-      // field 0 = PDF Link (first), field 1 = Book Title (second)
+      // field 0 = URL input in the link card
       await tester.enterText(find.byType(TextField).at(0), 'https://pdf.url/cosmos.pdf');
-      await tester.enterText(find.byType(TextField).at(1), 'Cosmos');
-      await tester.ensureVisible(find.widgetWithText(GradientButton, 'Add to Library'));
-      await tester.tap(find.widgetWithText(GradientButton, 'Add to Library'));
+      await tester.ensureVisible(find.text('Create PDF').first);
+      await tester.tap(find.text('Create PDF').first);
       await tester.pumpAndSettle();
-      expect(ds.createdBook?.title, 'Cosmos');
+      expect(ds.createdBook, isNotNull);
       expect(find.text('Book Info'), findsOneWidget);
     });
 
     testWidgets('shows shelf dropdown', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeDataSource()));
       await tester.pump();
-      expect(find.text('SHELF'), findsOneWidget);
-      expect(find.text('None (Unshelved)'), findsWidgets);
+      expect(find.text('SHELF'), findsWidgets);
+      expect(find.text('Choose a shelf'), findsWidgets);
     });
   });
 }

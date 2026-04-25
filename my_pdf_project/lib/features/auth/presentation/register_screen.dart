@@ -19,13 +19,16 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
   bool _obscurePassword = true;
+  bool _obscureConfirm = true;
 
   @override
   void dispose() {
     _nameCtrl.dispose();
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
     super.dispose();
   }
 
@@ -33,7 +36,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     final name = _nameCtrl.text.trim();
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
-    if (name.isEmpty || email.isEmpty || password.isEmpty) return;
+    final confirm = _confirmCtrl.text;
+    if (name.isEmpty || email.isEmpty || password.isEmpty || confirm.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+    if (password != confirm) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Passwords do not match')),
+      );
+      return;
+    }
 
     final success = await ref.read(authControllerProvider.notifier).register(
       name: name,
@@ -68,7 +83,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               child: Row(
                 children: [
                   IconButton(
-                    onPressed: () => context.pop(),
+                    onPressed: () => context.canPop()
+                        ? context.pop()
+                        : context.go(AppRoutes.login),
                     icon: const Icon(Icons.arrow_back, color: AppColors.primary),
                   ),
                   const SizedBox(width: 8),
@@ -158,6 +175,24 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                   setState(() => _obscurePassword = !_obscurePassword),
                             ),
                           ),
+                          const SizedBox(height: 20),
+                          LabeledTextField(
+                            label: 'Confirm Password',
+                            hint: '••••••••',
+                            controller: _confirmCtrl,
+                            obscureText: _obscureConfirm,
+                            suffix: IconButton(
+                              icon: Icon(
+                                _obscureConfirm
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                                color: AppColors.textMuted,
+                                size: 20,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _obscureConfirm = !_obscureConfirm),
+                            ),
+                          ),
                           const SizedBox(height: 24),
                           GradientButton(
                             label: 'Sign Up',
@@ -170,7 +205,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     ),
                     const SizedBox(height: 40),
                     GestureDetector(
-                      onTap: () => context.pop(),
+                      onTap: () => context.canPop()
+                          ? context.pop()
+                          : context.go(AppRoutes.login),
                       child: RichText(
                         text: TextSpan(
                           text: 'Already have an account? ',

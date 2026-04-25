@@ -7,6 +7,7 @@ class AppModal extends StatefulWidget {
   final String title;
   final Widget body;
   final String confirmLabel;
+  final bool confirmDestructive;
   final Future<void> Function() onConfirm;
 
   const AppModal({
@@ -14,6 +15,7 @@ class AppModal extends StatefulWidget {
     required this.title,
     required this.body,
     this.confirmLabel = 'Confirm',
+    this.confirmDestructive = false,
     required this.onConfirm,
   });
 
@@ -61,26 +63,79 @@ class _AppModalState extends State<AppModal> {
                 ),
                 const SizedBox(width: 16),
                 Expanded(
-                  child: GradientButton(
-                    label: widget.confirmLabel,
-                    loading: _loading,
-                    onPressed: _loading
-                        ? null
-                        : () async {
-                            setState(() => _loading = true);
-                            try {
-                              await widget.onConfirm();
-                            } finally {
-                              if (mounted) setState(() => _loading = false);
-                            }
-                          },
-                    borderRadius: 12,
-                  ),
+                  child: widget.confirmDestructive
+                      ? _DestructiveButton(
+                          label: widget.confirmLabel,
+                          loading: _loading,
+                          onPressed: _loading
+                              ? null
+                              : () async {
+                                  setState(() => _loading = true);
+                                  try {
+                                    await widget.onConfirm();
+                                  } finally {
+                                    if (mounted) setState(() => _loading = false);
+                                  }
+                                },
+                        )
+                      : GradientButton(
+                          label: widget.confirmLabel,
+                          loading: _loading,
+                          onPressed: _loading
+                              ? null
+                              : () async {
+                                  setState(() => _loading = true);
+                                  try {
+                                    await widget.onConfirm();
+                                  } finally {
+                                    if (mounted) setState(() => _loading = false);
+                                  }
+                                },
+                          borderRadius: 12,
+                        ),
                 ),
               ],
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DestructiveButton extends StatelessWidget {
+  final String label;
+  final bool loading;
+  final VoidCallback? onPressed;
+
+  const _DestructiveButton({
+    required this.label,
+    required this.loading,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 48,
+      child: ElevatedButton(
+        onPressed: onPressed,
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.error,
+          foregroundColor: Colors.white,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          elevation: 0,
+        ),
+        child: loading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2),
+              )
+            : Text(
+                label,
+                style: AppTypography.labelButton,
+              ),
       ),
     );
   }

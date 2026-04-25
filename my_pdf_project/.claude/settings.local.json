@@ -13,7 +13,10 @@
       "Bash(flutter run *)",
       "Bash(echo \"LAUNCHED PID: $!\")",
       "WebSearch",
-      "Bash(flutter test *)"
+      "Bash(flutter test *)",
+      "Bash(python *)",
+      "Bash(find *)",
+      "Bash(grep -v \"//.*Icons\\\\.\")"
     ]
   },
   "enabledPlugins": {}

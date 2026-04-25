@@ -10,7 +10,7 @@
 | Field | Value |
 |---|---|
 | **App Name** | MyPDF |
-| **Type** | Flutter + Firebase mobile app |
+| **Type** | Flutter + Firebase + Supabase mobile app |
 | **Platform** | Android (primary) |
 | **Purpose** | PDF reading progress tracker — users save PDF links, organize into bookshelves, track reading progress manually, and write notes |
 
@@ -21,36 +21,22 @@
 Before writing any code, use the **Figma MCP tool** to extract the design:
 
 ```
-File URL : https://www.figma.com/design/TOKgyB73dnzi2TAUXAI7bi/Untitled?node-id=0-1&m=dev&t=fovuyN9wdcz9eZYY-1
+File URL : https://www.figma.com/design/TOKgyB73dnzi2TAUXAI7bi/Untitled?node-id=0-1&m=dev&t=f9VdgzTHPmdXtUOT-1
 ```
 
 ### Screen Node IDs (fetch each one with get_design_context)
 
 | Screen | Node ID |
 |---|---|
-| Login | `6:1503` |
-| Register | `6:1533` |
-| Library Dashboard (Home) | `6:1715` |
-| Shelf Content | `6:2268` |
-| Add PDF Link | `6:1582` |
-| PDF Reader (Read-Only + Progress) | `6:1944` |
-| PDF Reader + Notes View | `6:1971` |
-| Create/Edit Note | `6:2050` |
-| Profile | `6:2503` |
-| Edit Personal Info | `6:2574` |
-| Side Menu | `6:2371` |
-
-### Modals
-
-| Modal | Node ID |
-|---|---|
-| Creating New Shelf | `6:1859` |
-| Edit Shelf Name | `6:1882` |
-| Delete Shelf | `6:1903` |
-| Edit PDF Link Name | `6:1444` |
-| Move PDF Link | `6:1465` |
-| Choosing Status | `6:1484` |
-| Delete PDF Link | `6:1917` |
+| Login | `17:126` |
+| Register | `17:156` |
+| Library Dashboard (Home) | `17:412` |
+| Shelf Content | `17:823` |
+| Add PDF Link | `17:211` |
+| PDF Reader (Read-Only + Progress) | `17:636` |
+| Profile | `17:1190` |
+| Edit Personal Info | `17:1261` |
+| Side Menu | `17:926` |
 
 Extract and save as `design_tokens.md`:
 1. Color palette — exact hex values
@@ -69,12 +55,17 @@ Extract and save as `design_tokens.md`:
 | Framework | Flutter (latest stable) |
 | State Management | Riverpod 2.x with `@riverpod` code generation |
 | Navigation | GoRouter with auth guard |
-| Backend | Firebase Auth + Firestore + Firebase Storage |
+| Auth | Firebase Auth |
+| Database | Firestore |
+| PDF File Storage | Supabase Storage (`pdfs` bucket) |
 | Local Cache | Hive (offline-first support) |
 | PDF Viewer | `flutter_pdfview` — mobile only, renders PDF from URL/file |
 | PDF Text Extraction | `flutter_pdf_text` — extract text content from PDF |
 | Text-to-Speech | `flutter_tts` — read PDF text aloud |
 | Crash Reporting | Firebase Crashlytics |
+
+> **Firebase Storage is NOT used.** All PDF file uploads go to Supabase Storage.
+> **No avatar feature.** Profile has no photo/avatar.
 
 ---
 
@@ -95,7 +86,7 @@ lib/
 │   ├── library/
 │   │   ├── data/
 │   │   ├── domain/
-│   │   └── presentation/ ← HomeScreen, BookshelfContentScreen, NewBookScreen, BookInfoScreen
+│   │   └── presentation/ ← HomeScreen, ShelfContentScreen, NewBookScreen, BookInfoScreen
 │   ├── reader/
 │   │   ├── data/
 │   │   ├── domain/
@@ -111,12 +102,13 @@ lib/
 ### ⚠️ Domain Layer Rules
 - **ZERO** `import 'package:flutter/...'` in `domain/`
 - **ZERO** `import 'package:firebase_...'` in `domain/`
+- **ZERO** `import 'package:supabase_...'` in `domain/`
 - Domain uses only: `Either`, `Failure`, plain Dart models
-- All Firebase logic lives in `data/` layer only
+- All Firebase/Supabase logic lives in `data/` layer only
 
 ---
 
-## 📋 Screens (10 total)
+## 📋 Screens (9 total)
 
 | Screen | Route | Feature |
 |---|---|---|
@@ -124,12 +116,12 @@ lib/
 | Register | `/register` | Create new account |
 | Home | `/home` | List all bookshelves + books |
 | Bookshelf Content | `/shelf/:id` | View books inside a shelf |
-| New Book | `/book/new` | Add book with link + metadata |
+| New Book | `/book/new` | Add book with link or upload PDF |
 | Book Info | `/book/:id` | View book detail + progress |
-| Reading | `/book/:id/reading` | Update current page manually |
+| Reading | `/book/:id/reading` | PDF viewer + progress tracking |
 | Note | `/book/:id/note` | View/edit note for this book |
-| Profile | `/profile` | View user info |
-| Edit Profile | `/profile/edit` | Update name, avatar |
+| Profile | `/profile` | View user info + stats |
+| Edit Profile | `/profile/edit` | Update name only (no avatar) |
 
 ---
 
@@ -141,7 +133,6 @@ lib/
 users/{uid}
   - name: string
   - email: string
-  - avatarUrl: string
 
 bookshelves/{shelfId}
   - name: string
@@ -150,8 +141,7 @@ bookshelves/{shelfId}
 
 books/{bookId}
   - title: string
-  - link: string          ← URL to PDF (user pastes link)
-  - coverUrl: string
+  - link: string          ← URL to PDF (user pastes link OR Supabase public URL)
   - totalPages: int
   - currentPage: int
   - progress: double      ← currentPage / totalPages * 100
@@ -166,9 +156,21 @@ notes/{noteId}
   - updatedAt: timestamp
 ```
 
+## ☁️ Supabase Storage — PDF Files
+
+```
+Bucket : pdfs   (public)
+Path   : {uid}/{timestamp}.pdf
+```
+
+- Upload: `supabase.storage.from('pdfs').uploadBinary(path, bytes)`
+- Public URL: `supabase.storage.from('pdfs').getPublicUrl(path)`
+- Auth rule: users can only upload/delete under their own `{uid}/` prefix
+
 ### Key Backend Logic
 
 - **CRUD** Account, Book, Bookshelf, Note
+- **PDF Upload**: file bytes → Supabase Storage → public URL → stored as `link` in Firestore
 - **Reading Progress**: user inputs `currentPage` → app calculates `progress = currentPage / totalPages * 100`
 - **Auto-save last page**: save `currentPage` + `lastReadAt` on every update
 - **Auto-jump**: when opening a book, navigate to `lastReadAt` page automatically
@@ -182,14 +184,15 @@ Follow this order exactly — do not skip ahead:
 ```
 1. Read Figma → save design_tokens.md
 2. Set up Flutter project structure + theme (AppColors, AppTypography from Figma)
-3. Firebase setup (Auth, Firestore, Crashlytics)
+3. Firebase setup (Auth, Firestore, Crashlytics) + Supabase setup (Storage)
 4. Auth flow: Login + Register screens → Firebase Auth
 5. Home + Bookshelf screens → Firestore CRUD (Bookshelf, Book)
-6. New Book + Book Info screens → Add/view book + progress display
-7. Reading screen → manual page input + progress calculation
-8. Note screen → create/edit note per book
-9. Profile + Edit Profile screens
-10. Polish: loading states, error handling, empty states
+6. New Book screen → URL link OR file upload (Supabase) → save to Firestore
+7. Book Info screen → view book + progress display
+8. Reading screen → PDF viewer + progress calculation
+9. Note screen → create/edit note per book
+10. Profile + Edit Profile screens
+11. Polish: loading states, error handling, empty states
 ```
 
 ---
@@ -198,7 +201,7 @@ Follow this order exactly — do not skip ahead:
 
 - [ ] Matches Figma design (colors, fonts, spacing)
 - [ ] Riverpod state management wired
-- [ ] Firebase operations working
+- [ ] Firebase/Supabase operations working
 - [ ] Error states handled (show snackbar/modal)
 - [ ] Loading states shown (shimmer or CircularProgressIndicator)
 - [ ] GoRouter navigation correct
@@ -208,7 +211,9 @@ Follow this order exactly — do not skip ahead:
 ## 🚫 Common Mistakes — Avoid These
 
 - Do NOT use `setState` — use Riverpod only
-- Do NOT put Firebase calls directly in widgets — go through repository
+- Do NOT put Firebase/Supabase calls directly in widgets — go through repository
 - Do NOT hardcode colors/fonts — use `AppColors` and `AppTypography`
 - Do NOT start coding before reading Figma design tokens
 - Do NOT use `Navigator.push` — use GoRouter only
+- Do NOT use Firebase Storage — PDFs go to Supabase Storage only
+- Do NOT add avatar/photo features — profile has name + email only
