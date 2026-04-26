@@ -8,6 +8,7 @@ import '../../../shared/widgets/app_modal.dart';
 import '../../library/domain/note_model.dart';
 import '../../library/presentation/library_controller.dart';
 import '../../library/presentation/library_providers.dart';
+import 'note_edit_screen.dart';
 
 const int kNotePreviewMaxChars = 140;
 
@@ -20,6 +21,7 @@ class NoteScreen extends ConsumerWidget {
       context: context,
       builder: (ctx) => AppModal(
         title: 'Delete Notes',
+        titleIcon: Icons.error,
         confirmLabel: 'Delete',
         confirmDestructive: true,
         body: Text(
@@ -36,9 +38,7 @@ class NoteScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final bookAsync = ref.watch(bookByIdProvider(bookId));
     final notesAsync = ref.watch(notesByBookProvider(bookId));
-    final book = bookAsync.valueOrNull;
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -49,94 +49,123 @@ class NoteScreen extends ConsumerWidget {
           if (tab == NavTab.profile) context.push('/profile');
         },
       ),
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () =>
-            context.push('/book/$bookId/note/edit'),
-        backgroundColor: AppColors.primary,
-        icon: const Icon(Icons.add_comment_outlined, color: Colors.white, size: 18),
-        label: Text(
-          'Add Note',
-          style: AppTypography.bodyMedium.copyWith(
-            color: Colors.white,
-            fontWeight: FontWeight.w700,
-          ),
-        ),
-      ),
-      body: Column(
+      body: SafeArea(
+        bottom: false,
+        child: Column(
         children: [
-          Container(
-            color: AppColors.surface,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      onTap: () => context.canPop()
-                          ? context.pop()
-                          : context.go('/book/$bookId'),
-                      child: const Icon(Icons.arrow_back,
-                          color: AppColors.primary, size: 20),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        book?.title ?? 'Notes',
-                        style: AppTypography.titleLarge,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
           Expanded(
             child: notesAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
               error: (e, _) => Center(
                   child: Text('Error: $e', style: AppTypography.bodyMedium)),
               data: (notes) {
-                if (notes.isEmpty) {
-                  return Center(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 48),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.edit_note,
-                              size: 48, color: AppColors.textMuted),
-                          const SizedBox(height: 12),
-                          Text(
-                            'No notes yet. Tap "Add Note" to start.',
-                            textAlign: TextAlign.center,
-                            style: AppTypography.bodyMedium
-                                .copyWith(color: AppColors.textSecondary),
-                          ),
-                        ],
+                final header = Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Annotated Insights (${notes.length})',
+                        style: AppTypography.titleLarge
+                            .copyWith(color: AppColors.primary),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () =>
+                              showNoteEditSheet(context, bookId: bookId),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.add_comment_outlined,
+                                    color: Colors.white, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Add Note',
+                                  style: AppTypography.bodyMedium.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+                if (notes.isEmpty) {
+                  return Column(
+                    children: [
+                      header,
+                      Expanded(
+                        child: Center(
+                          child: Padding(
+                            padding:
+                                const EdgeInsets.symmetric(horizontal: 48),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.edit_note,
+                                    size: 48, color: AppColors.textMuted),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'No notes yet. Tap "Add Note" to start.',
+                                  textAlign: TextAlign.center,
+                                  style: AppTypography.bodyMedium.copyWith(
+                                      color: AppColors.textSecondary),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   );
                 }
-                return ListView.separated(
-                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 96),
-                  itemCount: notes.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 12),
-                  itemBuilder: (ctx, i) {
-                    final note = notes[i];
-                    return _NoteCard(
-                      note: note,
-                      onTap: () => context.push(
-                          '/book/$bookId/note/edit?id=${note.id}'),
-                      onDelete: () => _confirmDelete(context, ref, note),
-                    );
-                  },
+                return Column(
+                  children: [
+                    header,
+                    Expanded(
+                      child: ListView.separated(
+                        padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
+                        itemCount: notes.length,
+                        separatorBuilder: (_, _) => const SizedBox(height: 12),
+                        itemBuilder: (ctx, i) {
+                          final note = notes[i];
+                          return _NoteCard(
+                            note: note,
+                            onTap: () => showNoteEditSheet(context,
+                                bookId: bookId, noteId: note.id),
+                            onDelete: () =>
+                                _confirmDelete(context, ref, note),
+                          );
+                        },
+                      ),
+                    ),
+                  ],
                 );
               },
             ),
           ),
         ],
+      ),
       ),
     );
   }
@@ -165,6 +194,7 @@ class _NoteCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final title = note.title.trim().isEmpty ? 'Untitled' : note.title.trim();
     final preview = note.content.trim().isEmpty
         ? '(empty note)'
         : note.content.trim();
@@ -173,35 +203,38 @@ class _NoteCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onDelete,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 14, 8, 14),
-          child: Row(
+          padding: const EdgeInsets.all(16),
+          child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      preview,
-                      style: AppTypography.bodyMedium,
-                      maxLines: 3,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: AppTypography.titleMedium,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      _formatDate(note.updatedAt),
-                      style: AppTypography.bodySmall
-                          .copyWith(color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _formatDate(note.updatedAt),
+                    style: AppTypography.bodySmall
+                        .copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
               ),
-              IconButton(
-                icon: const Icon(Icons.delete_outline,
-                    size: 20, color: AppColors.error),
-                onPressed: onDelete,
+              const SizedBox(height: 8),
+              Text(
+                preview,
+                style: AppTypography.bodyMedium,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
               ),
             ],
           ),

@@ -91,8 +91,22 @@ class PdfCard extends ConsumerWidget {
                 overflow: TextOverflow.ellipsis,
               ),
             ),
+            if (book.author != null || book.year != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                child: Text(
+                  [
+                    if (book.author != null) book.author,
+                    if (book.year != null) '${book.year}',
+                  ].join(' • '),
+                  style: AppTypography.bodySmall
+                      .copyWith(color: AppColors.textSecondary),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
               child: Row(
                 children: [
                   const Spacer(),

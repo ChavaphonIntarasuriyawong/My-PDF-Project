@@ -7,6 +7,7 @@ class GradientButton extends StatelessWidget {
   final VoidCallback? onPressed;
   final bool loading;
   final double borderRadius;
+  final IconData? icon;
 
   const GradientButton({
     super.key,
@@ -14,6 +15,7 @@ class GradientButton extends StatelessWidget {
     this.onPressed,
     this.loading = false,
     this.borderRadius = 12,
+    this.icon,
   });
 
   @override
@@ -55,7 +57,16 @@ class GradientButton extends StatelessWidget {
                   height: 22,
                   child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
                 )
-              : Text(label, style: AppTypography.labelButton),
+              : (icon != null
+                  ? Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(icon, color: Colors.white, size: 18),
+                        const SizedBox(width: 8),
+                        Text(label, style: AppTypography.labelButton),
+                      ],
+                    )
+                  : Text(label, style: AppTypography.labelButton)),
         ),
       ),
     );

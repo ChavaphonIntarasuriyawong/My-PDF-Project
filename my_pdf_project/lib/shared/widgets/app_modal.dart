@@ -44,12 +44,23 @@ class _AppModalState extends State<AppModal> {
                 if (widget.titleIcon != null)
                   Row(
                     children: [
-                      Icon(widget.titleIcon,
-                          size: 22, color: AppColors.primary),
+                      Icon(
+                        widget.titleIcon,
+                        size: 22,
+                        color: widget.confirmDestructive
+                            ? AppColors.error
+                            : AppColors.primary,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
-                        child: Text(widget.title,
-                            style: AppTypography.headlineMedium),
+                        child: Text(
+                          widget.title,
+                          style: AppTypography.headlineMedium.copyWith(
+                            color: widget.confirmDestructive
+                                ? AppColors.error
+                                : null,
+                          ),
+                        ),
                       ),
                     ],
                   )

@@ -81,6 +81,8 @@ class FirestoreDataSource {
       status: book.status,
       shelfId: book.shelfId,
       ownerId: book.ownerId,
+      author: book.author,
+      year: book.year,
     );
     await doc.set(newBook.toMap());
     return newBook;
@@ -162,15 +164,26 @@ class FirestoreDataSource {
     return NoteModel.fromMap(doc.id, doc.data()!);
   }
 
-  Future<NoteModel> createNote({required String bookId, required String content}) async {
+  Future<NoteModel> createNote({
+    required String bookId,
+    required String title,
+    required String content,
+  }) async {
     final doc = _db.collection('notes').doc();
-    final note = NoteModel(id: doc.id, bookId: bookId, content: content, updatedAt: DateTime.now());
+    final note = NoteModel(
+      id: doc.id,
+      bookId: bookId,
+      title: title,
+      content: content,
+      updatedAt: DateTime.now(),
+    );
     await doc.set(note.toMap());
     return note;
   }
 
-  Future<void> updateNoteContent(String noteId, String content) {
+  Future<void> updateNote(String noteId, {required String title, required String content}) {
     return _db.collection('notes').doc(noteId).update({
+      'title': title,
       'content': content,
       'updatedAt': DateTime.now().toIso8601String(),
     });

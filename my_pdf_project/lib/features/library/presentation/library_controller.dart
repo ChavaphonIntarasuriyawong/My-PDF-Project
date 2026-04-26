@@ -142,17 +142,24 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     }
   }
 
-  Future<NoteModel?> createNote({required String bookId, required String content}) async {
+  Future<NoteModel?> createNote({
+    required String bookId,
+    required String title,
+    required String content,
+  }) async {
     try {
-      return await _ref.read(firestoreDataSourceProvider).createNote(bookId: bookId, content: content);
+      return await _ref
+          .read(firestoreDataSourceProvider)
+          .createNote(bookId: bookId, title: title, content: content);
     } catch (_) {
       return null;
     }
   }
 
-  Future<bool> updateNoteContent(String noteId, String content) async {
+  Future<bool> updateNote(String noteId, {required String title, required String content}) async {
     try {
-      await _ref.read(firestoreDataSourceProvider).updateNoteContent(noteId, content);
+      await _ref.read(firestoreDataSourceProvider)
+          .updateNote(noteId, title: title, content: content);
       return true;
     } catch (_) {
       return false;

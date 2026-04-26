@@ -8,7 +8,7 @@ import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/app_modal.dart';
 import '../../../shared/widgets/labeled_text_field.dart';
 import '../../../shared/widgets/status_badge.dart';
-import '../../reader/presentation/note_screen.dart' show kNotePreviewMaxChars;
+import '../../reader/presentation/note_edit_screen.dart';
 import '../domain/book_model.dart';
 import '../domain/bookshelf_model.dart';
 import '../domain/note_model.dart';
@@ -381,37 +381,7 @@ class BookInfoScreen extends ConsumerWidget {
                       .copyWith(color: AppColors.textSecondary),
                 ),
                 const SizedBox(height: 32),
-                // ── Notes section ─────────────────────────────────────
-                Row(
-                  children: [
-                    Text('Notes', style: AppTypography.titleMedium),
-                    const Spacer(),
-                    GestureDetector(
-                      onTap: () => context.push('/book/${book.id}/note/edit'),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.add_comment_outlined, color: Colors.white, size: 14),
-                            const SizedBox(width: 4),
-                            Text('Add Note',
-                                style: AppTypography.bodySmall.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w700,
-                                )),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
+                // ── Annotated Insights section ─────────────────────────
                 notesAsync.when(
                   loading: () => const Padding(
                     padding: EdgeInsets.all(24),
@@ -419,8 +389,55 @@ class BookInfoScreen extends ConsumerWidget {
                   ),
                   error: (e, _) => Text('Error: $e',
                       style: AppTypography.bodySmall),
-                  data: (notes) => notes.isEmpty
-                      ? Container(
+                  data: (notes) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        'Annotated Insights (${notes.length})',
+                        style: AppTypography.titleLarge
+                            .copyWith(color: AppColors.primary),
+                      ),
+                      const SizedBox(height: 12),
+                      Align(
+                        alignment: Alignment.centerRight,
+                        child: GestureDetector(
+                          onTap: () => showNoteEditSheet(context,
+                              bookId: book.id),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary,
+                              borderRadius: BorderRadius.circular(8),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.1),
+                                  blurRadius: 12,
+                                  offset: const Offset(0, 6),
+                                ),
+                              ],
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(Icons.add_comment_outlined,
+                                    color: Colors.white, size: 18),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Add Note',
+                                  style: AppTypography.bodyMedium.copyWith(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (notes.isEmpty)
+                        Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
                             color: AppColors.surface,
@@ -433,48 +450,17 @@ class BookInfoScreen extends ConsumerWidget {
                                 .copyWith(color: AppColors.textSecondary),
                           ),
                         )
-                      : Column(
-                          children: [
-                            ...notes.take(3).map((n) => Padding(
-                                  padding: const EdgeInsets.only(bottom: 8),
-                                  child: _NotePreview(
-                                    note: n,
-                                    onTap: () => context.push(
-                                        '/book/${book.id}/note/edit?id=${n.id}'),
-                                  ),
-                                )),
-                            if (notes.length > 3)
-                              GestureDetector(
-                                onTap: () =>
-                                    context.push('/book/${book.id}/note'),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                  child: Text(
-                                    'See all ${notes.length} notes →',
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                              )
-                            else
-                              GestureDetector(
-                                onTap: () =>
-                                    context.push('/book/${book.id}/note'),
-                                child: Padding(
-                                  padding: const EdgeInsets.symmetric(vertical: 8),
-                                  child: Text(
-                                    'See more info →',
-                                    style: AppTypography.bodyMedium.copyWith(
-                                      color: AppColors.primary,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
+                      else
+                        ...notes.map((n) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _NotePreview(
+                                note: n,
+                                onTap: () => showNoteEditSheet(context,
+                                    bookId: book.id, noteId: n.id),
                               ),
-                          ],
-                        ),
+                            )),
+                    ],
+                  ),
                 ),
               ],
             ),
@@ -490,13 +476,21 @@ class _NotePreview extends StatelessWidget {
   final VoidCallback onTap;
   const _NotePreview({required this.note, required this.onTap});
 
+  String _formatDate(DateTime d) {
+    final diff = DateTime.now().difference(d);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${d.day}/${d.month}/${d.year}';
+  }
+
   @override
   Widget build(BuildContext context) {
+    final title = note.title.trim().isEmpty ? 'Untitled' : note.title.trim();
     final preview = note.content.trim().isEmpty
         ? '(empty note)'
-        : note.content.trim().length > kNotePreviewMaxChars
-            ? '${note.content.trim().substring(0, kNotePreviewMaxChars)}…'
-            : note.content.trim();
+        : note.content.trim();
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(12),
@@ -504,12 +498,37 @@ class _NotePreview extends StatelessWidget {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Text(
-            preview,
-            style: AppTypography.bodyMedium,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: AppTypography.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(
+                    _formatDate(note.updatedAt),
+                    style: AppTypography.bodySmall
+                        .copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                preview,
+                style: AppTypography.bodyMedium,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
         ),
       ),
