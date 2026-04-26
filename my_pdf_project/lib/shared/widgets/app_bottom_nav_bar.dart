@@ -1,31 +1,20 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
-import 'package:go_router/go_router.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_typography.dart';
 
 enum NavTab { library, create, profile }
 
-/// Derive the active tab from the current GoRouter location so the
-/// highlighted item always matches the visible page (no per-screen wiring).
-NavTab _navTabForLocation(String location) {
-  if (location.startsWith('/profile')) return NavTab.profile;
-  if (location.startsWith('/book/new')) return NavTab.create;
-  return NavTab.library;
-}
-
 class AppBottomNavBar extends StatelessWidget {
-  /// Optional override. Falls back to deriving from GoRouter location.
-  final NavTab? active;
   final ValueChanged<NavTab> onTap;
 
-  const AppBottomNavBar({super.key, this.active, required this.onTap});
+  const AppBottomNavBar({super.key, required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final location = GoRouterState.of(context).matchedLocation;
-    final resolvedActive = active ?? _navTabForLocation(location);
+    // Per Figma 17:535 — Create tab is always the highlighted pill, regardless of route.
+    const resolvedActive = NavTab.create;
     return ClipRect(
       child: BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
@@ -66,8 +55,8 @@ class _NavItem extends StatelessWidget {
 
   static const _meta = {
     NavTab.library: (icon: FontAwesomeIcons.bookOpenReader, label: 'Library'),
-    NavTab.create:  (icon: Icons.add,                       label: 'Create'),
-    NavTab.profile: (icon: Icons.person_outline,            label: 'Profile'),
+    NavTab.create:  (icon: Icons.add,                   label: 'Create'),
+    NavTab.profile: (icon: Icons.person_outline,        label: 'Profile'),
   };
 
   const _NavItem({required this.tab, required this.active, required this.onTap});

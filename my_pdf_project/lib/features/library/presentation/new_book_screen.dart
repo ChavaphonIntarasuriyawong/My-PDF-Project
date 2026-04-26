@@ -1,12 +1,14 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
+import '../../../shared/widgets/app_drawer.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../domain/book_model.dart';
 import '../domain/bookshelf_model.dart';
@@ -21,6 +23,7 @@ class NewBookScreen extends ConsumerStatefulWidget {
 }
 
 class _NewBookScreenState extends ConsumerState<NewBookScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _urlCtrl = TextEditingController();
   String? _urlShelfId;
   bool _loadingUrl = false;
@@ -125,6 +128,25 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     return supabase.storage.from('pdfs').getPublicUrl(path);
   }
 
+  Future<void> _validatePdfUrl(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !uri.hasScheme || !(uri.scheme == 'http' || uri.scheme == 'https')) {
+      throw Exception('Invalid URL scheme.');
+    }
+    final resp = await http
+        .head(uri)
+        .timeout(const Duration(seconds: 10),
+            onTimeout: () => throw Exception('Link unreachable.'));
+    if (resp.statusCode < 200 || resp.statusCode >= 400) {
+      throw Exception('Link returned ${resp.statusCode}.');
+    }
+    final ct = (resp.headers['content-type'] ?? '').toLowerCase();
+    final pathLooksPdf = uri.path.toLowerCase().endsWith('.pdf');
+    if (!ct.contains('pdf') && !pathLooksPdf) {
+      throw Exception('Link is not a PDF.');
+    }
+  }
+
   Future<void> _createFromUrl() async {
     final url = _urlCtrl.text.trim();
     if (url.isEmpty) {
@@ -137,6 +159,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     });
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
+      await _validatePdfUrl(url);
       final book = BookModel(
         id: '',
         title: _titleFromSource(url),
@@ -160,14 +183,12 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         final err = ref.read(libraryControllerProvider).error;
         if (err != null) _showError(err.toString());
       }
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
         _loadingUrl = false;
         _urlImportError = true;
       });
-      final msg = e.toString().replaceAll('Exception: ', '');
-      _showError('Failed: $msg');
     }
   }
 
@@ -221,7 +242,12 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.background,
+      drawer: AppDrawer(
+        active: NavSection.create,
+        onClose: () => _scaffoldKey.currentState?.closeDrawer(),
+      ),
       bottomNavigationBar: AppBottomNavBar(
         
         onTap: (tab) {
@@ -242,12 +268,11 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                 child: Row(
                   children: [
                     GestureDetector(
-                      onTap: () => context.canPop()
-                          ? context.pop()
-                          : context.go('/home'),
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _scaffoldKey.currentState?.openDrawer(),
                       child: Container(
                         padding: const EdgeInsets.all(8),
-                        child: const Icon(Icons.arrow_back,
+                        child: const Icon(Icons.menu,
                             color: AppColors.primary, size: 20),
                       ),
                     ),
@@ -270,7 +295,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                 'KNOWLEDGE ACQUISITION',
                 style: AppTypography.labelSmall.copyWith(
                   color: const Color(0xFF4A626B),
-                  fontSize: 16,
+                  fontSize: 18,
                   letterSpacing: 0.8,
                   fontWeight: FontWeight.w500,
                 ),
@@ -281,7 +306,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                 style: TextStyle(
                   fontFamily: 'Manrope',
                   fontWeight: FontWeight.w800,
-                  fontSize: 42,
+                  fontSize: 46,
                   letterSpacing: -1.2,
                   height: 1.25,
                   color: AppColors.primary,
@@ -291,7 +316,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
               Text(
                 'Transform raw data into meaningful intelligence. Connect your documents directly to your library.',
                 style:
-                    AppTypography.bodyLarge.copyWith(fontSize: 16, height: 1.625),
+                    AppTypography.bodyLarge.copyWith(fontSize: 20, height: 1.6),
               ),
               const SizedBox(height: 32),
 
@@ -321,14 +346,14 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                               keyboardType: TextInputType.url,
                               style: const TextStyle(
                                 fontFamily: 'Inter',
-                                fontSize: 16,
+                                fontSize: 18,
                                 color: AppColors.textPrimary,
                               ),
                               decoration: InputDecoration(
                                 hintText: 'https://example.com/document.pdf',
                                 hintStyle: TextStyle(
                                   fontFamily: 'Inter',
-                                  fontSize: 16,
+                                  fontSize: 18,
                                   color: AppColors.textMuted
                                       .withValues(alpha: 0.5),
                                 ),
@@ -373,6 +398,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                                 style: AppTypography.bodySmall.copyWith(
                                   color: AppColors.error,
                                   fontWeight: FontWeight.w600,
+                                  fontSize: 14,
                                 ),
                               ),
                             ),
@@ -411,7 +437,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                                 _pickedFile?.name ?? 'example.pdf',
                                 style: TextStyle(
                                   fontFamily: 'Inter',
-                                  fontSize: 16,
+                                  fontSize: 18,
                                   color: _pickedFile != null
                                       ? AppColors.textPrimary
                                       : AppColors.textMuted
@@ -452,7 +478,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                               style: TextStyle(
                                 fontFamily: 'Manrope',
                                 fontWeight: FontWeight.w700,
-                                fontSize: 16,
+                                fontSize: 18,
                                 color: Colors.white,
                               ),
                             ),
@@ -534,7 +560,7 @@ class _ImportCard extends StatelessWidget {
                 style: const TextStyle(
                   fontFamily: 'Manrope',
                   fontWeight: FontWeight.w700,
-                  fontSize: 18,
+                  fontSize: 22,
                   color: AppColors.textPrimary,
                 ),
               ),
@@ -577,7 +603,7 @@ class _ImportCard extends StatelessWidget {
                             style: const TextStyle(
                               fontFamily: 'Manrope',
                               fontWeight: FontWeight.w700,
-                              fontSize: 16,
+                              fontSize: 18,
                               color: Colors.white,
                             ),
                           ),
@@ -608,7 +634,7 @@ class _FieldLabel extends StatelessWidget {
       style: const TextStyle(
         fontFamily: 'Inter',
         fontWeight: FontWeight.w500,
-        fontSize: 11,
+        fontSize: 14,
         letterSpacing: 0.55,
         color: AppColors.textMuted,
       ),
@@ -629,7 +655,7 @@ class _FieldHelper extends StatelessWidget {
         style: TextStyle(
           fontFamily: 'Inter',
           fontWeight: FontWeight.w400,
-          fontSize: 12,
+          fontSize: 14,
           height: 1.5,
           color: AppColors.textSecondary.withValues(alpha: 0.7),
         ),
@@ -684,26 +710,48 @@ class _ShelfDropdown extends StatelessWidget {
               isExpanded: true,
               style: const TextStyle(
                 fontFamily: 'Inter',
-                fontSize: 16,
+                fontWeight: FontWeight.w400,
+                fontSize: 18,
+                height: 1.5,
                 color: AppColors.textPrimary,
               ),
               dropdownColor: AppColors.surface,
-              hint: Text(
-                'Choose a shelf',
+              hint: const Text(
+                'All',
                 style: TextStyle(
                   fontFamily: 'Inter',
-                  fontSize: 16,
-                  color: AppColors.textMuted.withValues(alpha: 0.5),
+                  fontWeight: FontWeight.w400,
+                  fontSize: 18,
+                  height: 1.5,
+                  color: AppColors.textPrimary,
                 ),
               ),
               items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text(
+                    'All',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w400,
+                      fontSize: 18,
+                      height: 1.5,
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                ),
                 ...shelves.map((s) => DropdownMenuItem<String?>(
                       value: s.id,
-                      child: Text(s.name,
-                          style: const TextStyle(
-                              fontFamily: 'Inter',
-                              fontSize: 16,
-                              color: AppColors.textPrimary)),
+                      child: Text(
+                        s.name,
+                        style: const TextStyle(
+                          fontFamily: 'Inter',
+                          fontWeight: FontWeight.w400,
+                          fontSize: 18,
+                          height: 1.5,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
                     )),
               ],
               onChanged: onChanged,

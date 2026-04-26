@@ -4,7 +4,6 @@ import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:marionette_flutter/marionette_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/app_router.dart';
 import 'core/theme/app_theme.dart';
@@ -13,11 +12,7 @@ import 'firebase_options.dart';
 void main() async {
   // Capture all uncaught errors and route them to Crashlytics in release builds.
   await runZonedGuarded(() async {
-    if (kDebugMode) {
-      MarionetteBinding.ensureInitialized();
-    } else {
-      WidgetsFlutterBinding.ensureInitialized();
-    }
+    WidgetsFlutterBinding.ensureInitialized();
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
     // Crashlytics: only collect in release; debug builds skip the network noise.

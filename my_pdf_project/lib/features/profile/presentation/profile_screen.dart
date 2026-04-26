@@ -4,15 +4,24 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
+import '../../../shared/widgets/app_drawer.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../../library/presentation/library_providers.dart';
 
-class ProfileScreen extends ConsumerWidget {
+class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends ConsumerState<ProfileScreen> {
+  final _scaffoldKey = GlobalKey<ScaffoldState>();
+
+  @override
+  Widget build(BuildContext context) {
+    final ref = this.ref;
     final user = ref.watch(userProfileProvider).valueOrNull;
     final allBooks = ref.watch(allBooksProvider).valueOrNull ?? [];
     final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
@@ -22,7 +31,12 @@ class ProfileScreen extends ConsumerWidget {
     final shelvesCount = shelves.length;
 
     return Scaffold(
+      key: _scaffoldKey,
       backgroundColor: AppColors.background,
+      drawer: AppDrawer(
+        active: NavSection.profile,
+        onClose: () => _scaffoldKey.currentState?.closeDrawer(),
+      ),
       body: SafeArea(
         bottom: false,
         child: Column(
@@ -33,7 +47,7 @@ class ProfileScreen extends ConsumerWidget {
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () => context.canPop() ? context.pop() : context.go('/home'),
+                    onTap: () => _scaffoldKey.currentState?.openDrawer(),
                     child: Container(
                       padding: const EdgeInsets.all(8),
                       child: const Icon(Icons.menu,
@@ -225,7 +239,7 @@ class _SettingsRow extends StatelessWidget {
                 ),
                 child: Icon(
                   icon,
-                  size: 18,
+                  size: 22,
                   color: labelColor == AppColors.error
                       ? AppColors.error
                       : AppColors.primary,

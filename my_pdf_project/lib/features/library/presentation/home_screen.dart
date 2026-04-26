@@ -40,6 +40,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       context: context,
       builder: (ctx) => AppModal(
         title: 'New Shelf',
+        titleIcon: Icons.shelves,
         confirmLabel: 'Create',
         body: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -107,10 +108,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: Row(
                 children: [
                   GestureDetector(
+                    behavior: HitTestBehavior.opaque,
                     onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                    child: const Icon(Icons.menu, color: AppColors.primary, size: 20),
+                    child: Container(
+                      padding: const EdgeInsets.all(8),
+                      child: const Icon(Icons.menu,
+                          color: AppColors.primary, size: 20),
+                    ),
                   ),
-                  const SizedBox(width: 16),
+                  const SizedBox(width: 8),
                   const Text('MYPDF', style: TextStyle(
                     fontFamily: 'Inter',
                     fontWeight: FontWeight.w700,
@@ -176,8 +182,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       mainAxisAlignment:
                                           MainAxisAlignment.center,
                                       children: [
-                                        const Icon(Icons.shelves,
-                                            size: 14,
+                                        const Icon(Icons.add,
+                                            size: 18,
                                             color: AppColors.textSecondary),
                                         const SizedBox(width: 8),
                                         Text('NEW SHELF',

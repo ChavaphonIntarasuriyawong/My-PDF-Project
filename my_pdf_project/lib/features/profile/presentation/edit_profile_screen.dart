@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../../library/presentation/library_providers.dart';
 
@@ -65,6 +66,13 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
     return Scaffold(
       backgroundColor: AppColors.background,
+      bottomNavigationBar: AppBottomNavBar(
+        onTap: (tab) {
+          if (tab == NavTab.library) context.go('/home');
+          if (tab == NavTab.create) context.push('/book/new');
+          if (tab == NavTab.profile) context.go('/profile');
+        },
+      ),
       body: SafeArea(
         child: Column(
           children: [

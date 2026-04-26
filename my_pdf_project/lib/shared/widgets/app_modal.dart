@@ -5,6 +5,7 @@ import 'gradient_button.dart';
 
 class AppModal extends StatefulWidget {
   final String title;
+  final IconData? titleIcon;
   final Widget body;
   final String confirmLabel;
   final bool confirmDestructive;
@@ -13,6 +14,7 @@ class AppModal extends StatefulWidget {
   const AppModal({
     super.key,
     required this.title,
+    this.titleIcon,
     required this.body,
     this.confirmLabel = 'Confirm',
     this.confirmDestructive = false,
@@ -38,7 +40,20 @@ class _AppModalState extends State<AppModal> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.title, style: AppTypography.headlineMedium),
+                if (widget.titleIcon != null)
+                  Row(
+                    children: [
+                      Icon(widget.titleIcon,
+                          size: 22, color: AppColors.primary),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(widget.title,
+                            style: AppTypography.headlineMedium),
+                      ),
+                    ],
+                  )
+                else
+                  Text(widget.title, style: AppTypography.headlineMedium),
                 const SizedBox(height: 16),
                 widget.body,
               ],
