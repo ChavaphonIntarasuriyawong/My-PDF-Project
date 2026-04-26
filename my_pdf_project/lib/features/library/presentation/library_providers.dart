@@ -70,6 +70,18 @@ bool _looksLikePdf(List<int> bytes) {
 /// between download and the native PDFView open call (causes ENOENT).
 final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
   final docs = await getApplicationDocumentsDirectory();
+
+  // local:// marker means the PDF was saved locally at upload time — no download.
+  if (url.startsWith('local://')) {
+    final filename = url.substring('local://'.length);
+    final localFile = File('${docs.path}/local_pdfs/$filename');
+    if (!await localFile.exists()) {
+      throw Exception(
+          'This PDF is stored on another device and is not available here.');
+    }
+    return localFile.absolute.path;
+  }
+
   final file = File('${docs.path}/pdf_${url.hashCode.abs()}.pdf');
 
   if (await file.exists()) {

@@ -37,10 +37,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
 
-    final success = await ref.read(authControllerProvider.notifier).login(
-      email: email,
-      password: password,
-    );
+    final success = await ref
+        .read(authControllerProvider.notifier)
+        .login(email: email, password: password);
     if (success && mounted) context.go(AppRoutes.home);
   }
 
@@ -51,9 +50,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
 
     ref.listen(authControllerProvider, (_, state) {
       if (state.status == AuthStatus.error && state.errorMessage != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(state.errorMessage!)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(state.errorMessage!)));
         ref.read(authControllerProvider.notifier).clearError();
       }
     });
@@ -90,7 +89,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 40),
                   LabeledTextField(
                     label: 'Email',
-                    hint: 'curator@editorial.com',
+                    hint: 'example@gmail.com',
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
                   ),
@@ -102,11 +101,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     obscureText: _obscurePassword,
                     suffix: IconButton(
                       icon: Icon(
-                        _obscurePassword ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                        _obscurePassword
+                            ? Icons.visibility_off_outlined
+                            : Icons.visibility_outlined,
                         color: AppColors.textMuted,
                         size: 20,
                       ),
-                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      onPressed: () =>
+                          setState(() => _obscurePassword = !_obscurePassword),
                     ),
                   ),
                   const SizedBox(height: 24),

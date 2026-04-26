@@ -31,6 +31,12 @@
 
   <title>my_pdf</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- pdf.js for the pdfx plugin (web) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.min.js"></script>
+  <script>
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.6.347/pdf.worker.min.js";
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -2,7 +2,7 @@ import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
@@ -70,62 +70,30 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     }
   }
 
-  Future<String> _uploadPdfFile(PlatformFile file, String uid) async {
+  Future<String> _savePdfLocally(PlatformFile file, String uid) async {
     if (file.path == null) {
       throw Exception('File path unavailable. Try picking the file again.');
     }
-    final localFile = File(file.path!);
-    if (!await localFile.exists()) {
+    final source = File(file.path!);
+    if (!await source.exists()) {
       throw Exception('File no longer accessible. Try picking it again.');
     }
-    final size = await localFile.length();
+    final size = await source.length();
     if (size == 0) {
       throw Exception('Picked file is empty.');
     }
 
-    // Supabase storage requires an authenticated session even with the anon key.
-    // App uses Firebase Auth — sign into Supabase anonymously so RLS allows the upload.
-    final supabase = Supabase.instance.client;
-    if (supabase.auth.currentUser == null) {
-      try {
-        await supabase.auth.signInAnonymously();
-      } on AuthException catch (e) {
-        throw Exception(
-            'Supabase anonymous sign-in failed: ${e.message}. Enable Anonymous Sign-In in your Supabase Auth settings, or add an insert policy to the "pdfs" bucket that allows the anon role.');
-      } catch (_) {
-        // Other errors — try upload anyway in case bucket has open insert policy.
-      }
+    final docs = await getApplicationDocumentsDirectory();
+    final localDir = Directory('${docs.path}/local_pdfs');
+    if (!await localDir.exists()) {
+      await localDir.create(recursive: true);
     }
+    final filename = '${uid}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    final dest = File('${localDir.path}/$filename');
+    await source.copy(dest.path);
 
-    final path = '$uid/${DateTime.now().millisecondsSinceEpoch}.pdf';
-    try {
-      await supabase.storage
-          .from('pdfs')
-          .upload(
-            path,
-            localFile,
-            fileOptions: const FileOptions(contentType: 'application/pdf', upsert: true),
-          )
-          .timeout(
-            const Duration(seconds: 60),
-            onTimeout: () => throw Exception(
-                'Upload timed out after 60s. Check your network and that the "pdfs" bucket exists.'),
-          );
-    } on StorageException catch (e) {
-      final code = e.statusCode ?? '';
-      String hint;
-      if (code == '404') {
-        hint = 'Bucket "pdfs" not found — create it in Supabase Storage.';
-      } else if (code == '403' || code == '401') {
-        hint = 'Permission denied — add an INSERT policy on bucket "pdfs" for the anon role, OR enable Anonymous Sign-In.';
-      } else if (code == '413') {
-        hint = 'File too large for the bucket.';
-      } else {
-        hint = e.message;
-      }
-      throw Exception('Storage error ($code): $hint');
-    }
-    return supabase.storage.from('pdfs').getPublicUrl(path);
+    // local:// marker tells pdfPathProvider this is a device-local file, not a URL to download.
+    return 'local://$filename';
   }
 
   Future<void> _validatePdfUrl(String url) async {
@@ -200,7 +168,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     setState(() => _loadingFile = true);
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
-      final link = await _uploadPdfFile(_pickedFile!, uid);
+      final link = await _savePdfLocally(_pickedFile!, uid);
       final book = BookModel(
         id: '',
         title: _titleFromSource(_pickedFile!.name),
@@ -249,7 +217,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         onClose: () => _scaffoldKey.currentState?.closeDrawer(),
       ),
       bottomNavigationBar: AppBottomNavBar(
-        
         onTap: (tab) {
           if (tab == NavTab.library) context.go('/home');
           if (tab == NavTab.profile) context.push('/profile');

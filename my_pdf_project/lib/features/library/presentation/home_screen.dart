@@ -247,7 +247,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         ),
       ),
       bottomNavigationBar: AppBottomNavBar(
-        
         onTap: (tab) {
           if (tab == NavTab.create) context.push(AppRoutes.newBook);
           if (tab == NavTab.profile) context.push(AppRoutes.profile);

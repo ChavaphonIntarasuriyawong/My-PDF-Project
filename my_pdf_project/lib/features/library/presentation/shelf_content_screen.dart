@@ -209,7 +209,6 @@ class ShelfContentScreen extends ConsumerWidget {
         ),
       ),
       bottomNavigationBar: AppBottomNavBar(
-        
         onTap: (tab) {
           if (tab == NavTab.library) context.go('/home');
           if (tab == NavTab.create) context.push('/book/new');
