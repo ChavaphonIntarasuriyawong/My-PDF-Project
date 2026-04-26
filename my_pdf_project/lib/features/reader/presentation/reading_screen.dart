@@ -1,11 +1,14 @@
 import 'dart:io';
 import 'dart:ui';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_pdf_text/flutter_pdf_text.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
+import 'package:pdfx/pdfx.dart' as pdfx;
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../library/presentation/library_controller.dart';
@@ -42,7 +45,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   @override
   void initState() {
     super.initState();
-    _initTts();
+    if (!kIsWeb) _initTts();
   }
 
   Future<void> _initTts() async {
@@ -309,7 +312,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                     ],
                   ),
                 ),
-                data: (path) => PDFView(
+                data: (path) => kIsWeb
+                    ? _WebPdfReader(
+                        key: ValueKey(path),
+                        url: path,
+                        initialPage: book?.currentPage ?? 0,
+                        onPagesAndPageChanged: (page, total) =>
+                            _onPageChanged(page, total),
+                      )
+                    : PDFView(
                   key: ValueKey(path),
                   filePath: path,
                   enableSwipe: true,
@@ -389,7 +400,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              if (pdfAsync?.hasValue == true) ...[
+                              if (!kIsWeb && pdfAsync?.hasValue == true) ...[
                                 GestureDetector(
                                   onTap: _showVoiceSettings,
                                   child: Padding(
@@ -505,6 +516,87 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _WebPdfReader extends StatefulWidget {
+  final String url;
+  final int initialPage;
+  final void Function(int page, int total) onPagesAndPageChanged;
+
+  const _WebPdfReader({
+    super.key,
+    required this.url,
+    required this.initialPage,
+    required this.onPagesAndPageChanged,
+  });
+
+  @override
+  State<_WebPdfReader> createState() => _WebPdfReaderState();
+}
+
+class _WebPdfReaderState extends State<_WebPdfReader> {
+  pdfx.PdfController? _controller;
+  String? _error;
+  int _totalPages = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final response = await http.get(Uri.parse(widget.url)).timeout(
+            const Duration(seconds: 30),
+            onTimeout: () => throw Exception('Download timed out'),
+          );
+      if (response.statusCode != 200) {
+        throw Exception('HTTP ${response.statusCode}');
+      }
+      final controller = pdfx.PdfController(
+        document: pdfx.PdfDocument.openData(response.bodyBytes),
+        initialPage: widget.initialPage > 0 ? widget.initialPage : 1,
+      );
+      if (!mounted) return;
+      setState(() => _controller = controller);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller?.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('Failed to load PDF: $_error', textAlign: TextAlign.center),
+        ),
+      );
+    }
+    if (_controller == null) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    return pdfx.PdfView(
+      controller: _controller!,
+      scrollDirection: Axis.vertical,
+      onDocumentLoaded: (doc) {
+        _totalPages = doc.pagesCount;
+        // pdfx pages are 1-indexed; bridge to existing 0-indexed mobile API.
+        widget.onPagesAndPageChanged(_controller!.page - 1, _totalPages);
+      },
+      onPageChanged: (page) {
+        widget.onPagesAndPageChanged(page - 1, _totalPages);
+      },
     );
   }
 }

@@ -63,21 +63,32 @@ class _AppModalState extends State<AppModal> {
           Container(
             width: double.infinity,
             color: AppColors.surfaceMuted,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
             child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                TextButton(
-                  onPressed: _loading ? null : () => Navigator.of(context).pop(),
-                  child: Text(
-                    'Cancel',
-                    style: AppTypography.bodyMedium.copyWith(
-                      color: const Color(0xFF4A626B),
-                      fontWeight: FontWeight.w700,
+                Expanded(
+                  child: SizedBox(
+                    height: 48,
+                    child: OutlinedButton(
+                      onPressed:
+                          _loading ? null : () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.primary, width: 1.5),
+                        foregroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: AppTypography.labelButton.copyWith(
+                          color: AppColors.primary,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 16),
+                const SizedBox(width: 12),
                 Expanded(
                   child: widget.confirmDestructive
                       ? _DestructiveButton(

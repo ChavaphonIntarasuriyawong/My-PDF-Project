@@ -341,6 +341,17 @@ class BookInfoScreen extends ConsumerWidget {
                     ),
                   ],
                 ),
+                if (book.author != null || book.year != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    [
+                      if (book.author != null) 'by ${book.author}',
+                      if (book.year != null) '${book.year}',
+                    ].join(' · '),
+                    style: AppTypography.bodyMedium
+                        .copyWith(color: AppColors.textSecondary),
+                  ),
+                ],
                 const SizedBox(height: 24),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -528,8 +539,8 @@ class _ShelfPick extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.folder_open_outlined,
-                size: 18, color: AppColors.primary),
+            const Icon(Icons.folder_rounded,
+                size: 20, color: AppColors.primary),
             const SizedBox(width: 12),
             Expanded(child: Text(name, style: AppTypography.labelLarge)),
             if (selected)

@@ -9,6 +9,8 @@ class BookModel {
   final String shelfId;
   final String ownerId;
   final DateTime? lastReadAt;
+  final String? author;
+  final int? year;
 
   const BookModel({
     required this.id,
@@ -21,6 +23,8 @@ class BookModel {
     required this.shelfId,
     required this.ownerId,
     this.lastReadAt,
+    this.author,
+    this.year,
   });
 
   BookModel copyWith({
@@ -32,6 +36,8 @@ class BookModel {
     String? status,
     String? shelfId,
     DateTime? lastReadAt,
+    String? author,
+    int? year,
   }) {
     return BookModel(
       id: id,
@@ -44,6 +50,8 @@ class BookModel {
       shelfId: shelfId ?? this.shelfId,
       ownerId: ownerId,
       lastReadAt: lastReadAt ?? this.lastReadAt,
+      author: author ?? this.author,
+      year: year ?? this.year,
     );
   }
 
@@ -57,6 +65,8 @@ class BookModel {
     'shelfId': shelfId,
     'ownerId': ownerId,
     'lastReadAt': lastReadAt?.toIso8601String(),
+    'author': author,
+    'year': year,
   };
 
   factory BookModel.fromMap(String id, Map<String, dynamic> map) {
@@ -73,6 +83,8 @@ class BookModel {
       shelfId: map['shelfId'] ?? '',
       ownerId: map['ownerId'] ?? '',
       lastReadAt: map['lastReadAt'] != null ? DateTime.tryParse(map['lastReadAt']) : null,
+      author: map['author'] as String?,
+      year: (map['year'] as num?)?.toInt(),
     );
   }
 }

@@ -568,8 +568,8 @@ class _ShelfRow extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.folder_open_outlined,
-                size: 18, color: AppColors.primary),
+            const Icon(Icons.folder_rounded,
+                size: 20, color: AppColors.primary),
             const SizedBox(width: 12),
             Expanded(child: Text(name, style: AppTypography.labelLarge)),
             Text('$count', style: AppTypography.bodySmall),

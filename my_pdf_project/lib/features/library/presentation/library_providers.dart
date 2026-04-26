@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
@@ -69,6 +70,16 @@ bool _looksLikePdf(List<int> bytes) {
 /// Stored in application documents (NOT temp) so Android doesn't purge it
 /// between download and the native PDFView open call (causes ENOENT).
 final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
+  // Web has no filesystem — local:// is unsupported here, and remote URLs are
+  // returned as-is so the web reader can fetch them directly.
+  if (kIsWeb) {
+    if (url.startsWith('local://')) {
+      throw Exception(
+          'This PDF is stored on a phone and cannot be opened on the web.');
+    }
+    return url;
+  }
+
   final docs = await getApplicationDocumentsDirectory();
 
   // local:// marker means the PDF was saved locally at upload time — no download.
@@ -138,6 +149,23 @@ final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
 /// Renders the first page of a PDF as JPEG bytes (cached to disk).
 final pdfThumbnailProvider = FutureProvider.family<Uint8List?, String>((ref, url) async {
   try {
+    if (kIsWeb) {
+      // No filesystem on web — fetch bytes and render directly, no disk cache.
+      if (url.startsWith('local://')) return null;
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode != 200) return null;
+      final document = await PdfDocument.openData(response.bodyBytes);
+      final page = await document.getPage(1);
+      final pageImage = await page.render(
+        width: page.width,
+        height: page.height,
+        format: PdfPageImageFormat.jpeg,
+      );
+      await page.close();
+      await document.close();
+      return pageImage?.bytes;
+    }
+
     final docs = await getApplicationDocumentsDirectory();
     final thumbsDir = Directory('${docs.path}/thumbs');
     if (!await thumbsDir.exists()) {

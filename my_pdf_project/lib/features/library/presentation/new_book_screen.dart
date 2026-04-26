@@ -10,6 +10,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/app_drawer.dart';
 import '../../auth/presentation/auth_providers.dart';
+import '../data/pdf_metadata.dart';
 import '../domain/book_model.dart';
 import '../domain/bookshelf_model.dart';
 import 'library_controller.dart';
@@ -70,7 +71,8 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     }
   }
 
-  Future<String> _savePdfLocally(PlatformFile file, String uid) async {
+  Future<({String link, PdfMetadata metadata})> _savePdfLocally(
+      PlatformFile file, String uid) async {
     if (file.path == null) {
       throw Exception('File path unavailable. Try picking the file again.');
     }
@@ -83,6 +85,9 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
       throw Exception('Picked file is empty.');
     }
 
+    final bytes = await source.readAsBytes();
+    final metadata = extractPdfMetadata(bytes);
+
     final docs = await getApplicationDocumentsDirectory();
     final localDir = Directory('${docs.path}/local_pdfs');
     if (!await localDir.exists()) {
@@ -90,21 +95,19 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     }
     final filename = '${uid}_${DateTime.now().millisecondsSinceEpoch}.pdf';
     final dest = File('${localDir.path}/$filename');
-    await source.copy(dest.path);
+    await dest.writeAsBytes(bytes);
 
     // local:// marker tells pdfPathProvider this is a device-local file, not a URL to download.
-    return 'local://$filename';
+    return (link: 'local://$filename', metadata: metadata);
   }
 
-  Future<void> _validatePdfUrl(String url) async {
+  Future<PdfMetadata> _validateAndExtractMetadata(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme || !(uri.scheme == 'http' || uri.scheme == 'https')) {
       throw Exception('Invalid URL scheme.');
     }
-    final resp = await http
-        .head(uri)
-        .timeout(const Duration(seconds: 10),
-            onTimeout: () => throw Exception('Link unreachable.'));
+    final resp = await http.get(uri).timeout(const Duration(seconds: 30),
+        onTimeout: () => throw Exception('Link unreachable.'));
     if (resp.statusCode < 200 || resp.statusCode >= 400) {
       throw Exception('Link returned ${resp.statusCode}.');
     }
@@ -113,6 +116,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     if (!ct.contains('pdf') && !pathLooksPdf) {
       throw Exception('Link is not a PDF.');
     }
+    return extractPdfMetadata(resp.bodyBytes);
   }
 
   Future<void> _createFromUrl() async {
@@ -127,7 +131,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     });
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
-      await _validatePdfUrl(url);
+      final metadata = await _validateAndExtractMetadata(url);
       final book = BookModel(
         id: '',
         title: _titleFromSource(url),
@@ -138,6 +142,8 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         status: 'reading',
         shelfId: _urlShelfId ?? '',
         ownerId: uid,
+        author: metadata.author,
+        year: metadata.year,
       );
       final created =
           await ref.read(libraryControllerProvider.notifier).createBook(book);
@@ -168,17 +174,19 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     setState(() => _loadingFile = true);
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
-      final link = await _savePdfLocally(_pickedFile!, uid);
+      final saved = await _savePdfLocally(_pickedFile!, uid);
       final book = BookModel(
         id: '',
         title: _titleFromSource(_pickedFile!.name),
-        link: link,
+        link: saved.link,
         totalPages: 0,
         currentPage: 0,
         progress: 0,
         status: 'reading',
         shelfId: _fileShelfId ?? '',
         ownerId: uid,
+        author: saved.metadata.author,
+        year: saved.metadata.year,
       );
       final created =
           await ref.read(libraryControllerProvider.notifier).createBook(book);
