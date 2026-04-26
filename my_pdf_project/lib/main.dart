@@ -13,11 +13,7 @@ void main() async {
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
 
-    try {
-      await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
-    } catch (e) {
-      debugPrint('Firebase init skipped: $e');
-    }
+    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
     // Crashlytics is not supported on web.
     if (!kIsWeb) {
