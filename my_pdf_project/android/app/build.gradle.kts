@@ -12,7 +12,8 @@ plugins {
 android {
     namespace = "com.mypdf.my_pdf"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+
+    ndkVersion = "25.2.9519653"
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
