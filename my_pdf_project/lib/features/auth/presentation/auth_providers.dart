@@ -31,7 +31,6 @@ final userProfileProvider = StreamProvider<UserModel?>((ref) {
       uid: uid,
       name: data['name'] ?? '',
       email: data['email'] ?? '',
-      avatarUrl: data['avatarUrl'] ?? '',
     );
   });
 });

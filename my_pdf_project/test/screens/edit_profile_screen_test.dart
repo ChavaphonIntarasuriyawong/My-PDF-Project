@@ -29,14 +29,19 @@ class _FakeDataSource implements FirestoreDataSource {
   @override Future<void> updateBook(BookModel b) => throw UnimplementedError();
   @override Future<void> updateReadingProgress({required String bookId, required int currentPage, required int totalPages}) => throw UnimplementedError();
   @override Future<void> updateBookStatus(String b, String s) => throw UnimplementedError();
+  @override Future<void> updateBookTitle(String b, String t) => throw UnimplementedError();
   @override Future<void> moveBook(String b, String s) => throw UnimplementedError();
-  @override Future<BookModel> getBook(String b) => throw UnimplementedError();
-  @override Future<NoteModel?> getNoteByBookId(String b) => throw UnimplementedError();
-  @override Future<NoteModel> upsertNote({required String bookId, required String content}) => throw UnimplementedError();
+  @override Future<BookModel?> getBook(String b) => throw UnimplementedError();
+  @override Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
+  @override Future<NoteModel> createNote({required String bookId, required String content}) => throw UnimplementedError();
+  @override Future<void> updateNoteContent(String noteId, String content) => throw UnimplementedError();
+  @override Future<void> deleteNote(String noteId) => throw UnimplementedError();
+  @override Stream<List<NoteModel>> watchNotesByBookId(String bookId) => const Stream.empty();
   @override Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
   @override Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();
   @override Stream<List<BookModel>> watchBooksByShelf(String s) => const Stream.empty();
   @override Stream<BookModel?> watchBook(String b) => const Stream.empty();
+  @override Stream<int> watchUserNotesCount(List<String> bookIds) => Stream.value(0);
 }
 
 Widget _buildScreen(_FakeDataSource ds) {
@@ -77,11 +82,10 @@ void main() {
       expect(field.controller?.text, 'Alice');
     });
 
-    testWidgets('shows email as read-only with hint', (tester) async {
+    testWidgets('shows email as read-only', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeDataSource()));
       await tester.pump();
       expect(find.text('alice@test.com'), findsOneWidget);
-      expect(find.text('Email cannot be changed.'), findsOneWidget);
     });
 
     testWidgets('does not save with empty name', (tester) async {

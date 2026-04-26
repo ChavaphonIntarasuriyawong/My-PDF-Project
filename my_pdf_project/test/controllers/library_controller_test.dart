@@ -48,14 +48,26 @@ class _FakeDataSource implements FirestoreDataSource {
   Future<void> updateBookStatus(String bookId, String status) async => _maybeThrow();
 
   @override
-  Future<NoteModel> upsertNote({required String bookId, required String content}) async {
+  Future<void> updateBookTitle(String bookId, String title) async => _maybeThrow();
+
+  @override
+  Future<NoteModel> createNote({required String bookId, required String content}) async {
     _maybeThrow();
     savedNote = NoteModel(id: 'n1', bookId: bookId, content: content, updatedAt: DateTime.now());
     return savedNote!;
   }
 
   @override
-  Future<NoteModel?> getNoteByBookId(String bookId) async => null;
+  Future<void> updateNoteContent(String noteId, String content) async => _maybeThrow();
+
+  @override
+  Future<void> deleteNote(String noteId) async => _maybeThrow();
+
+  @override
+  Future<NoteModel?> getNoteById(String noteId) async => null;
+
+  @override
+  Stream<List<NoteModel>> watchNotesByBookId(String bookId) => const Stream.empty();
 
   @override
   Stream<List<BookshelfModel>> watchShelves(String ownerId) => const Stream.empty();
@@ -70,7 +82,7 @@ class _FakeDataSource implements FirestoreDataSource {
   Stream<BookModel?> watchBook(String bookId) => const Stream.empty();
 
   @override
-  Future<BookModel> getBook(String bookId) async => throw UnimplementedError();
+  Future<BookModel?> getBook(String bookId) async => throw UnimplementedError();
 
   @override
   Future<void> updateBook(BookModel book) async => _maybeThrow();
@@ -80,6 +92,9 @@ class _FakeDataSource implements FirestoreDataSource {
 
   @override
   Future<void> updateUserProfile(String uid, {String? name}) async => _maybeThrow();
+
+  @override
+  Stream<int> watchUserNotesCount(List<String> bookIds) => Stream.value(0);
 }
 
 ProviderContainer _makeContainer(_FakeDataSource ds) {
@@ -194,9 +209,9 @@ void main() {
       });
     });
 
-    group('saveNote', () {
+    group('createNote', () {
       test('success returns note', () async {
-        final note = await container.read(libraryControllerProvider.notifier).saveNote(
+        final note = await container.read(libraryControllerProvider.notifier).createNote(
           bookId: 'b1',
           content: 'Great book',
         );
@@ -207,11 +222,39 @@ void main() {
 
       test('failure returns null', () async {
         ds.shouldThrow = true;
-        final note = await container.read(libraryControllerProvider.notifier).saveNote(
+        final note = await container.read(libraryControllerProvider.notifier).createNote(
           bookId: 'b1',
           content: 'Content',
         );
         expect(note, isNull);
+      });
+    });
+
+    group('updateNoteContent', () {
+      test('success returns true', () async {
+        final ok = await container.read(libraryControllerProvider.notifier)
+            .updateNoteContent('n1', 'updated');
+        expect(ok, isTrue);
+      });
+
+      test('failure returns false', () async {
+        ds.shouldThrow = true;
+        final ok = await container.read(libraryControllerProvider.notifier)
+            .updateNoteContent('n1', 'updated');
+        expect(ok, isFalse);
+      });
+    });
+
+    group('deleteNote', () {
+      test('success returns true', () async {
+        final ok = await container.read(libraryControllerProvider.notifier).deleteNote('n1');
+        expect(ok, isTrue);
+      });
+
+      test('failure returns false', () async {
+        ds.shouldThrow = true;
+        final ok = await container.read(libraryControllerProvider.notifier).deleteNote('n1');
+        expect(ok, isFalse);
       });
     });
   });

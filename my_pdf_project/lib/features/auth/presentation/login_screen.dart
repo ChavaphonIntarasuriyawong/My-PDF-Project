@@ -30,7 +30,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   Future<void> _submit() async {
     final email = _emailCtrl.text.trim();
     final password = _passwordCtrl.text;
-    if (email.isEmpty || password.isEmpty) return;
+    if (email.isEmpty || password.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter email and password')),
+      );
+      return;
+    }
 
     final success = await ref.read(authControllerProvider.notifier).login(
       email: email,

@@ -13,7 +13,18 @@
       "Bash(flutter run *)",
       "Bash(echo \"LAUNCHED PID: $!\")",
       "WebSearch",
-      "Bash(flutter test *)"
+      "Bash(flutter test *)",
+      "Bash(python *)",
+      "Bash(find *)",
+      "Bash(grep -v \"//.*Icons\\\\.\")",
+      "mcp__plugin_figma_figma__get_screenshot",
+      "Bash(mkdir -p \"/tmp/figma\")",
+      "Bash(curl -s -o /tmp/figma/edit_profile.png \"https://www.figma.com/api/mcp/asset/d530ac6b-cb83-44bd-81fe-0ad14aa0d8ff\")",
+      "Bash(curl -s -o /tmp/figma/profile.png \"https://www.figma.com/api/mcp/asset/b31f205b-0a52-4918-8cfb-a8faf3f7fcba\")",
+      "Read(//tmp/**)",
+      "Bash(cp /tmp/figma/edit_profile.png \"C:/Users/pun/Desktop/beta my pdf/.claude/edit_profile.png\")",
+      "Bash(cp /tmp/figma/profile.png \"C:/Users/pun/Desktop/beta my pdf/.claude/profile.png\")",
+      "Bash(curl *)"
     ]
   },
   "enabledPlugins": {}

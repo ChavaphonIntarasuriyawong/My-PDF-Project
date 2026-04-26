@@ -50,13 +50,13 @@ void main() {
       expect(find.byIcon(Icons.more_vert), findsOneWidget);
     });
 
-    testWidgets('shows bottom sheet with Rename and Delete on menu tap', (tester) async {
+    testWidgets('shows popup menu with Edit and Delete on menu tap', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
       await tester.tap(find.byIcon(Icons.more_vert));
       await tester.pumpAndSettle();
-      expect(find.text('Rename Shelf'), findsOneWidget);
-      expect(find.text('Delete Shelf'), findsOneWidget);
+      expect(find.text('Edit'), findsOneWidget);
+      expect(find.text('Delete'), findsOneWidget);
     });
   });
 }

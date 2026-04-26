@@ -10,6 +10,32 @@ class AuthRepositoryImpl implements AuthRepository {
 
   AuthRepositoryImpl(this._dataSource);
 
+  static String _friendlyError(FirebaseAuthException e) {
+    switch (e.code) {
+      case 'user-not-found':
+        return 'No account found with this email.';
+      case 'wrong-password':
+      case 'invalid-credential':
+        return 'Incorrect email or password.';
+      case 'invalid-email':
+        return 'Please enter a valid email address.';
+      case 'email-already-in-use':
+        return 'An account with this email already exists.';
+      case 'weak-password':
+        return 'Password is too weak — use at least 6 characters.';
+      case 'too-many-requests':
+        return 'Too many attempts. Please try again later.';
+      case 'network-request-failed':
+        return 'Network error. Check your connection.';
+      case 'user-disabled':
+        return 'This account has been disabled.';
+      case 'operation-not-allowed':
+        return 'Email sign-in is not enabled.';
+      default:
+        return 'Something went wrong. Please try again.';
+    }
+  }
+
   @override
   Future<Either<Failure, UserModel>> login({
     required String email,
@@ -19,9 +45,9 @@ class AuthRepositoryImpl implements AuthRepository {
       final user = await _dataSource.login(email: email, password: password);
       return Right(user);
     } on FirebaseAuthException catch (e) {
-      return Left(AuthFailure(e.message ?? 'Login failed'));
+      return Left(AuthFailure(_friendlyError(e)));
     } catch (_) {
-      return const Left(ServerFailure('Unexpected error'));
+      return const Left(ServerFailure('Something went wrong. Please try again.'));
     }
   }
 
@@ -35,9 +61,9 @@ class AuthRepositoryImpl implements AuthRepository {
       final user = await _dataSource.register(name: name, email: email, password: password);
       return Right(user);
     } on FirebaseAuthException catch (e) {
-      return Left(AuthFailure(e.message ?? 'Registration failed'));
+      return Left(AuthFailure(_friendlyError(e)));
     } catch (_) {
-      return const Left(ServerFailure('Unexpected error'));
+      return const Left(ServerFailure('Something went wrong. Please try again.'));
     }
   }
 
@@ -47,7 +73,7 @@ class AuthRepositoryImpl implements AuthRepository {
       await _dataSource.logout();
       return const Right(null);
     } catch (_) {
-      return const Left(ServerFailure('Logout failed'));
+      return const Left(ServerFailure('Logout failed.'));
     }
   }
 
