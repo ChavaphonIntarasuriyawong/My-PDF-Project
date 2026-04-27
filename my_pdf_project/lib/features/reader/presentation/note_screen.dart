@@ -67,7 +67,20 @@ class NoteScreen extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: 8),
-                Text('Notes', style: AppTypography.titleLarge),
+                Expanded(
+                  child: Consumer(
+                    builder: (ctx, ref, _) {
+                      final book =
+                          ref.watch(bookByIdProvider(bookId)).valueOrNull;
+                      return Text(
+                        book?.title ?? 'Notes',
+                        style: AppTypography.titleLarge,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      );
+                    },
+                  ),
+                ),
               ],
             ),
           ),

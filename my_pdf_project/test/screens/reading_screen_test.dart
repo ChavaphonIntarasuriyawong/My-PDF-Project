@@ -9,6 +9,8 @@ import 'package:my_pdf/features/library/domain/note_model.dart';
 import 'package:my_pdf/features/library/presentation/library_providers.dart';
 import 'package:my_pdf/features/reader/presentation/reading_screen.dart';
 
+import '../_helpers/fake_recent_books.dart';
+
 const _book = BookModel(
   id: 'b1', title: 'Cosmos', link: 'https://pdf.url/cosmos.pdf',
   totalPages: 200, currentPage: 50, progress: 25,
@@ -63,6 +65,7 @@ Widget _buildScreen() {
     overrides: [
       bookByIdProvider('b1').overrideWith((_) => Stream.value(_book)),
       firestoreDataSourceProvider.overrideWithValue(_FakeDataSource()),
+      recentBooksServiceProvider.overrideWithValue(FakeRecentBooksService()),
     ],
     child: MaterialApp.router(routerConfig: router),
   );

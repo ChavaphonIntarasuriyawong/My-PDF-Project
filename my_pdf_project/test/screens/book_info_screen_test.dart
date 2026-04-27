@@ -38,7 +38,7 @@ class _FakeDataSource implements FirestoreDataSource {
   @override Future<NoteModel> createNote({required String bookId, required String title, required String content}) => throw UnimplementedError();
   @override Future<void> updateNote(String noteId, {required String title, required String content}) => throw UnimplementedError();
   @override Future<void> deleteNote(String noteId) => throw UnimplementedError();
-  @override Stream<List<NoteModel>> watchNotesByBookId(String bookId) => const Stream.empty();
+  @override Stream<List<NoteModel>> watchNotesByBookId(String bookId) => Stream.value(const []);
   @override Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
   @override Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();
   @override Stream<List<BookModel>> watchBooksByShelf(String s) => const Stream.empty();
@@ -93,7 +93,11 @@ void main() {
 
     testWidgets('shows Add Note button', (tester) async {
       await tester.pumpWidget(_buildScreen());
-      await tester.pump();
+      // Notes stream is async — pump multiple frames so notesAsync moves
+      // from loading to data and the Add Note button mounts.
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
       expect(find.text('Add Note'), findsOneWidget);
     });
 

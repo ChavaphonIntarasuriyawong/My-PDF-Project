@@ -7,6 +7,8 @@ import 'package:my_pdf/features/library/domain/note_model.dart';
 import 'package:my_pdf/features/library/presentation/library_controller.dart';
 import 'package:my_pdf/features/library/presentation/library_providers.dart';
 
+import '../_helpers/fake_recent_books.dart';
+
 class _FakeDataSource implements FirestoreDataSource {
   bool shouldThrow = false;
   BookshelfModel? createdShelf;
@@ -113,7 +115,10 @@ class _FakeDataSource implements FirestoreDataSource {
 
 ProviderContainer _makeContainer(_FakeDataSource ds) {
   return ProviderContainer(
-    overrides: [firestoreDataSourceProvider.overrideWithValue(ds)],
+    overrides: [
+      firestoreDataSourceProvider.overrideWithValue(ds),
+      recentBooksServiceProvider.overrideWithValue(FakeRecentBooksService()),
+    ],
   );
 }
 

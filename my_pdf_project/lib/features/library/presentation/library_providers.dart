@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 import '../../../core/local/recent_books_service.dart';
+import '../../../core/network/pdf_fetcher.dart';
 import '../data/firestore_data_source.dart';
 import '../domain/book_model.dart';
 import '../domain/bookshelf_model.dart';
@@ -173,9 +174,10 @@ final pdfThumbnailProvider = FutureProvider.family<Uint8List?, String>((ref, url
   try {
     if (kIsWeb) {
       // No filesystem on web — fetch bytes and render directly, no disk cache.
+      // Routes external URLs through the Supabase Edge Function proxy so
+      // CORS doesn't block thumbnail downloads.
       if (url.startsWith('local://')) return null;
-      final response = await http.get(Uri.parse(url));
-      if (response.statusCode != 200) return null;
+      final response = await fetchPdfBytes(url);
       final document = await PdfDocument.openData(response.bodyBytes);
       final page = await document.getPage(1);
       final pageImage = await page.render(
