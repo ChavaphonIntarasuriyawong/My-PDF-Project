@@ -16,25 +16,43 @@ import '../../../core/theme/app_typography.dart';
 import '../../library/presentation/library_controller.dart';
 import '../../library/presentation/library_providers.dart';
 
-/// Hosts known to send `Access-Control-Allow-Origin` headers, so the browser
-/// will actually let us read the bytes. Anything else cannot be fetched cross-
-/// origin from a Flutter Web app without a server-side proxy.
+/// Supabase Edge Function that proxies external PDF URLs and adds the
+/// `Access-Control-Allow-Origin` header the browser needs. Set after
+/// deploying `supabase/functions/pdf-proxy/index.ts` (see file header).
+/// Leave empty to disable proxying — web will refuse non-Supabase URLs.
+/// Format: `https://<project-ref>.supabase.co/functions/v1/pdf-proxy`
+const String kCorsProxyBase =
+    'https://wtjwmwisitohlzyinoaf.supabase.co/functions/v1/pdf-proxy';
+
 bool _isCorsFriendlyHost(String url) {
   final lower = url.toLowerCase();
   return lower.contains('.supabase.co/') || lower.contains('.supabase.in/');
 }
 
 Future<http.Response> _fetchPdfBytes(String url) async {
-  if (kIsWeb && !_isCorsFriendlyHost(url)) {
+  // Mobile + CORS-friendly hosts: fetch direct.
+  if (!kIsWeb || _isCorsFriendlyHost(url)) {
+    final resp = await http
+        .get(Uri.parse(url))
+        .timeout(const Duration(seconds: 30));
+    if (resp.statusCode != 200) {
+      throw Exception('HTTP ${resp.statusCode}');
+    }
+    return resp;
+  }
+  // Web + external host: route through our private proxy if configured.
+  if (kCorsProxyBase.isEmpty) {
     throw Exception(
-        'External PDF links can\'t be read on web due to browser CORS policy. '
+        'External PDF links can\'t be read on web yet (CORS proxy not configured). '
         'Upload the file instead, or open the book on the mobile app.');
   }
+  final proxyUrl =
+      '$kCorsProxyBase?url=${Uri.encodeQueryComponent(url)}';
   final resp = await http
-      .get(Uri.parse(url))
+      .get(Uri.parse(proxyUrl))
       .timeout(const Duration(seconds: 30));
   if (resp.statusCode != 200) {
-    throw Exception('HTTP ${resp.statusCode}');
+    throw Exception('Proxy HTTP ${resp.statusCode}');
   }
   return resp;
 }
