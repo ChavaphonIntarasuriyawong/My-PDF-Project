@@ -57,10 +57,10 @@ void main() {
       expect(find.text('No books yet. Tap Create to add one.'), findsOneWidget);
     });
 
-    testWidgets('shows Recent Readings section header', (tester) async {
+    testWidgets('shows All PDF section header', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
-      expect(find.text('Recent Readings'), findsOneWidget);
+      expect(find.text('All PDF'), findsOneWidget);
     });
 
     testWidgets('renders book card when book provided', (tester) async {
