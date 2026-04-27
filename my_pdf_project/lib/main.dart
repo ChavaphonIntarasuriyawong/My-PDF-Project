@@ -8,6 +8,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants/app_router.dart';
 import 'core/local/recent_books_service.dart';
+import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 
@@ -59,6 +60,52 @@ class MyPdfApp extends ConsumerWidget {
       theme: AppTheme.light,
       debugShowCheckedModeBanner: false,
       routerConfig: router,
+      builder: (context, child) {
+        // Web only: clamp the app to a phone-shaped frame on wide viewports
+        // so the mobile-first layout doesn't stretch across desktop monitors.
+        // Below 600px (real mobile browser / narrow), pass through full-width.
+        if (!kIsWeb || child == null) return child ?? const SizedBox.shrink();
+        return _PhoneFrame(child: child);
+      },
+    );
+  }
+}
+
+class _PhoneFrame extends StatelessWidget {
+  final Widget child;
+  const _PhoneFrame({required this.child});
+
+  static const double _phoneWidth = 412;
+  static const double _phoneHeight = 896;
+  static const double _breakpoint = 600;
+
+  @override
+  Widget build(BuildContext context) {
+    final size = MediaQuery.of(context).size;
+    if (size.width < _breakpoint) return child;
+
+    final maxHeight = size.height.clamp(0.0, _phoneHeight);
+    final frame = Container(
+      width: _phoneWidth,
+      height: maxHeight,
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(28),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFF000000).withValues(alpha: 0.18),
+            blurRadius: 32,
+            offset: const Offset(0, 12),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+
+    return ColoredBox(
+      color: AppColors.surfaceMuted,
+      child: Center(child: frame),
     );
   }
 }

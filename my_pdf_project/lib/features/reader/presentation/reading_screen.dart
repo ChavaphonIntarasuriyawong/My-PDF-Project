@@ -146,12 +146,22 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       if (mounted) setState(() => _ttsSpeaking = false);
     });
     _tts.setErrorHandler((msg) {
-      if (mounted) {
-        setState(() { _ttsActive = false; _ttsSpeaking = false; });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('TTS engine error: $msg')),
-        );
+      if (!mounted) return;
+      // Web SpeechSynthesis fires `error` with type "interrupted"/"canceled"
+      // every time we call stop() to switch pages. Not a real error — ignore
+      // so auto-advance doesn't self-cancel mid-stream.
+      final lower = msg.toString().toLowerCase();
+      if (lower.contains('interrupt') ||
+          lower.contains('cancel') ||
+          lower.contains('not-allowed')) {
+        // ignore: avoid_print
+        print('[TTS] benign error ignored: $msg');
+        return;
       }
+      setState(() { _ttsActive = false; _ttsSpeaking = false; });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('TTS engine error: $msg')),
+      );
     });
   }
 
@@ -381,10 +391,30 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       await _tts.stop();
     } else {
       setState(() => _ttsActive = true);
-      final page = _currentPage > 0
-          ? _currentPage - 1
-          : (ref.read(bookByIdProvider(widget.bookId)).valueOrNull?.currentPage ?? 1) - 1;
-      _speakCurrentPage(page.clamp(0, 999999));
+      // On web, the parent's `_currentPage` mirrors the web reader via
+      // callback, but there's a brief startup window before scroll listener
+      // fires. Query the web controller directly to avoid reading the
+      // previous page (off-by-one) at the very first Read tap.
+      int displayedPage;
+      if (kIsWeb) {
+        displayedPage = _webController.currentPage ??
+            (_currentPage > 0
+                ? _currentPage
+                : ref
+                        .read(bookByIdProvider(widget.bookId))
+                        .valueOrNull
+                        ?.currentPage ??
+                    1);
+      } else {
+        displayedPage = _currentPage > 0
+            ? _currentPage
+            : (ref
+                    .read(bookByIdProvider(widget.bookId))
+                    .valueOrNull
+                    ?.currentPage ??
+                1);
+      }
+      _speakCurrentPage((displayedPage - 1).clamp(0, 999999));
     }
   }
 
@@ -851,6 +881,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 class WebPdfReaderController {
   _WebPdfReaderState? _state;
   void jumpToPage(int page) => _state?._jumpToPage(page);
+  // 1-indexed currently visible page, or null if reader not yet mounted.
+  int? get currentPage => _state?._currentPage;
 }
 
 class _WebPdfReader extends StatefulWidget {
@@ -917,7 +949,18 @@ class _WebPdfReaderState extends State<_WebPdfReader> {
 
   void _onScroll() {
     if (_itemHeight == 0 || _totalPages == 0) return;
-    final page = (_scrollController.offset / _itemHeight).floor() + 1;
+    if (!_scrollController.hasClients) return;
+    final pos = _scrollController.position;
+    // Use viewport CENTER, not top, so the page filling most of the screen
+    // wins. Top-only tracking under-reports the last page when viewport
+    // height > item height (multiple pages visible at once).
+    final centerOffset = pos.pixels + pos.viewportDimension / 2;
+    int page = (centerOffset / _itemHeight).floor() + 1;
+    // Snap to last page when scrolled to the very bottom — handles cases
+    // where the final page doesn't quite cross the viewport center.
+    if ((pos.maxScrollExtent - pos.pixels).abs() < 2) {
+      page = _totalPages;
+    }
     final clamped = page.clamp(1, _totalPages);
     if (clamped != _currentPage) {
       _currentPage = clamped;
