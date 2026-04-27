@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme/app_colors.dart';
@@ -16,7 +17,7 @@ class PdfCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final thumbAsync = book.link.isNotEmpty
         ? ref.watch(pdfThumbnailProvider(book.link))
-        : const AsyncValue<Object?>.data(null);
+        : const AsyncValue<Uint8List?>.data(null);
 
     return GestureDetector(
       onTap: onTap,
@@ -47,7 +48,7 @@ class PdfCard extends ConsumerWidget {
                         error: (e, s) => const _CoverPlaceholder(),
                         data: (bytes) => bytes != null
                             ? Image.memory(
-                                bytes as dynamic,
+                                bytes,
                                 fit: BoxFit.cover,
                                 width: double.infinity,
                                 errorBuilder: (ctx, e, s) =>

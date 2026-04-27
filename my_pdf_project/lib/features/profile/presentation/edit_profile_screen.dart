@@ -26,7 +26,12 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
 
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
-    if (name.isEmpty) return;
+    if (name.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Name cannot be empty.')),
+      );
+      return;
+    }
     setState(() => _saving = true);
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
@@ -49,7 +54,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       if (mounted) {
         setState(() => _saving = false);
         ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Update failed. Try again.')));
+            .showSnackBar(SnackBar(content: Text('Update failed: $e')));
       }
     }
   }

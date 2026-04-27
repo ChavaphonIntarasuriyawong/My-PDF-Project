@@ -73,13 +73,28 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
   }
 
   Future<void> _save() async {
-    final title = _titleCtrl.text.trim();
+    var title = _titleCtrl.text.trim();
     final content = _ctrl.text.trim();
     if (content.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Note cannot be empty.')),
       );
       return;
+    }
+    // Auto-name new untitled notes as "Note (N)" — N = highest existing
+    // numbered index + 1, so deletes don't cause clashes.
+    if (_isNew && title.isEmpty) {
+      final existing = ref.read(notesByBookProvider(widget.bookId)).valueOrNull ?? [];
+      final pattern = RegExp(r'^Note \((\d+)\)$');
+      var maxN = 0;
+      for (final n in existing) {
+        final m = pattern.firstMatch(n.title.trim());
+        if (m != null) {
+          final num = int.tryParse(m.group(1)!) ?? 0;
+          if (num > maxN) maxN = num;
+        }
+      }
+      title = 'Note (${maxN + 1})';
     }
     setState(() => _saving = true);
     final ctrl = ref.read(libraryControllerProvider.notifier);
@@ -106,22 +121,22 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
     }
   }
 
-  /// X icon = delete for existing notes (with confirmation), or just close
-  /// (discard input) when creating a new one.
-  void _onCrossPressed() {
-    if (_isNew) {
-      Navigator.of(context).pop();
-      return;
-    }
+  /// X = always close/discard (no destructive action).
+  void _onClose() {
+    Navigator.of(context).pop();
+  }
+
+  /// Trash icon — only visible for existing notes. Asks for confirmation.
+  void _onDelete() {
     showAppModal(
       context: context,
       builder: (ctx) => AppModal(
-        title: 'Delete Notes',
-        titleIcon: Icons.error,
+        title: 'Delete Note',
+        titleIcon: Icons.delete_outline,
         confirmLabel: 'Delete',
         confirmDestructive: true,
         body: Text(
-          'Are you sure you want to delete the notes? Once you delete the notes, they cannot be recovered.',
+          'This note will be permanently deleted. This action cannot be undone.',
           style: AppTypography.bodyMedium,
         ),
         onConfirm: () async {
@@ -171,7 +186,7 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
                     child: Row(
                       children: [
                         GestureDetector(
-                          onTap: _onCrossPressed,
+                          onTap: _onClose,
                           behavior: HitTestBehavior.opaque,
                           child: const Padding(
                             padding: EdgeInsets.all(8),
@@ -189,7 +204,19 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        if (!_isNew) ...[
+                          const SizedBox(width: 4),
+                          GestureDetector(
+                            onTap: _onDelete,
+                            behavior: HitTestBehavior.opaque,
+                            child: const Padding(
+                              padding: EdgeInsets.all(8),
+                              child: Icon(Icons.delete_outline,
+                                  color: AppColors.error, size: 22),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(width: 4),
                         TextButton(
                           onPressed: _saving ? null : _save,
                           child: Text(

@@ -1,10 +1,10 @@
 import 'dart:io';
-import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
+import '../../../core/local/recent_books_service.dart';
 import '../data/firestore_data_source.dart';
 import '../domain/book_model.dart';
 import '../domain/bookshelf_model.dart';
@@ -13,6 +13,28 @@ import '../../auth/presentation/auth_providers.dart';
 
 final firestoreDataSourceProvider = Provider<FirestoreDataSource>((ref) {
   return FirestoreDataSource(ref.watch(firestoreProvider));
+});
+
+final recentBooksServiceProvider = Provider<RecentBooksService>((ref) {
+  return RecentBooksService();
+});
+
+/// Reactive stream of locally-stored recent book IDs (most recent first).
+final recentBookIdsProvider = StreamProvider<List<String>>((ref) {
+  return ref.watch(recentBooksServiceProvider).watch();
+});
+
+/// Joins recent IDs with current books, drops missing (e.g. deleted) entries,
+/// preserves recency order.
+final recentBooksProvider = Provider<List<BookModel>>((ref) {
+  final ids = ref.watch(recentBookIdsProvider).valueOrNull ?? const [];
+  final all = ref.watch(allBooksProvider).valueOrNull ?? const [];
+  if (ids.isEmpty || all.isEmpty) return const [];
+  final byId = {for (final b in all) b.id: b};
+  return [
+    for (final id in ids)
+      if (byId[id] != null) byId[id]!,
+  ];
 });
 
 final shelvesProvider = StreamProvider<List<BookshelfModel>>((ref) {

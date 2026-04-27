@@ -97,7 +97,7 @@ class ShelfContentScreen extends ConsumerWidget {
         confirmLabel: 'Confirm',
         confirmDestructive: true,
         body: Text(
-          'Are you sure you want to delete this shelf? If you delete this shelf, all PDF links will disappear.',
+          'Delete this shelf? Books inside will not be deleted — they will be moved out of the shelf and stay in your library.',
           style: AppTypography.bodyMedium,
         ),
         onConfirm: () async {

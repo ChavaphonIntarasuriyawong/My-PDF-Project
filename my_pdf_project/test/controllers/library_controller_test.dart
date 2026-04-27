@@ -38,7 +38,10 @@ class _FakeDataSource implements FirestoreDataSource {
   }
 
   @override
-  Future<void> deleteBook(String bookId) async => _maybeThrow();
+  Future<String?> deleteBook(String bookId) async {
+    _maybeThrow();
+    return null;
+  }
 
   @override
   Future<void> updateReadingProgress({required String bookId, required int currentPage, required int totalPages}) async =>
@@ -51,14 +54,25 @@ class _FakeDataSource implements FirestoreDataSource {
   Future<void> updateBookTitle(String bookId, String title) async => _maybeThrow();
 
   @override
-  Future<NoteModel> createNote({required String bookId, required String content}) async {
+  Future<NoteModel> createNote({
+    required String bookId,
+    required String title,
+    required String content,
+  }) async {
     _maybeThrow();
-    savedNote = NoteModel(id: 'n1', bookId: bookId, content: content, updatedAt: DateTime.now());
+    savedNote = NoteModel(
+      id: 'n1',
+      bookId: bookId,
+      title: title,
+      content: content,
+      updatedAt: DateTime.now(),
+    );
     return savedNote!;
   }
 
   @override
-  Future<void> updateNoteContent(String noteId, String content) async => _maybeThrow();
+  Future<void> updateNote(String noteId,
+      {required String title, required String content}) async => _maybeThrow();
 
   @override
   Future<void> deleteNote(String noteId) async => _maybeThrow();
@@ -213,10 +227,12 @@ void main() {
       test('success returns note', () async {
         final note = await container.read(libraryControllerProvider.notifier).createNote(
           bookId: 'b1',
+          title: 'Insight',
           content: 'Great book',
         );
         expect(note, isNotNull);
         expect(note!.content, 'Great book');
+        expect(note.title, 'Insight');
         expect(note.bookId, 'b1');
       });
 
@@ -224,23 +240,24 @@ void main() {
         ds.shouldThrow = true;
         final note = await container.read(libraryControllerProvider.notifier).createNote(
           bookId: 'b1',
+          title: 'T',
           content: 'Content',
         );
         expect(note, isNull);
       });
     });
 
-    group('updateNoteContent', () {
+    group('updateNote', () {
       test('success returns true', () async {
         final ok = await container.read(libraryControllerProvider.notifier)
-            .updateNoteContent('n1', 'updated');
+            .updateNote('n1', title: 'New', content: 'updated');
         expect(ok, isTrue);
       });
 
       test('failure returns false', () async {
         ds.shouldThrow = true;
         final ok = await container.read(libraryControllerProvider.notifier)
-            .updateNoteContent('n1', 'updated');
+            .updateNote('n1', title: 'New', content: 'updated');
         expect(ok, isFalse);
       });
     });

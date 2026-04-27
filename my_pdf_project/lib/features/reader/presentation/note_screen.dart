@@ -10,8 +10,6 @@ import '../../library/presentation/library_controller.dart';
 import '../../library/presentation/library_providers.dart';
 import 'note_edit_screen.dart';
 
-const int kNotePreviewMaxChars = 140;
-
 class NoteScreen extends ConsumerWidget {
   final String bookId;
   const NoteScreen({super.key, required this.bookId});
@@ -20,12 +18,12 @@ class NoteScreen extends ConsumerWidget {
     showAppModal(
       context: context,
       builder: (ctx) => AppModal(
-        title: 'Delete Notes',
-        titleIcon: Icons.error,
+        title: 'Delete Note',
+        titleIcon: Icons.delete_outline,
         confirmLabel: 'Delete',
         confirmDestructive: true,
         body: Text(
-          'Are you sure you want to delete the notes? Once you delete the notes, they cannot be recovered.',
+          'This note will be permanently deleted. This action cannot be undone.',
           style: AppTypography.bodyMedium,
         ),
         onConfirm: () async {
@@ -53,6 +51,26 @@ class NoteScreen extends ConsumerWidget {
         bottom: false,
         child: Column(
         children: [
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            child: Row(
+              children: [
+                GestureDetector(
+                  onTap: () => context.canPop()
+                      ? context.pop()
+                      : context.go('/book/$bookId'),
+                  behavior: HitTestBehavior.opaque,
+                  child: const Padding(
+                    padding: EdgeInsets.all(8),
+                    child: Icon(Icons.arrow_back,
+                        color: AppColors.primary, size: 20),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text('Notes', style: AppTypography.titleLarge),
+              ],
+            ),
+          ),
           Expanded(
             child: notesAsync.when(
               loading: () => const Center(child: CircularProgressIndicator()),
@@ -203,10 +221,9 @@ class _NoteCard extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
-        onLongPress: onDelete,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -221,11 +238,20 @@ class _NoteCard extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Text(
                     _formatDate(note.updatedAt),
                     style: AppTypography.bodySmall
                         .copyWith(color: AppColors.textSecondary),
+                  ),
+                  IconButton(
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline,
+                        color: AppColors.error, size: 20),
+                    visualDensity: VisualDensity.compact,
+                    padding: EdgeInsets.zero,
+                    constraints:
+                        const BoxConstraints(minWidth: 36, minHeight: 36),
                   ),
                 ],
               ),

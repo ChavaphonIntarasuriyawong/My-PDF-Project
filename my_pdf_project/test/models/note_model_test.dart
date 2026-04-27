@@ -28,9 +28,16 @@ void main() {
     });
 
     test('toMap excludes id', () {
-      final note = NoteModel(id: 'n1', bookId: 'b1', content: 'hello', updatedAt: dt);
+      final note = NoteModel(
+        id: 'n1',
+        bookId: 'b1',
+        title: 'My Note',
+        content: 'hello',
+        updatedAt: dt,
+      );
       final map = note.toMap();
       expect(map['bookId'], 'b1');
+      expect(map['title'], 'My Note');
       expect(map['content'], 'hello');
       expect(map['updatedAt'], dt.toIso8601String());
       expect(map.containsKey('id'), isFalse);

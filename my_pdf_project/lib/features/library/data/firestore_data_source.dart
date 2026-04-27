@@ -114,8 +114,11 @@ class FirestoreDataSource {
     return _db.collection('books').doc(bookId).update({'title': title});
   }
 
-  Future<void> deleteBook(String bookId) async {
+  Future<String?> deleteBook(String bookId) async {
     // Cascade-delete the book's notes so they don't orphan in Firestore.
+    // Returns the deleted book's link (so callers can purge storage / cache).
+    final bookDoc = await _db.collection('books').doc(bookId).get();
+    final link = bookDoc.data()?['link'] as String?;
     final notes = await _db
         .collection('notes')
         .where('bookId', isEqualTo: bookId)
@@ -126,6 +129,7 @@ class FirestoreDataSource {
     }
     batch.delete(_db.collection('books').doc(bookId));
     await batch.commit();
+    return link;
   }
 
   Future<void> moveBook(String bookId, String newShelfId) {

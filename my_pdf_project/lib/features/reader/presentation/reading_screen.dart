@@ -16,6 +16,29 @@ import '../../../core/theme/app_typography.dart';
 import '../../library/presentation/library_controller.dart';
 import '../../library/presentation/library_providers.dart';
 
+/// Hosts known to send `Access-Control-Allow-Origin` headers, so the browser
+/// will actually let us read the bytes. Anything else cannot be fetched cross-
+/// origin from a Flutter Web app without a server-side proxy.
+bool _isCorsFriendlyHost(String url) {
+  final lower = url.toLowerCase();
+  return lower.contains('.supabase.co/') || lower.contains('.supabase.in/');
+}
+
+Future<http.Response> _fetchPdfBytes(String url) async {
+  if (kIsWeb && !_isCorsFriendlyHost(url)) {
+    throw Exception(
+        'External PDF links can\'t be read on web due to browser CORS policy. '
+        'Upload the file instead, or open the book on the mobile app.');
+  }
+  final resp = await http
+      .get(Uri.parse(url))
+      .timeout(const Duration(seconds: 30));
+  if (resp.statusCode != 200) {
+    throw Exception('HTTP ${resp.statusCode}');
+  }
+  return resp;
+}
+
 class ReadingScreen extends ConsumerStatefulWidget {
   final String bookId;
   const ReadingScreen({super.key, required this.bookId});
@@ -49,67 +72,70 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   // stale async work checks version before proceeding.
   int _speakVersion = 0;
 
+  // Web: voiceschanged fires after first user gesture in some browsers, so
+  // initState often sees an empty voice list. Track whether we've installed
+  // a voice; retry just-in-time before each speak() if not.
+  bool _webVoiceSet = false;
+
   @override
   void initState() {
     super.initState();
     _initTts();
+    // Mark this book as recently opened (local Hive store) so it surfaces
+    // on the home "Recently Opened" rail across sessions.
+    ref.read(recentBooksServiceProvider).markOpened(widget.bookId);
   }
 
   Future<void> _initTts() async {
+    // ignore: avoid_print
+    print('[TTS] init start, web=$kIsWeb');
+    if (!kIsWeb) {
+      try {
+        final engines = await _tts.getEngines;
+        // ignore: avoid_print
+        print('[TTS] engines available: $engines');
+        final defaultEngine = await _tts.getDefaultEngine;
+        // ignore: avoid_print
+        print('[TTS] default engine: $defaultEngine');
+      } catch (e) {
+        // ignore: avoid_print
+        print('[TTS] engine query failed: $e');
+      }
+    }
     // setLanguage returns -1 (NOT_SUPPORTED) or -2 (MISSING_DATA) on devices
     // without English TTS pack — fall back to device default in that case.
     final langResult = await _tts.setLanguage('en-US');
+    // ignore: avoid_print
+    print('[TTS] setLanguage(en-US) returned: $langResult');
     if (langResult is int && langResult < 0) {
       final langs = await _tts.getLanguages;
+      // ignore: avoid_print
+      print('[TTS] available languages: $langs');
       final list = langs as List?;
       if (list != null && list.isNotEmpty) {
-        await _tts.setLanguage(list.first.toString());
+        // Prefer any English variant before random first locale.
+        final en = list.firstWhere(
+          (l) => l.toString().toLowerCase().startsWith('en'),
+          orElse: () => list.first,
+        );
+        final r = await _tts.setLanguage(en.toString());
+        // ignore: avoid_print
+        print('[TTS] fallback setLanguage($en) returned: $r');
       }
     }
 
     if (kIsWeb) {
-      // Browser default voices are robotic. Pick the warmest female natural
-      // voice the browser exposes. Edge has Aria/Jenny (Natural); Chrome usually
-      // exposes a female-toned "Google US English"; Windows has Zira; macOS Samantha.
-      try {
-        final voices = await _tts.getVoices;
-        if (voices is List) {
-          int score(Map v) {
-            final name = (v['name'] as String? ?? '').toLowerCase();
-            final locale = (v['locale'] as String? ?? '').toLowerCase();
-            if (!locale.startsWith('en')) return -1;
-            // Female natural voices on Edge — top tier, "cozy" sounding.
-            if (name.contains('aria') || name.contains('jenny')) return 100;
-            if (name.contains('jane') || name.contains('libby')) return 95;
-            if (name.contains('michelle') || name.contains('clara')) return 90;
-            if (name.contains('natural') && name.contains('female')) return 85;
-            if (name.contains('natural')) return 70;
-            // Female OS voices.
-            if (name.contains('zira')) return 60;
-            if (name.contains('samantha') || name.contains('karen')) return 60;
-            if (name.contains('google us english')) return 55;
-            if (name.contains('female')) return 50;
-            if (name.contains('google') && name.contains('english')) return 30;
-            // Deprioritize male voices we recognize.
-            if (name.contains('david') || name.contains('mark') ||
-                name.contains('guy')  || name.contains('alex')) return 5;
-            return 10;
-          }
-          final ranked = voices.cast<Map>().toList()
-            ..sort((a, b) => score(b).compareTo(score(a)));
-          if (ranked.isNotEmpty && score(ranked.first) > 0) {
-            await _tts.setVoice({
-              'name': ranked.first['name'].toString(),
-              'locale': ranked.first['locale'].toString(),
-            });
-          }
-        }
-      } catch (_) {/* voice selection is best-effort */}
+      await _trySetWebVoice();
     }
 
     await _tts.setSpeechRate(_speechRate);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
+    // Ensures speak() future resolves on actual completion, not immediately.
+    // Without this, Android sometimes drops audio + completionHandler never fires.
+    if (!kIsWeb) {
+      try { await _tts.awaitSpeakCompletion(true); } catch (_) {}
+    }
     _tts.setCompletionHandler(() {
       if (!mounted) return;
       setState(() => _ttsSpeaking = false);
@@ -129,9 +155,57 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     });
   }
 
+  Future<void> _trySetWebVoice() async {
+    try {
+      List? voices;
+      for (var i = 0; i < 10; i++) {
+        final v = await _tts.getVoices;
+        if (v is List && v.isNotEmpty) {
+          voices = v;
+          break;
+        }
+        await Future.delayed(const Duration(milliseconds: 150));
+      }
+      // ignore: avoid_print
+      print('[TTS] web voices found: ${voices?.length ?? 0}');
+      if (voices == null) return;
+      int score(Map v) {
+        final name = (v['name'] as String? ?? '').toLowerCase();
+        final locale = (v['locale'] as String? ?? '').toLowerCase();
+        if (!locale.startsWith('en')) return -1;
+        if (name.contains('aria') || name.contains('jenny')) return 100;
+        if (name.contains('jane') || name.contains('libby')) return 95;
+        if (name.contains('michelle') || name.contains('clara')) return 90;
+        if (name.contains('natural') && name.contains('female')) return 85;
+        if (name.contains('natural')) return 70;
+        if (name.contains('zira')) return 60;
+        if (name.contains('samantha') || name.contains('karen')) return 60;
+        if (name.contains('google us english')) return 55;
+        if (name.contains('female')) return 50;
+        if (name.contains('google') && name.contains('english')) return 30;
+        if (name.contains('david') || name.contains('mark') ||
+            name.contains('guy')  || name.contains('alex')) return 5;
+        return 10;
+      }
+      final ranked = voices.cast<Map>().toList()
+        ..sort((a, b) => score(b).compareTo(score(a)));
+      if (ranked.isNotEmpty && score(ranked.first) > 0) {
+        await _tts.setVoice({
+          'name': ranked.first['name'].toString(),
+          'locale': ranked.first['locale'].toString(),
+        });
+        _webVoiceSet = true;
+        // ignore: avoid_print
+        print('[TTS] web voice set: ${ranked.first['name']}');
+      }
+    } catch (_) {/* best-effort */}
+  }
+
   @override
   void dispose() {
     _tts.stop();
+    // Release native PDF text-extractor handle on Android — leak otherwise.
+    _pdfDoc = null;
     super.dispose();
   }
 
@@ -179,11 +253,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         // _pdfPath is the URL on web. Fetch bytes once, cache, then use
         // Syncfusion to extract text — flutter_pdf_text doesn't support web.
         if (_webPdfBytes == null) {
-          final response = await http.get(Uri.parse(_pdfPath!));
+          final response = await _fetchPdfBytes(_pdfPath!);
           if (v != _speakVersion) return;
-          if (response.statusCode != 200) {
-            throw Exception('HTTP ${response.statusCode} fetching PDF');
-          }
           _webPdfBytes = response.bodyBytes;
         }
         final doc = sf.PdfDocument(inputBytes: _webPdfBytes!);
@@ -229,8 +300,20 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       }
       await _tts.setSpeechRate(_speechRate);
       await _tts.setPitch(_pitch);
+      // Web: voices populate asynchronously after first user gesture. Retry
+      // voice selection here (after the Read button tap) if init missed it.
+      if (kIsWeb && !_webVoiceSet) {
+        await _trySetWebVoice();
+      }
       if (mounted) setState(() => _ttsSpeaking = true);
-      await _tts.speak(pageText);
+      // Diagnostic: extracted text length is a common failure mode (image-only PDFs).
+      // ignore: avoid_print
+      print('[TTS] speaking ${pageText.length} chars, rate=$_speechRate pitch=$_pitch web=$kIsWeb');
+      final result = await _tts.speak(pageText);
+      // ignore: avoid_print
+      print('[TTS] speak() returned: $result (version=$v, current=$_speakVersion)');
+      // With awaitSpeakCompletion(true), result==0 also fires on legitimate
+      // interruption (stop() before completion). Don't surface as error.
     } catch (e) {
       _pdfDoc = null;
       if (mounted) {
@@ -287,11 +370,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
   Future<void> _toggleTts() async {
     if (_ttsActive) {
-      await _tts.stop();
+      // Flip flag BEFORE await stop() — completion handler races against this.
+      // If we set after, completion can fire mid-await with _ttsActive still
+      // true, triggering auto-advance and a runaway speak loop.
       setState(() {
         _ttsActive = false;
         _ttsSpeaking = false;
       });
+      _speakVersion++; // invalidate any in-flight _speakCurrentPage
+      await _tts.stop();
     } else {
       setState(() => _ttsActive = true);
       final page = _currentPage > 0
@@ -306,6 +393,93 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     if (!_ttsActive) return;
     final page = _currentPage > 0 ? _currentPage - 1 : 0;
     _speakCurrentPage(page);
+  }
+
+  Future<String> _ttsDiagnostics() async {
+    final buf = StringBuffer();
+    try {
+      if (!kIsWeb) {
+        final engines = await _tts.getEngines;
+        final def = await _tts.getDefaultEngine;
+        buf.writeln('Engines: $engines');
+        buf.writeln('Default: $def');
+      }
+      final langs = await _tts.getLanguages;
+      buf.writeln('Languages (${(langs as List?)?.length ?? 0}):');
+      buf.writeln('  ${langs?.take(8).toList()}');
+      final voices = await _tts.getVoices;
+      buf.writeln('Voices: ${(voices as List?)?.length ?? 0}');
+    } catch (e) {
+      buf.writeln('Query failed: $e');
+    }
+    return buf.toString().trim();
+  }
+
+  Future<void> _ttsSelfTest() async {
+    final report = StringBuffer();
+    Object? winner;
+    try { await _tts.awaitSpeakCompletion(false); } catch (_) {}
+    await _tts.setSpeechRate(0.5);
+    await _tts.setPitch(1.0);
+    await _tts.setVolume(1.0);
+
+    // 1) Try language-only path (current default)
+    for (final lang in const ['en-US', 'en-GB', 'en-AU', 'en-IN', 'en']) {
+      final lr = await _tts.setLanguage(lang);
+      report.writeln('setLanguage($lang) → $lr');
+      if (lr is int && lr < 0) continue;
+      final r = await _tts.speak('Hello world test.');
+      report.writeln('  speak → $r');
+      if (r == 1) { winner = 'lang:$lang'; break; }
+    }
+
+    // 2) If language path failed, enumerate voices and try each English voice
+    //    with explicit setVoice(). Engines often need voice-bound speak.
+    if (winner == null) {
+      final voices = await _tts.getVoices;
+      if (voices is List) {
+        final english = voices
+            .cast<Map>()
+            .where((v) {
+              final l = (v['locale'] as String? ?? '').toLowerCase();
+              return l.startsWith('en');
+            })
+            .toList();
+        report.writeln('English voices: ${english.length}');
+        for (final v in english.take(8)) {
+          try {
+            await _tts.setVoice({
+              'name': v['name'].toString(),
+              'locale': v['locale'].toString(),
+            });
+          } catch (_) {}
+          final r = await _tts.speak('Hello world voice test.');
+          report.writeln('  voice ${v['name']} → $r');
+          if (r == 1) {
+            winner = 'voice:${v['name']}';
+            break;
+          }
+        }
+      }
+    }
+
+    try { await _tts.awaitSpeakCompletion(true); } catch (_) {}
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      builder: (d) => AlertDialog(
+        title: Text(winner != null ? 'OK ($winner)' : 'TTS Failed'),
+        content: SingleChildScrollView(
+          child: SelectableText(
+            report.toString().trim(),
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Close')),
+        ],
+      ),
+    );
   }
 
   void _showVoiceSettings() {
@@ -330,6 +504,47 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                 Text(
                   'Changes apply when you release the slider.',
                   style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _ttsSelfTest,
+                        icon: const Icon(Icons.play_circle_outline, size: 18),
+                        label: const Text('Test'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final info = await _ttsDiagnostics();
+                          if (!mounted) return;
+                          showDialog(
+                            context: context,
+                            builder: (d) => AlertDialog(
+                              title: const Text('TTS Diagnostics'),
+                              content: SingleChildScrollView(
+                                child: SelectableText(
+                                  info,
+                                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+                                ),
+                              ),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(d),
+                                  child: const Text('Close'),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.info_outline, size: 18),
+                        label: const Text('Info'),
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -682,13 +897,7 @@ class _WebPdfReaderState extends State<_WebPdfReader> {
 
   Future<void> _load() async {
     try {
-      final response = await http.get(Uri.parse(widget.url)).timeout(
-            const Duration(seconds: 30),
-            onTimeout: () => throw Exception('Download timed out'),
-          );
-      if (response.statusCode != 200) {
-        throw Exception('HTTP ${response.statusCode}');
-      }
+      final response = await _fetchPdfBytes(widget.url);
       final doc = await pdfx.PdfDocument.openData(response.bodyBytes);
       // Use first page's aspect ratio for all items — book pages are usually uniform.
       final firstPage = await doc.getPage(1);

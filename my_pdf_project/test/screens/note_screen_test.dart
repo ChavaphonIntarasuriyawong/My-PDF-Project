@@ -15,8 +15,8 @@ const _book = BookModel(
   status: 'reading', shelfId: 's1', ownerId: 'u1',
 );
 
-final _note1 = NoteModel(id: 'n1', bookId: 'b1', content: 'Note one', updatedAt: DateTime(2025, 1, 1));
-final _note2 = NoteModel(id: 'n2', bookId: 'b1', content: 'Note two', updatedAt: DateTime(2025, 1, 2));
+final _note1 = NoteModel(id: 'n1', bookId: 'b1', title: 'Title 1', content: 'Note one', updatedAt: DateTime(2025, 1, 1));
+final _note2 = NoteModel(id: 'n2', bookId: 'b1', title: 'Title 2', content: 'Note two', updatedAt: DateTime(2025, 1, 2));
 
 class _FakeDataSource implements FirestoreDataSource {
   String? deletedNoteId;
@@ -33,13 +33,13 @@ class _FakeDataSource implements FirestoreDataSource {
   }
 
   @override Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
-  @override Future<NoteModel> createNote({required String bookId, required String content}) => throw UnimplementedError();
-  @override Future<void> updateNoteContent(String noteId, String content) => throw UnimplementedError();
+  @override Future<NoteModel> createNote({required String bookId, required String title, required String content}) => throw UnimplementedError();
+  @override Future<void> updateNote(String noteId, {required String title, required String content}) => throw UnimplementedError();
   @override Future<BookshelfModel> createShelf({required String name, required String ownerId}) => throw UnimplementedError();
   @override Future<void> updateShelfName(String s, String n) => throw UnimplementedError();
   @override Future<void> deleteShelf(String s) => throw UnimplementedError();
   @override Future<BookModel> createBook(BookModel b) => throw UnimplementedError();
-  @override Future<void> deleteBook(String b) => throw UnimplementedError();
+  @override Future<String?> deleteBook(String b) => throw UnimplementedError();
   @override Future<void> updateBook(BookModel b) => throw UnimplementedError();
   @override Future<void> updateReadingProgress({required String bookId, required int currentPage, required int totalPages}) => throw UnimplementedError();
   @override Future<void> updateBookStatus(String b, String s) => throw UnimplementedError();

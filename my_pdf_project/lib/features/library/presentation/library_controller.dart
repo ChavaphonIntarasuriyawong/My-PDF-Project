@@ -1,4 +1,9 @@
+import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/book_model.dart';
 import '../domain/note_model.dart';
 import 'library_providers.dart';
@@ -82,13 +87,43 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
   Future<bool> deleteBook(String bookId) async {
     state = const AsyncValue.loading();
     try {
-      await _ref.read(firestoreDataSourceProvider).deleteBook(bookId);
+      final link =
+          await _ref.read(firestoreDataSourceProvider).deleteBook(bookId);
+      // Drop from local recents so the home rail doesn't show a dead pointer.
+      await _ref.read(recentBooksServiceProvider).remove(bookId);
+      // Best-effort storage + cache cleanup. Failures here are non-fatal —
+      // book + notes are already removed from Firestore at this point.
+      if (link != null && link.isNotEmpty) {
+        unawaited(_purgeStorageAndCache(link));
+      }
       state = const AsyncValue.data(null);
       return true;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
       return false;
     }
+  }
+
+  Future<void> _purgeStorageAndCache(String link) async {
+    // Supabase: remove the bucket object if this book was an upload.
+    final supaMarker = '/storage/v1/object/public/pdfs/';
+    final idx = link.indexOf(supaMarker);
+    if (idx >= 0) {
+      final path = link.substring(idx + supaMarker.length);
+      try {
+        await Supabase.instance.client.storage.from('pdfs').remove([path]);
+      } catch (_) {/* ignore — already gone or auth/policy */}
+    }
+    // Local: drop the cached download / thumbnail.
+    if (kIsWeb) return;
+    try {
+      final docs = await getApplicationDocumentsDirectory();
+      final cached = File('${docs.path}/pdf_${link.hashCode.abs()}.pdf');
+      if (await cached.exists()) await cached.delete();
+      final thumb =
+          File('${docs.path}/thumbs/thumb_${link.hashCode.abs()}.jpg');
+      if (await thumb.exists()) await thumb.delete();
+    } catch (_) {/* ignore */}
   }
 
   Future<bool> updateProgress({

@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
@@ -60,7 +62,9 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
-        withData: false, // avoid OOM for large PDFs; bytes read from path at upload time
+        // Web has no path; Android SAF may also return null path → need bytes.
+        // Mobile keeps path-based read to avoid OOM on big PDFs.
+        withData: kIsWeb,
       );
       if (result == null || result.files.isEmpty) return;
       if (!mounted) return;
@@ -71,8 +75,13 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     }
   }
 
-  Future<({String link, PdfMetadata metadata})> _savePdfLocally(
-      PlatformFile file, String uid) async {
+  Future<Uint8List> _readPickedBytes(PlatformFile file) async {
+    if (file.bytes != null && file.bytes!.isNotEmpty) {
+      return file.bytes!;
+    }
+    if (kIsWeb) {
+      throw Exception('Could not read file. Try picking it again.');
+    }
     if (file.path == null) {
       throw Exception('File path unavailable. Try picking the file again.');
     }
@@ -80,31 +89,45 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     if (!await source.exists()) {
       throw Exception('File no longer accessible. Try picking it again.');
     }
-    final size = await source.length();
-    if (size == 0) {
+    return source.readAsBytes();
+  }
+
+  Future<({String link, PdfMetadata metadata})> _uploadPdf(
+      PlatformFile file, String uid) async {
+    final bytes = await _readPickedBytes(file);
+    if (bytes.isEmpty) {
       throw Exception('Picked file is empty.');
     }
-
-    final bytes = await source.readAsBytes();
     final metadata = extractPdfMetadata(bytes);
-
-    final docs = await getApplicationDocumentsDirectory();
-    final localDir = Directory('${docs.path}/local_pdfs');
-    if (!await localDir.exists()) {
-      await localDir.create(recursive: true);
+    final supabasePath = '$uid/${DateTime.now().millisecondsSinceEpoch}.pdf';
+    final supabase = Supabase.instance.client;
+    try {
+      await supabase.storage.from('pdfs').uploadBinary(
+            supabasePath,
+            bytes,
+            fileOptions: const FileOptions(
+              contentType: 'application/pdf',
+              upsert: false,
+            ),
+          );
+    } on StorageException catch (e) {
+      throw Exception('Storage error: ${e.message}');
     }
-    final filename = '${uid}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-    final dest = File('${localDir.path}/$filename');
-    await dest.writeAsBytes(bytes);
-
-    // local:// marker tells pdfPathProvider this is a device-local file, not a URL to download.
-    return (link: 'local://$filename', metadata: metadata);
+    final publicUrl =
+        supabase.storage.from('pdfs').getPublicUrl(supabasePath);
+    return (link: publicUrl, metadata: metadata);
   }
 
   Future<PdfMetadata> _validateAndExtractMetadata(String url) async {
     final uri = Uri.tryParse(url);
     if (uri == null || !uri.hasScheme || !(uri.scheme == 'http' || uri.scheme == 'https')) {
       throw Exception('Invalid URL scheme.');
+    }
+    // Browsers block cross-origin GET on most PDF hosts (CORS). Skip the probe
+    // on web — we trust the URL and let the reader fetch it later. Metadata
+    // (author/year) is unavailable in this path.
+    if (kIsWeb) {
+      return const PdfMetadata();
     }
     final resp = await http.get(uri).timeout(const Duration(seconds: 30),
         onTimeout: () => throw Exception('Link unreachable.'));
@@ -157,12 +180,15 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         final err = ref.read(libraryControllerProvider).error;
         if (err != null) _showError(err.toString());
       }
-    } catch (_) {
+    } catch (e) {
       if (!mounted) return;
       setState(() {
         _loadingUrl = false;
         _urlImportError = true;
       });
+      // Surface real cause — generic banner alone hides CORS/network/parse errors.
+      final msg = e.toString().replaceAll('Exception: ', '');
+      _showError('Import failed: $msg');
     }
   }
 
@@ -174,7 +200,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     setState(() => _loadingFile = true);
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
-      final saved = await _savePdfLocally(_pickedFile!, uid);
+      final saved = await _uploadPdf(_pickedFile!, uid);
       final book = BookModel(
         id: '',
         title: _titleFromSource(_pickedFile!.name),

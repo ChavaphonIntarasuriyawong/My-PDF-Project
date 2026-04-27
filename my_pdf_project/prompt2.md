@@ -1,219 +1,212 @@
 # CLAUDE.md — MyPDF Project Blueprint
 
 > **Read this file completely before writing any code.**
-> This is the single source of truth for all agents working on this project.
+> Single source of truth for all agents working on this project.
+> Reflects current code state (lib/) — not aspirational design.
 
 ---
 
-## 📱 Project Overview
+## App Overview
 
 | Field | Value |
 |---|---|
-| **App Name** | MyPDF |
-| **Type** | Flutter + Firebase + Supabase mobile app |
-| **Platform** | Android (primary) |
-| **Purpose** | PDF reading progress tracker — users save PDF links, organize into bookshelves, track reading progress manually, and write notes |
+| App Name | MyPDF |
+| Type | Flutter + Firebase + Supabase |
+| Platforms | Android (primary), Web (secondary), iOS/desktop scaffolded |
+| Purpose | Save PDFs (link or upload), organize into bookshelves, track reading progress, write notes, TTS read-aloud |
 
 ---
 
-## 🎨 Step 0: Read Figma Design FIRST
+## Tech Stack (matches `pubspec.yaml`)
 
-Before writing any code, use the **Figma MCP tool** to extract the design:
-
-```
-File URL : https://www.figma.com/design/TOKgyB73dnzi2TAUXAI7bi/Untitled?node-id=0-1&m=dev&t=f9VdgzTHPmdXtUOT-1
-```
-
-### Screen Node IDs (fetch each one with get_design_context)
-
-| Screen | Node ID |
+| Layer | Package |
 |---|---|
-| Login | `17:126` |
-| Register | `17:156` |
-| Library Dashboard (Home) | `17:412` |
-| Shelf Content | `17:823` |
-| Add PDF Link | `17:211` |
-| PDF Reader (Read-Only + Progress) | `17:636` |
-| Profile | `17:1190` |
-| Edit Personal Info | `17:1261` |
-| Side Menu | `17:926` |
+| Framework | Flutter SDK ^3.10.7 |
+| State | `flutter_riverpod` 2.6.1 + `riverpod_annotation` 2.6.1 |
+| Navigation | `go_router` 14.6.3 (auth-gated redirect) |
+| Auth | `firebase_auth` 5.5.4 |
+| DB | `cloud_firestore` 5.6.7 |
+| File storage | `supabase_flutter` 2.8.4 (bucket `pdfs`) |
+| Crash | `firebase_crashlytics` 4.3.5 |
+| Local storage | `hive` 2.2.3 + `hive_flutter` 1.1.0 (recent books, prefs) |
+| PDF render mobile | `flutter_pdfview` 1.3.2 |
+| PDF render web/thumb | `pdfx` 2.9.0 |
+| PDF metadata + web text | `syncfusion_flutter_pdf` 27.1.48 |
+| PDF text mobile | `flutter_pdf_text` 0.9.0 |
+| TTS | `flutter_tts` 4.2.0 |
+| Functional | `dartz` 0.10.1 |
+| Net + FS | `http` 1.2.2, `path_provider` 2.1.4 |
+| Picker | `file_picker` 8.1.2, `image_picker` 1.1.2 |
+| Fonts | `google_fonts` 6.2.1, `font_awesome_flutter` 10.8.0 |
 
-Extract and save as `design_tokens.md`:
-1. Color palette — exact hex values
-2. Typography — font family, sizes, weights for each text style
-3. All reusable components (buttons, cards, inputs, bottom nav, modals)
-4. Spacing and padding patterns
+> Firebase Storage NOT used. PDFs → Supabase bucket `pdfs`.
+> Profile = name + email only. No avatar.
 
-**Do NOT write any code until `design_tokens.md` is complete.**
-
----
-
-## 🏗️ Tech Stack
-
-| Layer | Technology |
-|---|---|
-| Framework | Flutter (latest stable) |
-| State Management | Riverpod 2.x with `@riverpod` code generation |
-| Navigation | GoRouter with auth guard |
-| Auth | Firebase Auth |
-| Database | Firestore |
-| PDF File Storage | Supabase Storage (`pdfs` bucket) |
-| Local Cache | Hive (offline-first support) |
-| PDF Viewer | `flutter_pdfview` — mobile only, renders PDF from URL/file |
-| PDF Text Extraction | `flutter_pdf_text` — extract text content from PDF |
-| Text-to-Speech | `flutter_tts` — read PDF text aloud |
-| Crash Reporting | Firebase Crashlytics |
-
-> **Firebase Storage is NOT used.** All PDF file uploads go to Supabase Storage.
-> **No avatar feature.** Profile has no photo/avatar.
+Supabase URL + key wired in `lib/main.dart`. Firebase init via `firebase_options.dart`.
 
 ---
 
-## 🏛️ Architecture — Clean Architecture (NON-NEGOTIABLE)
+## Directory Layout (actual)
 
 ```
 lib/
 ├── core/
-│   ├── theme/          ← AppColors, AppTypography  (from Figma tokens)
-│   ├── constants/      ← AppRoutes, AppStrings
-│   ├── errors/         ← Failure, AppException
-│   └── utils/          ← validators, extensions
+│   ├── constants/    app_router.dart, app_routes.dart
+│   ├── errors/       failures.dart           (Failure, AuthFailure, NetworkFailure, ServerFailure, CacheFailure, NotFoundFailure)
+│   ├── local/        recent_books_service.dart  (Hive box `app_prefs`)
+│   └── theme/        app_colors.dart, app_typography.dart, app_theme.dart
 ├── features/
 │   ├── auth/
-│   │   ├── data/       ← FirebaseAuthDataSource, AuthRepositoryImpl
-│   │   ├── domain/     ← AuthRepository (abstract), LoginUseCase, RegisterUseCase
-│   │   └── presentation/ ← LoginScreen, RegisterScreen, AuthController
+│   │   ├── data/     firebase_auth_data_source.dart, auth_repository_impl.dart
+│   │   ├── domain/   auth_repository.dart, user_model.dart
+│   │   └── presentation/  login_screen, register_screen, auth_controller, auth_providers
 │   ├── library/
-│   │   ├── data/
-│   │   ├── domain/
-│   │   └── presentation/ ← HomeScreen, ShelfContentScreen, NewBookScreen, BookInfoScreen
+│   │   ├── data/     firestore_data_source.dart, pdf_metadata.dart
+│   │   ├── domain/   book_model, bookshelf_model, note_model
+│   │   └── presentation/  home_screen, shelf_content_screen, new_book_screen, book_info_screen, library_controller, library_providers
 │   ├── reader/
-│   │   ├── data/
-│   │   ├── domain/
-│   │   └── presentation/ ← ReadingScreen, NoteScreen
+│   │   └── presentation/  reading_screen, note_screen, note_edit_screen
 │   └── profile/
-│       ├── data/
-│       ├── domain/
-│       └── presentation/ ← ProfileScreen, EditProfileScreen
-└── shared/
-    └── widgets/        ← PdfCard, StatusBadge, BottomNavBar, AppModal
+│       └── presentation/  profile_screen, edit_profile_screen
+├── shared/widgets/   pdf_card, status_badge, app_bottom_nav_bar, app_modal, app_drawer, gradient_button, labeled_text_field
+├── firebase_options.dart
+└── main.dart
 ```
 
-### ⚠️ Domain Layer Rules
-- **ZERO** `import 'package:flutter/...'` in `domain/`
-- **ZERO** `import 'package:firebase_...'` in `domain/`
-- **ZERO** `import 'package:supabase_...'` in `domain/`
-- Domain uses only: `Either`, `Failure`, plain Dart models
-- All Firebase/Supabase logic lives in `data/` layer only
+### Domain Rules (still enforced)
+- Zero `flutter/`, `firebase_*`, `supabase_*` imports in `domain/`.
+- Domain types: plain Dart, `Either<Failure, T>` for repository contracts.
 
 ---
 
-## 📋 Screens (9 total)
+## Routes (`AppRoutes` + `routerProvider`)
 
-| Screen | Route | Feature |
+| Screen | Route |
+|---|---|
+| Login | `/login` |
+| Register | `/register` |
+| Home | `/home` |
+| Shelf content | `/shelf/:id` |
+| New book | `/book/new` |
+| Book info | `/book/:id` |
+| Reading | `/book/:id/reading` |
+| Note | `/book/:id/note` |
+| Profile | `/profile` |
+| Edit profile | `/profile/edit` |
+
+`routerProvider` watches `authStateProvider`; redirects unauthenticated → `/login`, authed-on-auth-route → `/home`. Loading state: no redirect (avoids flash).
+
+---
+
+## Firestore Schema
+
+```
+users/{uid}            { name, email }
+bookshelves/{shelfId}  { name, ownerId, createdAt(ISO) }
+books/{bookId}         { title, link, totalPages, currentPage, progress, status, shelfId, ownerId, lastReadAt(ISO), author?, year? }
+notes/{noteId}         { bookId, title, content, updatedAt(ISO) }
+```
+
+`status` ∈ `reading | on_hold | finished`. `progress` = `currentPage / totalPages * 100`.
+Note: dates stored as ISO 8601 strings (not Firestore `Timestamp`).
+
+`book.author` + `book.year` extracted from PDF metadata via Syncfusion (`pdf_metadata.dart`).
+
+### Cascades
+- Delete shelf → books unshelved (`shelfId = ''`), shelf doc deleted.
+- Delete book → notes deleted (batch) + Supabase object purged + local cache/thumb purged + recents entry removed.
+- `deleteBook` returns deleted `book.link` so controller can purge storage/cache.
+
+### Notes count
+`watchUserNotesCount` chunks `bookIds` by 30 (Firestore `whereIn` limit), merges streams.
+
+---
+
+## Supabase Storage
+
+```
+Bucket : pdfs (public)
+Path   : {uid}/{millis}.pdf
+```
+
+Auth rule: user writes only under their own `{uid}/`.
+Upload via `supabase.storage.from('pdfs').uploadBinary(path, bytes, fileOptions: FileOptions(contentType: 'application/pdf'))`.
+Public URL via `getPublicUrl(path)` saved as `book.link`.
+
+---
+
+## PDF Path Resolution (`pdfPathProvider`)
+
+Family provider keyed by `book.link`. Returns local file path or remote URL depending on context:
+
+| Context | Behavior |
+|---|---|
+| Web | Returns URL as-is (web reader fetches directly). `local://` rejected. |
+| Mobile + remote URL | Downloads to `appDocs/pdf_{hash}.pdf`, validates `%PDF-` signature in first 1100 bytes, caches. |
+| Mobile + `local://` | Reads from `appDocs/local_pdfs/{filename}`. Legacy path — new uploads go to Supabase. |
+
+Reading screen uses `flutter_pdfview` (mobile) or web fallback that fetches bytes + renders via pdfx.
+
+### Web CORS gate
+`_fetchPdfBytes` in `reading_screen.dart` blocks non-CORS-friendly URLs on web (only Supabase hosts pass). External link reading on web shows clear error: "External PDF links can't be read on web due to browser CORS policy. Upload the file instead, or open the book on the mobile app." Mobile fetches direct, no gate.
+
+---
+
+## Local Storage (Hive)
+
+Box `app_prefs` opened in `main.dart` after Firebase init.
+
+| Key | Type | Purpose |
 |---|---|---|
-| Login | `/login` | Sign in with email/password |
-| Register | `/register` | Create new account |
-| Home | `/home` | List all bookshelves + books |
-| Bookshelf Content | `/shelf/:id` | View books inside a shelf |
-| New Book | `/book/new` | Add book with link or upload PDF |
-| Book Info | `/book/:id` | View book detail + progress |
-| Reading | `/book/:id/reading` | PDF viewer + progress tracking |
-| Note | `/book/:id/note` | View/edit note for this book |
-| Profile | `/profile` | View user info + stats |
-| Edit Profile | `/profile/edit` | Update name only (no avatar) |
+| `recent_book_ids` | `List<String>` | Most-recent-first book IDs, capped at 10 |
+
+`RecentBooksService` (`lib/core/local/recent_books_service.dart`):
+- `markOpened(bookId)` called from `ReadingScreen.initState` — dedupes + bumps to front
+- `remove(bookId)` called from `LibraryController.deleteBook`
+- `watch()` reactive stream
+
+Providers in `library_providers.dart`:
+- `recentBooksServiceProvider` — service instance
+- `recentBookIdsProvider` — `StreamProvider<List<String>>`
+- `recentBooksProvider` — joins ids ↔ `allBooksProvider`, drops missing, preserves recency
+
+Surfaced on home screen as horizontal "Recently Opened" rail (hidden when empty, respects shelf filter).
 
 ---
 
-## 🔥 Backend — Firestore Structure
+## Implementation State
 
-### Collections
-
-```
-users/{uid}
-  - name: string
-  - email: string
-
-bookshelves/{shelfId}
-  - name: string
-  - ownerId: string (uid)
-  - createdAt: timestamp
-
-books/{bookId}
-  - title: string
-  - link: string          ← URL to PDF (user pastes link OR Supabase public URL)
-  - totalPages: int
-  - currentPage: int
-  - progress: double      ← currentPage / totalPages * 100
-  - status: string        ← "reading" | "on_hold" | "finished"
-  - shelfId: string
-  - ownerId: string
-  - lastReadAt: timestamp ← for auto-jump
-
-notes/{noteId}
-  - bookId: string
-  - content: string       ← short freeform note for the whole book
-  - updatedAt: timestamp
-```
-
-## ☁️ Supabase Storage — PDF Files
-
-```
-Bucket : pdfs   (public)
-Path   : {uid}/{timestamp}.pdf
-```
-
-- Upload: `supabase.storage.from('pdfs').uploadBinary(path, bytes)`
-- Public URL: `supabase.storage.from('pdfs').getPublicUrl(path)`
-- Auth rule: users can only upload/delete under their own `{uid}/` prefix
-
-### Key Backend Logic
-
-- **CRUD** Account, Book, Bookshelf, Note
-- **PDF Upload**: file bytes → Supabase Storage → public URL → stored as `link` in Firestore
-- **Reading Progress**: user inputs `currentPage` → app calculates `progress = currentPage / totalPages * 100`
-- **Auto-save last page**: save `currentPage` + `lastReadAt` on every update
-- **Auto-jump**: when opening a book, navigate to `lastReadAt` page automatically
+| Area | Status |
+|---|---|
+| Auth (login/register/logout, redirect guard) | DONE |
+| Firestore CRUD shelves/books/notes | DONE |
+| Theme (AppColors, AppTypography Manrope/Inter) | DONE |
+| New book — link import | DONE — mobile probes URL+metadata; web skips probe (CORS) |
+| New book — file upload | DONE — Supabase Storage, mobile + web |
+| Reading screen + progress save + auto-jump | DONE |
+| TTS mobile (`flutter_pdf_text`) | DONE — needs `<intent TTS_SERVICE>` query in AndroidManifest for engine discovery |
+| TTS web (Syncfusion bytes) | DONE — voiceschanged poll, awaitSpeakCompletion, voice-explicit fallback |
+| Web link reading | GATED — only Supabase URLs pass; external hosts blocked by browser CORS |
+| Notes per book (auto-name `Note (N)` on empty title) | DONE |
+| Note delete UX (close vs trash icons separated) | DONE |
+| Profile + edit (empty-name guard) | DONE |
+| Recently Opened rail (Hive) | DONE |
+| Storage cleanup on book delete (Supabase + cache) | DONE |
+| Crashlytics wired (skipped on web) | DONE |
+| Test suite (`test/`) | UPDATED — fakes match current `FirestoreDataSource` signatures |
 
 ---
 
-## 🧱 Implementation Order
+## Common Mistakes — Avoid
 
-Follow this order exactly — do not skip ahead:
-
-```
-1. Read Figma → save design_tokens.md
-2. Set up Flutter project structure + theme (AppColors, AppTypography from Figma)
-3. Firebase setup (Auth, Firestore, Crashlytics) + Supabase setup (Storage)
-4. Auth flow: Login + Register screens → Firebase Auth
-5. Home + Bookshelf screens → Firestore CRUD (Bookshelf, Book)
-6. New Book screen → URL link OR file upload (Supabase) → save to Firestore
-7. Book Info screen → view book + progress display
-8. Reading screen → PDF viewer + progress calculation
-9. Note screen → create/edit note per book
-10. Profile + Edit Profile screens
-11. Polish: loading states, error handling, empty states
-```
-
----
-
-## ✅ Definition of Done (per screen)
-
-- [ ] Matches Figma design (colors, fonts, spacing)
-- [ ] Riverpod state management wired
-- [ ] Firebase/Supabase operations working
-- [ ] Error states handled (show snackbar/modal)
-- [ ] Loading states shown (shimmer or CircularProgressIndicator)
-- [ ] GoRouter navigation correct
-
----
-
-## 🚫 Common Mistakes — Avoid These
-
-- Do NOT use `setState` — use Riverpod only
-- Do NOT put Firebase/Supabase calls directly in widgets — go through repository
-- Do NOT hardcode colors/fonts — use `AppColors` and `AppTypography`
-- Do NOT start coding before reading Figma design tokens
-- Do NOT use `Navigator.push` — use GoRouter only
-- Do NOT use Firebase Storage — PDFs go to Supabase Storage only
-- Do NOT add avatar/photo features — profile has name + email only
+- No `setState` for app state (UI-local only OK). Use Riverpod.
+- No Firebase/Supabase calls in widgets — go through datasources.
+- No hardcoded colors/fonts — use `AppColors`/`AppTypography`.
+- No `Navigator.push` — use GoRouter.
+- No Firebase Storage — Supabase only.
+- No avatar fields — name + email only.
+- No `dart:io` `File` on web paths (`kIsWeb` guard required for any FS code).
+- `path_provider` is mobile/desktop only. Don't call on web.
+- `flutter_pdf_text` is mobile only — web text extraction goes through Syncfusion + cached bytes.
+- TTS on Android needs `<intent action TTS_SERVICE>` inside `<queries>` in `AndroidManifest.xml` (Android 11+ package visibility).
+- Web TTS: poll `getVoices` (Chrome/Edge populate async), call `_trySetWebVoice` again on first user gesture if init missed it.
