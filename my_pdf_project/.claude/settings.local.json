@@ -24,7 +24,10 @@
       "Read(//tmp/**)",
       "Bash(cp /tmp/figma/edit_profile.png \"C:/Users/pun/Desktop/beta my pdf/.claude/edit_profile.png\")",
       "Bash(cp /tmp/figma/profile.png \"C:/Users/pun/Desktop/beta my pdf/.claude/profile.png\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(rm -f C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/lib/features/library/domain/bookshelf_model.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/lib/features/library/domain/note_model.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/lib/features/library/presentation/shelf_content_screen.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/lib/features/reader/presentation/note_screen.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/lib/features/reader/presentation/note_edit_screen.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/lib/features/profile/presentation/edit_profile_screen.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/lib/core/local/recent_books_service.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/test/_helpers/fake_recent_books.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/test/models/bookshelf_model_test.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/test/models/note_model_test.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/test/screens/shelf_content_screen_test.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/test/screens/note_screen_test.dart C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/test/screens/edit_profile_screen_test.dart)",
+      "Bash(rmdir C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/lib/core/local)",
+      "Bash(rmdir C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/test/_helpers)"
     ]
   },
   "enabledPlugins": {}

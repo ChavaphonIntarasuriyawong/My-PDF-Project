@@ -24,11 +24,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     final ref = this.ref;
     final user = ref.watch(userProfileProvider).valueOrNull;
     final allBooks = ref.watch(allBooksProvider).valueOrNull ?? [];
-    final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
-
     final readCount = allBooks.length;
-    final notesCount = ref.watch(userNotesCountProvider).valueOrNull ?? 0;
-    final shelvesCount = shelves.length;
 
     return Scaffold(
       key: _scaffoldKey,
@@ -41,7 +37,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
         bottom: false,
         child: Column(
           children: [
-            // ── Header ──────────────────────────────────────────────
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
@@ -70,14 +65,12 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             ),
             Container(height: 1, color: AppColors.surfaceMuted),
 
-            // ── Body ────────────────────────────────────────────────
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.fromLTRB(24, 32, 24, 40),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // Name + email
                     Center(
                       child: Column(
                         children: [
@@ -101,15 +94,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     const SizedBox(height: 32),
 
-                    // ── Stat cards ───────────────────────────────────
                     _StatCard(label: 'READ', value: '$readCount'),
-                    const SizedBox(height: 8),
-                    _StatCard(label: 'NOTES', value: '$notesCount'),
-                    const SizedBox(height: 8),
-                    _StatCard(label: 'SHELVES', value: '$shelvesCount'),
                     const SizedBox(height: 32),
 
-                    // ── Account Settings ─────────────────────────────
                     const Text('ACCOUNT SETTINGS', style: AppTypography.sectionMeta),
                     const SizedBox(height: 12),
                     Container(
@@ -118,27 +105,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       padding: const EdgeInsets.all(8),
-                      child: Column(
-                        children: [
-                          _SettingsRow(
-                            icon: Icons.person_outline,
-                            iconBg: AppColors.iconBlueTint,
-                            label: 'Personal Information',
-                            onTap: () => context.push('/profile/edit'),
-                          ),
-                          const SizedBox(height: 4),
-                          _SettingsRow(
-                            icon: Icons.logout,
-                            iconBg: AppColors.errorContainer,
-                            label: 'Logout',
-                            labelColor: AppColors.error,
-                            onTap: () async {
-                              await ref
-                                  .read(authControllerProvider.notifier)
-                                  .logout();
-                            },
-                          ),
-                        ],
+                      child: _SettingsRow(
+                        icon: Icons.logout,
+                        iconBg: AppColors.errorContainer,
+                        label: 'Logout',
+                        labelColor: AppColors.error,
+                        onTap: () async {
+                          await ref
+                              .read(authControllerProvider.notifier)
+                              .logout();
+                        },
                       ),
                     ),
                   ],
@@ -256,9 +232,6 @@ class _SettingsRow extends StatelessWidget {
                   ),
                 ),
               ),
-              if (labelColor == AppColors.textPrimary)
-                const Icon(Icons.chevron_right,
-                    size: 20, color: AppColors.textSecondary),
             ],
           ),
         ),

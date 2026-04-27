@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../domain/book_model.dart';
-import '../domain/note_model.dart';
 import 'library_providers.dart';
 
 class DuplicateNameException implements Exception {
@@ -20,52 +19,6 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
   LibraryController(this._ref) : super(const AsyncValue.data(null));
 
   String _norm(String s) => s.trim().toLowerCase();
-
-  Future<bool> createShelf(String name, String ownerId) async {
-    state = const AsyncValue.loading();
-    try {
-      final existing = _ref.read(shelvesProvider).valueOrNull ?? [];
-      final n = _norm(name);
-      if (existing.any((s) => _norm(s.name) == n)) {
-        throw DuplicateNameException('A shelf named "$name" already exists.');
-      }
-      await _ref.read(firestoreDataSourceProvider).createShelf(name: name, ownerId: ownerId);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      return false;
-    }
-  }
-
-  Future<bool> updateShelfName(String shelfId, String name) async {
-    state = const AsyncValue.loading();
-    try {
-      final existing = _ref.read(shelvesProvider).valueOrNull ?? [];
-      final n = _norm(name);
-      if (existing.any((s) => s.id != shelfId && _norm(s.name) == n)) {
-        throw DuplicateNameException('A shelf named "$name" already exists.');
-      }
-      await _ref.read(firestoreDataSourceProvider).updateShelfName(shelfId, name);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      return false;
-    }
-  }
-
-  Future<bool> deleteShelf(String shelfId) async {
-    state = const AsyncValue.loading();
-    try {
-      await _ref.read(firestoreDataSourceProvider).deleteShelf(shelfId);
-      state = const AsyncValue.data(null);
-      return true;
-    } catch (e, st) {
-      state = AsyncValue.error(e, st);
-      return false;
-    }
-  }
 
   Future<BookModel?> createBook(BookModel book) async {
     state = const AsyncValue.loading();
@@ -89,10 +42,8 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     try {
       final link =
           await _ref.read(firestoreDataSourceProvider).deleteBook(bookId);
-      // Drop from local recents so the home rail doesn't show a dead pointer.
-      await _ref.read(recentBooksServiceProvider).remove(bookId);
       // Best-effort storage + cache cleanup. Failures here are non-fatal —
-      // book + notes are already removed from Firestore at this point.
+      // book is already removed from Firestore at this point.
       if (link != null && link.isNotEmpty) {
         unawaited(_purgeStorageAndCache(link));
       }
@@ -164,48 +115,6 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
       return true;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
-      return false;
-    }
-  }
-
-  Future<bool> moveBook(String bookId, String newShelfId) async {
-    try {
-      await _ref.read(firestoreDataSourceProvider).moveBook(bookId, newShelfId);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<NoteModel?> createNote({
-    required String bookId,
-    required String title,
-    required String content,
-  }) async {
-    try {
-      return await _ref
-          .read(firestoreDataSourceProvider)
-          .createNote(bookId: bookId, title: title, content: content);
-    } catch (_) {
-      return null;
-    }
-  }
-
-  Future<bool> updateNote(String noteId, {required String title, required String content}) async {
-    try {
-      await _ref.read(firestoreDataSourceProvider)
-          .updateNote(noteId, title: title, content: content);
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  Future<bool> deleteNote(String noteId) async {
-    try {
-      await _ref.read(firestoreDataSourceProvider).deleteNote(noteId);
-      return true;
-    } catch (_) {
       return false;
     }
   }

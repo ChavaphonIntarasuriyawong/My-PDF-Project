@@ -22,9 +22,7 @@ class AppDrawer extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(userProfileProvider).valueOrNull;
-    final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
     final books = ref.watch(allBooksProvider).valueOrNull ?? [];
-    final notesCount = ref.watch(userNotesCountProvider).valueOrNull ?? 0;
 
     return Drawer(
       backgroundColor: AppColors.surfaceMuted,
@@ -81,17 +79,7 @@ class AppDrawer extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                child: IntrinsicHeight(
-                  child: Row(
-                    children: [
-                      Expanded(child: _MiniStat(label: 'READ', value: '${books.length}')),
-                      const VerticalDivider(width: 1, color: AppColors.borderSubtle),
-                      Expanded(child: _MiniStat(label: 'NOTES', value: '$notesCount')),
-                      const VerticalDivider(width: 1, color: AppColors.borderSubtle),
-                      Expanded(child: _MiniStat(label: 'SHELVES', value: '${shelves.length}')),
-                    ],
-                  ),
-                ),
+                child: _MiniStat(label: 'READ', value: '${books.length}'),
               ),
             ),
             const SizedBox(height: 24),
@@ -133,21 +121,6 @@ class AppDrawer extends ConsumerWidget {
                 Future.delayed(
                     const Duration(milliseconds: 200),
                     () => router.push(AppRoutes.newBook));
-              },
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              child: Divider(color: AppColors.borderSubtle),
-            ),
-            _DrawerNavTile(
-              icon: Icons.settings_outlined,
-              label: 'SETTINGS',
-              onTap: () {
-                onClose();
-                final router = GoRouter.of(context);
-                Future.delayed(
-                    const Duration(milliseconds: 200),
-                    () => router.push(AppRoutes.editProfile));
               },
             ),
             const Spacer(),

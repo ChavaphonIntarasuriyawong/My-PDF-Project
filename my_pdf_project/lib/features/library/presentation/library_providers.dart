@@ -4,49 +4,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
-import '../../../core/local/recent_books_service.dart';
 import '../../../core/network/pdf_fetcher.dart';
 import '../data/firestore_data_source.dart';
 import '../domain/book_model.dart';
-import '../domain/bookshelf_model.dart';
-import '../domain/note_model.dart';
 import '../../auth/presentation/auth_providers.dart';
 
 final firestoreDataSourceProvider = Provider<FirestoreDataSource>((ref) {
   return FirestoreDataSource(ref.watch(firestoreProvider));
-});
-
-final recentBooksServiceProvider = Provider<RecentBooksService>((ref) {
-  return RecentBooksService();
-});
-
-/// Reactive stream of locally-stored recent book IDs (most recent first).
-final recentBookIdsProvider = StreamProvider<List<String>>((ref) {
-  return ref.watch(recentBooksServiceProvider).watch();
-});
-
-/// Joins recent IDs with current books, drops missing (e.g. deleted) entries,
-/// preserves recency order.
-final recentBooksProvider = Provider<List<BookModel>>((ref) {
-  final ids = ref.watch(recentBookIdsProvider).valueOrNull ?? const [];
-  final all = ref.watch(allBooksProvider).valueOrNull ?? const [];
-  if (ids.isEmpty || all.isEmpty) return const [];
-  final byId = {for (final b in all) b.id: b};
-  return [
-    for (final id in ids)
-      if (byId[id] != null) byId[id]!,
-  ];
-});
-
-final shelvesProvider = StreamProvider<List<BookshelfModel>>((ref) {
-  final authState = ref.watch(authStateProvider);
-  final uid = authState.valueOrNull?.uid;
-  if (uid == null) return const Stream.empty();
-  return ref.watch(firestoreDataSourceProvider).watchShelves(uid);
-});
-
-final booksByShelfProvider = StreamProvider.family<List<BookModel>, String>((ref, shelfId) {
-  return ref.watch(firestoreDataSourceProvider).watchBooksByShelf(shelfId);
 });
 
 final allBooksProvider = StreamProvider<List<BookModel>>((ref) {
@@ -56,22 +20,8 @@ final allBooksProvider = StreamProvider<List<BookModel>>((ref) {
   return ref.watch(firestoreDataSourceProvider).watchBooks(uid);
 });
 
-final notesByBookProvider = StreamProvider.family<List<NoteModel>, String>((ref, bookId) {
-  return ref.watch(firestoreDataSourceProvider).watchNotesByBookId(bookId);
-});
-
-final noteByIdProvider = FutureProvider.family<NoteModel?, String>((ref, noteId) {
-  return ref.watch(firestoreDataSourceProvider).getNoteById(noteId);
-});
-
 final bookByIdProvider = StreamProvider.family<BookModel?, String>((ref, bookId) {
   return ref.watch(firestoreDataSourceProvider).watchBook(bookId);
-});
-
-final userNotesCountProvider = StreamProvider<int>((ref) {
-  final books = ref.watch(allBooksProvider).valueOrNull ?? [];
-  final bookIds = books.map((b) => b.id).toList();
-  return ref.watch(firestoreDataSourceProvider).watchUserNotesCount(bookIds);
 });
 
 /// PDF spec lets up to ~1024 bytes of garbage precede the `%PDF-` header.

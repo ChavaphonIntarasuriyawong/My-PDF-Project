@@ -11,7 +11,6 @@ void main() {
       currentPage: 50,
       progress: 50.0,
       status: 'reading',
-      shelfId: 's1',
       ownerId: 'u1',
     );
 
@@ -22,7 +21,6 @@ void main() {
         'totalPages': 200,
         'currentPage': 100,
         'status': 'reading',
-        'shelfId': 's1',
         'ownerId': 'u1',
       });
       expect(m.progress, 50.0);
@@ -35,7 +33,6 @@ void main() {
         'totalPages': 0,
         'currentPage': 0,
         'status': 'reading',
-        'shelfId': 's1',
         'ownerId': 'u1',
       });
       expect(m.progress, 0.0);
@@ -49,7 +46,6 @@ void main() {
         'totalPages': 10,
         'currentPage': 5,
         'status': 'reading',
-        'shelfId': 's1',
         'ownerId': 'u1',
         'lastReadAt': dt.toIso8601String(),
       });
@@ -63,7 +59,6 @@ void main() {
         'totalPages': 10,
         'currentPage': 0,
         'status': 'reading',
-        'shelfId': 's1',
         'ownerId': 'u1',
       });
       expect(m.lastReadAt, isNull);
@@ -76,7 +71,6 @@ void main() {
       expect(map['currentPage'], 50);
       expect(map['progress'], 50.0);
       expect(map['status'], 'reading');
-      expect(map['shelfId'], 's1');
       expect(map['ownerId'], 'u1');
     });
 

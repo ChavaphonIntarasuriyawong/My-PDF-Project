@@ -8,10 +8,7 @@ import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/app_modal.dart';
 import '../../../shared/widgets/labeled_text_field.dart';
 import '../../../shared/widgets/status_badge.dart';
-import '../../reader/presentation/note_edit_screen.dart';
 import '../domain/book_model.dart';
-import '../domain/bookshelf_model.dart';
-import '../domain/note_model.dart';
 import 'library_controller.dart';
 import 'library_providers.dart';
 
@@ -104,51 +101,6 @@ class BookInfoScreen extends ConsumerWidget {
     );
   }
 
-  void _showMoveShelfModal(
-      BuildContext context, WidgetRef ref, BookModel book, List<BookshelfModel> shelves) {
-    String? selected = book.shelfId.isEmpty ? null : book.shelfId;
-    showAppModal(
-      context: context,
-      builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setModal) => AppModal(
-          title: 'Move to Shelf',
-          confirmLabel: 'Move',
-          body: SizedBox(
-            width: double.infinity,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _ShelfPick(
-                  name: 'No Shelf',
-                  selected: selected == null,
-                  onTap: () => setModal(() => selected = null),
-                ),
-                ...shelves.map((s) => _ShelfPick(
-                      name: s.name,
-                      selected: selected == s.id,
-                      onTap: () => setModal(() => selected = s.id),
-                    )),
-              ],
-            ),
-          ),
-          onConfirm: () async {
-            final ok = await ref
-                .read(libraryControllerProvider.notifier)
-                .moveBook(book.id, selected ?? '');
-            if (!ctx.mounted) return;
-            if (ok) {
-              Navigator.of(ctx).pop();
-            } else {
-              ScaffoldMessenger.of(ctx).showSnackBar(
-                const SnackBar(content: Text('Could not move book')),
-              );
-            }
-          },
-        ),
-      ),
-    );
-  }
-
   void _showDeleteModal(BuildContext context, WidgetRef ref) {
     showAppModal(
       context: context,
@@ -157,7 +109,7 @@ class BookInfoScreen extends ConsumerWidget {
         confirmLabel: 'Delete',
         confirmDestructive: true,
         body: Text(
-          'This will permanently delete this book and its notes.',
+          'This will permanently delete this book.',
           style: AppTypography.bodyMedium,
         ),
         onConfirm: () async {
@@ -172,7 +124,7 @@ class BookInfoScreen extends ConsumerWidget {
   }
 
   Future<void> _showOptionsMenu(BuildContext context, WidgetRef ref,
-      BookModel book, List<BookshelfModel> shelves, Offset anchor) async {
+      BookModel book, Offset anchor) async {
     final selected = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -185,7 +137,6 @@ class BookInfoScreen extends ConsumerWidget {
         for (final entry in const [
           ('edit', 'Edit'),
           ('delete', 'Delete'),
-          ('move', 'Move to'),
           ('status', 'Status'),
         ])
           PopupMenuItem<String>(
@@ -211,9 +162,6 @@ class BookInfoScreen extends ConsumerWidget {
         break;
       case 'delete':
         _showDeleteModal(context, ref);
-        break;
-      case 'move':
-        _showMoveShelfModal(context, ref, book, shelves);
         break;
       case 'status':
         _showStatusModal(context, ref, book);
@@ -271,8 +219,6 @@ class BookInfoScreen extends ConsumerWidget {
     final thumbAsync = book.link.isNotEmpty
         ? ref.watch(pdfThumbnailProvider(book.link))
         : const AsyncValue<Uint8List?>.data(null);
-    final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
-    final notesAsync = ref.watch(notesByBookProvider(book.id));
 
     return Column(
       children: [
@@ -303,7 +249,7 @@ class BookInfoScreen extends ConsumerWidget {
                     final anchor = box != null
                         ? box.localToGlobal(Offset(box.size.width, 0))
                         : Offset.zero;
-                    _showOptionsMenu(context, ref, book, shelves, anchor);
+                    _showOptionsMenu(context, ref, book, anchor);
                   },
                 ),
               ),
@@ -380,193 +326,11 @@ class BookInfoScreen extends ConsumerWidget {
                   style: AppTypography.bodySmall
                       .copyWith(color: AppColors.textSecondary),
                 ),
-                const SizedBox(height: 32),
-                // ── Annotated Insights section ─────────────────────────
-                notesAsync.when(
-                  loading: () => const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (e, _) => Text('Error: $e',
-                      style: AppTypography.bodySmall),
-                  data: (notes) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Annotated Insights (${notes.length})',
-                        style: AppTypography.titleLarge
-                            .copyWith(color: AppColors.primary),
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () => showNoteEditSheet(context,
-                              bookId: book.id),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.add_comment_outlined,
-                                    color: Colors.white, size: 18),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Add Note',
-                                  style: AppTypography.bodyMedium.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      if (notes.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.borderSubtle),
-                          ),
-                          child: Text(
-                            'No notes yet. Tap "Add Note" to start writing.',
-                            style: AppTypography.bodyMedium
-                                .copyWith(color: AppColors.textSecondary),
-                          ),
-                        )
-                      else
-                        ...notes.map((n) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _NotePreview(
-                                note: n,
-                                onTap: () => showNoteEditSheet(context,
-                                    bookId: book.id, noteId: n.id),
-                              ),
-                            )),
-                    ],
-                  ),
-                ),
               ],
             ),
           ),
         ),
       ],
-    );
-  }
-}
-
-class _NotePreview extends StatelessWidget {
-  final NoteModel note;
-  final VoidCallback onTap;
-  const _NotePreview({required this.note, required this.onTap});
-
-  String _formatDate(DateTime d) {
-    final diff = DateTime.now().difference(d);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
-    return '${d.day}/${d.month}/${d.year}';
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final title = note.title.trim().isEmpty ? 'Untitled' : note.title.trim();
-    final preview = note.content.trim().isEmpty
-        ? '(empty note)'
-        : note.content.trim();
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: AppTypography.titleMedium,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    _formatDate(note.updatedAt),
-                    style: AppTypography.bodySmall
-                        .copyWith(color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                preview,
-                style: AppTypography.bodyMedium,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ShelfPick extends StatelessWidget {
-  final String name;
-  final bool selected;
-  final VoidCallback onTap;
-  const _ShelfPick({required this.name, required this.selected, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: selected
-              ? Border.all(color: AppColors.primary, width: 1.5)
-              : Border.all(color: AppColors.borderSubtle),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.folder_rounded,
-                size: 20, color: AppColors.primary),
-            const SizedBox(width: 12),
-            Expanded(child: Text(name, style: AppTypography.labelLarge)),
-            if (selected)
-              const Icon(Icons.check, size: 18, color: AppColors.primary),
-          ],
-        ),
-      ),
     );
   }
 }

@@ -14,9 +14,7 @@ import '../../../shared/widgets/app_drawer.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../data/pdf_metadata.dart';
 import '../domain/book_model.dart';
-import '../domain/bookshelf_model.dart';
 import 'library_controller.dart';
-import 'library_providers.dart';
 
 class NewBookScreen extends ConsumerStatefulWidget {
   const NewBookScreen({super.key});
@@ -28,11 +26,9 @@ class NewBookScreen extends ConsumerStatefulWidget {
 class _NewBookScreenState extends ConsumerState<NewBookScreen> {
   final _scaffoldKey = GlobalKey<ScaffoldState>();
   final _urlCtrl = TextEditingController();
-  String? _urlShelfId;
   bool _loadingUrl = false;
 
   PlatformFile? _pickedFile;
-  String? _fileShelfId;
   bool _loadingFile = false;
   bool _urlImportError = false;
 
@@ -163,7 +159,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         currentPage: 0,
         progress: 0,
         status: 'reading',
-        shelfId: _urlShelfId ?? '',
         ownerId: uid,
         author: metadata.author,
         year: metadata.year,
@@ -209,7 +204,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         currentPage: 0,
         progress: 0,
         status: 'reading',
-        shelfId: _fileShelfId ?? '',
         ownerId: uid,
         author: saved.metadata.author,
         year: saved.metadata.year,
@@ -241,8 +235,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
-
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
@@ -263,7 +255,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // ── Top app bar ──────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 child: Row(
@@ -290,7 +281,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                 ),
               ),
 
-              // ── Editorial header ────────────────────────────────────
               const SizedBox(height: 8),
               Text(
                 'KNOWLEDGE ACQUISITION',
@@ -321,7 +311,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
               ),
               const SizedBox(height: 32),
 
-              // ── Card 1: Import PDF via Link ──────────────────────────
               _ImportCard(
                 icon: Icons.link,
                 title: 'Import PDF via Link',
@@ -371,14 +360,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                     ),
                     const _FieldHelper(
                         'Paste a direct public PDF URL here to add it to your library.'),
-                    const SizedBox(height: 20),
-                    _ShelfDropdown(
-                      shelves: shelves,
-                      value: _urlShelfId,
-                      onChanged: (v) => setState(() => _urlShelfId = v),
-                    ),
-                    const _FieldHelper(
-                        'Choose a shelf to store your PDF file link.'),
                     if (_urlImportError) ...[
                       const SizedBox(height: 16),
                       Container(
@@ -412,7 +393,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
               ),
               const SizedBox(height: 16),
 
-              // ── Card 2: Upload PDF file ──────────────────────────────
               _ImportCard(
                 icon: Icons.upload,
                 title: 'Upload PDF file',
@@ -462,7 +442,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                     ),
                     const _FieldHelper('Open your browser to upload the PDF file.'),
                     const SizedBox(height: 16),
-                    // Browse button between file input and shelf selector
                     SizedBox(
                       width: double.infinity,
                       child: GestureDetector(
@@ -487,14 +466,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                         ),
                       ),
                     ),
-                    const SizedBox(height: 20),
-                    _ShelfDropdown(
-                      shelves: shelves,
-                      value: _fileShelfId,
-                      onChanged: (v) => setState(() => _fileShelfId = v),
-                    ),
-                    const _FieldHelper(
-                        'Choose a shelf to store your PDF file link.'),
                   ],
                 ),
               ),
@@ -505,8 +476,6 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     );
   }
 }
-
-// ── Import card wrapper ────────────────────────────────────────────────────────
 
 class _ImportCard extends StatelessWidget {
   final IconData icon;
@@ -622,8 +591,6 @@ class _ImportCard extends StatelessWidget {
   }
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────────
-
 class _FieldLabel extends StatelessWidget {
   final String text;
   const _FieldLabel(this.text);
@@ -677,89 +644,6 @@ class _InputContainer extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: child,
-    );
-  }
-}
-
-class _ShelfDropdown extends StatelessWidget {
-  final List<BookshelfModel> shelves;
-  final String? value;
-  final ValueChanged<String?> onChanged;
-
-  const _ShelfDropdown({
-    required this.shelves,
-    required this.value,
-    required this.onChanged,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _FieldLabel('SHELF'),
-        const SizedBox(height: 8),
-        Container(
-          decoration: BoxDecoration(
-            color: AppColors.surfaceMuted,
-            borderRadius: BorderRadius.circular(8),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: DropdownButtonHideUnderline(
-            child: DropdownButton<String?>(
-              value: value,
-              isExpanded: true,
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w400,
-                fontSize: 18,
-                height: 1.5,
-                color: AppColors.textPrimary,
-              ),
-              dropdownColor: AppColors.surface,
-              hint: const Text(
-                'All',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontWeight: FontWeight.w400,
-                  fontSize: 18,
-                  height: 1.5,
-                  color: AppColors.textPrimary,
-                ),
-              ),
-              items: [
-                const DropdownMenuItem<String?>(
-                  value: null,
-                  child: Text(
-                    'All',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w400,
-                      fontSize: 18,
-                      height: 1.5,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                ),
-                ...shelves.map((s) => DropdownMenuItem<String?>(
-                      value: s.id,
-                      child: Text(
-                        s.name,
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w400,
-                          fontSize: 18,
-                          height: 1.5,
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    )),
-              ],
-              onChanged: onChanged,
-            ),
-          ),
-        ),
-      ],
     );
   }
 }

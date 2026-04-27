@@ -6,7 +6,6 @@ class BookModel {
   final int currentPage;
   final double progress;
   final String status; // "reading" | "on_hold" | "finished"
-  final String shelfId;
   final String ownerId;
   final DateTime? lastReadAt;
   final String? author;
@@ -20,7 +19,6 @@ class BookModel {
     required this.currentPage,
     required this.progress,
     required this.status,
-    required this.shelfId,
     required this.ownerId,
     this.lastReadAt,
     this.author,
@@ -34,7 +32,6 @@ class BookModel {
     int? currentPage,
     double? progress,
     String? status,
-    String? shelfId,
     DateTime? lastReadAt,
     String? author,
     int? year,
@@ -47,7 +44,6 @@ class BookModel {
       currentPage: currentPage ?? this.currentPage,
       progress: progress ?? this.progress,
       status: status ?? this.status,
-      shelfId: shelfId ?? this.shelfId,
       ownerId: ownerId,
       lastReadAt: lastReadAt ?? this.lastReadAt,
       author: author ?? this.author,
@@ -62,7 +58,6 @@ class BookModel {
     'currentPage': currentPage,
     'progress': progress,
     'status': status,
-    'shelfId': shelfId,
     'ownerId': ownerId,
     'lastReadAt': lastReadAt?.toIso8601String(),
     'author': author,
@@ -80,7 +75,6 @@ class BookModel {
       currentPage: current,
       progress: total > 0 ? (current / total * 100) : 0,
       status: map['status'] ?? 'reading',
-      shelfId: map['shelfId'] ?? '',
       ownerId: map['ownerId'] ?? '',
       lastReadAt: map['lastReadAt'] != null ? DateTime.tryParse(map['lastReadAt']) : null,
       author: map['author'] as String?,
