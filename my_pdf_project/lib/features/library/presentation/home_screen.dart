@@ -98,9 +98,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       });
     final recentReadingsTop5 =
         recentReadings.take(5).toList(growable: false);
-    // Recently opened rail (local Hive).
-    final recents = ref.watch(recentBooksProvider);
-
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
@@ -211,28 +208,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             error: (e, _) => Text('Error: $e',
                                 style: AppTypography.bodySmall),
                           ),
-                          if (recents.isNotEmpty) ...[
-                            const SizedBox(height: 32),
-                            Text('Recently Opened',
-                                style: AppTypography.titleMedium),
-                            const SizedBox(height: 12),
-                            SizedBox(
-                              height: 96,
-                              child: ListView.separated(
-                                scrollDirection: Axis.horizontal,
-                                itemCount: recents.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(width: 12),
-                                itemBuilder: (_, i) => _RecentTile(
-                                  book: recents[i],
-                                  onTap: () =>
-                                      context.push('/book/${recents[i].id}'),
-                                ),
-                              ),
-                            ),
-                          ],
                           const SizedBox(height: 32),
-                          Text('Recent Readings', style: AppTypography.titleMedium),
+                          Text('All PDF', style: AppTypography.titleMedium),
                           const SizedBox(height: 16),
                         ],
                       ),
@@ -635,63 +612,3 @@ class _ShimmerList extends StatelessWidget {
   }
 }
 
-class _RecentTile extends StatelessWidget {
-  final BookModel book;
-  final VoidCallback onTap;
-  const _RecentTile({required this.book, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 220,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppColors.borderSubtle),
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 40,
-              height: 56,
-              decoration: BoxDecoration(
-                color: AppColors.surfaceMuted,
-                borderRadius: BorderRadius.circular(4),
-              ),
-              child: const Icon(Icons.picture_as_pdf,
-                  color: AppColors.primary, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    book.title,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                    style: AppTypography.bodyMedium.copyWith(
-                      fontWeight: FontWeight.w600,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '${book.progress.toStringAsFixed(0)}% • '
-                    '${book.currentPage}/${book.totalPages}',
-                    style: AppTypography.bodySmall
-                        .copyWith(color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}

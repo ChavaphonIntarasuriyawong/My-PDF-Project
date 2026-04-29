@@ -171,7 +171,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         if (name.contains('female')) return 50;
         if (name.contains('google') && name.contains('english')) return 30;
         if (name.contains('david') || name.contains('mark') ||
-            name.contains('guy')  || name.contains('alex')) return 5;
+            name.contains('guy')  || name.contains('alex')) {
+          return 5;
+        }
         return 10;
       }
       final ranked = voices.cast<Map>().toList()
@@ -330,7 +332,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     // Keep printable ASCII, Latin supplement, Latin Extended-A, curly quotes,
     // en/em dashes, and newlines.
     text = text.replaceAll(
-        RegExp(r"[^ -~ -ſ‘’“”–—\n]+"),
+        RegExp(r"[^ -~ -ſ‘’“”–—\n]+"),
         ' ');
     text = text.replaceAll(RegExp(r' {2,}'), ' ');
     return text.trim();
@@ -402,93 +404,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     _speakCurrentPage(page);
   }
 
-  Future<String> _ttsDiagnostics() async {
-    final buf = StringBuffer();
-    try {
-      if (!kIsWeb) {
-        final engines = await _tts.getEngines;
-        final def = await _tts.getDefaultEngine;
-        buf.writeln('Engines: $engines');
-        buf.writeln('Default: $def');
-      }
-      final langs = await _tts.getLanguages;
-      buf.writeln('Languages (${(langs as List?)?.length ?? 0}):');
-      buf.writeln('  ${langs?.take(8).toList()}');
-      final voices = await _tts.getVoices;
-      buf.writeln('Voices: ${(voices as List?)?.length ?? 0}');
-    } catch (e) {
-      buf.writeln('Query failed: $e');
-    }
-    return buf.toString().trim();
-  }
-
-  Future<void> _ttsSelfTest() async {
-    final report = StringBuffer();
-    Object? winner;
-    try { await _tts.awaitSpeakCompletion(false); } catch (_) {}
-    await _tts.setSpeechRate(0.5);
-    await _tts.setPitch(1.0);
-    await _tts.setVolume(1.0);
-
-    // 1) Try language-only path (current default)
-    for (final lang in const ['en-US', 'en-GB', 'en-AU', 'en-IN', 'en']) {
-      final lr = await _tts.setLanguage(lang);
-      report.writeln('setLanguage($lang) → $lr');
-      if (lr is int && lr < 0) continue;
-      final r = await _tts.speak('Hello world test.');
-      report.writeln('  speak → $r');
-      if (r == 1) { winner = 'lang:$lang'; break; }
-    }
-
-    // 2) If language path failed, enumerate voices and try each English voice
-    //    with explicit setVoice(). Engines often need voice-bound speak.
-    if (winner == null) {
-      final voices = await _tts.getVoices;
-      if (voices is List) {
-        final english = voices
-            .cast<Map>()
-            .where((v) {
-              final l = (v['locale'] as String? ?? '').toLowerCase();
-              return l.startsWith('en');
-            })
-            .toList();
-        report.writeln('English voices: ${english.length}');
-        for (final v in english.take(8)) {
-          try {
-            await _tts.setVoice({
-              'name': v['name'].toString(),
-              'locale': v['locale'].toString(),
-            });
-          } catch (_) {}
-          final r = await _tts.speak('Hello world voice test.');
-          report.writeln('  voice ${v['name']} → $r');
-          if (r == 1) {
-            winner = 'voice:${v['name']}';
-            break;
-          }
-        }
-      }
-    }
-
-    try { await _tts.awaitSpeakCompletion(true); } catch (_) {}
-    if (!mounted) return;
-    showDialog(
-      context: context,
-      builder: (d) => AlertDialog(
-        title: Text(winner != null ? 'OK ($winner)' : 'TTS Failed'),
-        content: SingleChildScrollView(
-          child: SelectableText(
-            report.toString().trim(),
-            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(d), child: const Text('Close')),
-        ],
-      ),
-    );
-  }
-
   void _showVoiceSettings() {
     double rate = _speechRate;
     double pitch = _pitch;
@@ -511,47 +426,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                 Text(
                   'Changes apply when you release the slider.',
                   style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: _ttsSelfTest,
-                        icon: const Icon(Icons.play_circle_outline, size: 18),
-                        label: const Text('Test'),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: OutlinedButton.icon(
-                        onPressed: () async {
-                          final info = await _ttsDiagnostics();
-                          if (!mounted) return;
-                          showDialog(
-                            context: context,
-                            builder: (d) => AlertDialog(
-                              title: const Text('TTS Diagnostics'),
-                              content: SingleChildScrollView(
-                                child: SelectableText(
-                                  info,
-                                  style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                                ),
-                              ),
-                              actions: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(d),
-                                  child: const Text('Close'),
-                                ),
-                              ],
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.info_outline, size: 18),
-                        label: const Text('Info'),
-                      ),
-                    ),
-                  ],
                 ),
                 const SizedBox(height: 20),
                 Row(

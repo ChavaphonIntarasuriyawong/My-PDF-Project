@@ -6,6 +6,63 @@
 
 ---
 
+## Orchestrator
+
+This file is the **orchestrator**. When a user prompt starts with `audit` (alone or followed by agent names), dispatch in parallel via the Task tool to the relevant subagents under `.claude/agents/`. Each subagent is scoped to one concern; never let one rewrite another's domain.
+
+### Agent registry
+
+| Agent file | Concern |
+|---|---|
+| `.claude/agents/architect.md` | Clean architecture, layering, provider graph, plugin role uniqueness |
+| `.claude/agents/flutter_engineer.md` | UI + Riverpod state + GoRouter wiring + theme tokens |
+| `.claude/agents/qa_engineer.md` | `test/` suite, `flutter analyze`, manual flow QA, edge cases |
+| `.claude/agents/security.md` | Auth, Firestore rules, Supabase RLS, Edge Function, secrets, XSS, CVEs |
+| `.claude/agents/firebase_specialist.md` | Firebase + Supabase datasources, schema, Edge Function, deploys |
+
+### Prompt routing
+
+**Explicit `audit` prefix:**
+- `audit` → run **all five** agents in parallel.
+- `audit <name1> <name2> ...` → only named agents. Aliases: `architect`, `flutter` / `flutter_engineer`, `qa` / `qa_engineer`, `security`, `firebase` / `firebase_specialist`.
+- `audit <feature>` where `<feature>` matches `lib/features/<feature>/` → all five, scoped.
+
+**Auto-routing (no prefix needed):**
+Match the user's request against the topic map below. Dispatch matching agents in parallel. If no topic matches OR the task is trivial (single-file edit, one-line fix, conversational question, file read, status check) → handle inline.
+
+| Topic keywords / intent in user prompt | Agents to auto-dispatch |
+|---|---|
+| add/refactor screen, widget, UI bug, route, navigation, theme, GoRouter, layout, phone-frame, web responsive | `flutter_engineer` |
+| Firestore query/schema, books/shelves/notes data, Supabase upload, bucket, Edge Function, CORS proxy, Crashlytics wiring, datasource bug | `firebase_specialist` |
+| auth flow, login/register, redirect guard, password handling | `firebase_specialist` + `security` |
+| security review, rules, RLS, secrets, CVE, XSS, permissions, public deploy gate | `security` |
+| write/fix tests, flutter analyze red, regression, edge case, flow QA | `qa_engineer` |
+| layering, clean architecture, provider graph, plugin role, domain leak, structure | `architect` |
+| new feature spanning data + UI | `architect` + `flutter_engineer` + `firebase_specialist` |
+| pre-merge / pre-release / "is this ready to ship" | all five |
+
+**Single-agent shortcut:** if exactly one agent owns the area and the task is non-trivial implementation, dispatch just that one and proceed. Don't dispatch every time — small reads, quick answers, and conversational turns stay inline.
+
+**State the routing decision** in one line before the Task call(s): e.g. `Routing → flutter_engineer + firebase_specialist (auth flow change).` This lets the user veto with a follow-up.
+
+### Dispatch rules
+
+1. **Parallel only.** Send a single message containing one Task tool call per agent. Do not dispatch sequentially when the agents are independent.
+2. **Self-contained prompts.** Each agent starts cold. Always include: target paths, the user's original ask, the exact section of `CLAUDE.md` they must read, and what report shape you expect.
+3. **No cross-domain edits.** Architect + security + qa diagnose only. Flutter_engineer + firebase_specialist may edit code, but only inside their listed `What you own` paths.
+4. **Conflict resolution.** When two agents recommend opposing changes, surface both verdicts to the user with file:line and pick the architect's call as tiebreaker for structure, security's call as tiebreaker for auth/data exposure.
+5. **Aggregation.** After all dispatched agents return, post one consolidated report grouped by severity (Critical / High / Medium / Info), each finding tagged with the agent that found it.
+
+### Example dispatch
+
+User: `audit qa security`
+Action: parallel Task calls to `qa_engineer` and `security` only. Then merge their reports. Other agents stay idle.
+
+User: `audit reader`
+Action: parallel Task calls to all five with scope `lib/features/reader/`.
+
+---
+
 ## App Overview
 
 | Field | Value |
