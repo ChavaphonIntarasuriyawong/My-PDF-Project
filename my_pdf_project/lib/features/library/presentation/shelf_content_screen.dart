@@ -7,12 +7,15 @@ import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/app_modal.dart';
 import '../../../shared/widgets/labeled_text_field.dart';
 import '../../../shared/widgets/pdf_card.dart';
+import 'home_screen.dart' show kAllShelfId;
 import 'library_controller.dart';
 import 'library_providers.dart';
 
 class ShelfContentScreen extends ConsumerWidget {
   final String shelfId;
   const ShelfContentScreen({super.key, required this.shelfId});
+
+  bool get _isAll => shelfId == kAllShelfId;
 
   Future<void> _showShelfMenu(
       BuildContext context, WidgetRef ref, String shelfName, Offset anchor) async {
@@ -118,8 +121,12 @@ class ShelfContentScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
-    final shelf = shelves.where((s) => s.id == shelfId).firstOrNull;
-    final books = ref.watch(booksByShelfProvider(shelfId));
+    final shelf = _isAll ? null : shelves.where((s) => s.id == shelfId).firstOrNull;
+    // For the synthetic "All" shelf, fall through to allBooksProvider so the
+    // page lists every book in the user's library, not just one shelf.
+    final books = _isAll
+        ? ref.watch(allBooksProvider)
+        : ref.watch(booksByShelfProvider(shelfId));
 
     return Scaffold(
       backgroundColor: AppColors.background,
@@ -147,24 +154,26 @@ class ShelfContentScreen extends ConsumerWidget {
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text(
-                      shelf?.name ?? 'Collection',
+                      _isAll ? 'All books' : (shelf?.name ?? 'Collection'),
                       style: AppTypography.titleLarge,
                     ),
                   ),
-                  Builder(
-                    builder: (btnCtx) => IconButton(
-                      icon: const Icon(Icons.more_vert, color: AppColors.primary),
-                      onPressed: shelf == null
-                          ? null
-                          : () {
-                              final box = btnCtx.findRenderObject() as RenderBox?;
-                              final anchor = box != null
-                                  ? box.localToGlobal(Offset(box.size.width, 0))
-                                  : Offset.zero;
-                              _showShelfMenu(context, ref, shelf.name, anchor);
-                            },
+                  // No rename/delete menu for the "All" shelf — it's synthetic.
+                  if (!_isAll)
+                    Builder(
+                      builder: (btnCtx) => IconButton(
+                        icon: const Icon(Icons.more_vert, color: AppColors.primary),
+                        onPressed: shelf == null
+                            ? null
+                            : () {
+                                final box = btnCtx.findRenderObject() as RenderBox?;
+                                final anchor = box != null
+                                    ? box.localToGlobal(Offset(box.size.width, 0))
+                                    : Offset.zero;
+                                _showShelfMenu(context, ref, shelf.name, anchor);
+                              },
+                      ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -185,7 +194,12 @@ class ShelfContentScreen extends ConsumerWidget {
               child: books.when(
                 data: (list) => list.isEmpty
                     ? Center(
-                        child: Text('No books in this shelf.', style: AppTypography.bodyMedium),
+                        child: Text(
+                          _isAll
+                              ? 'No books yet. Tap Create to add one.'
+                              : 'No books in this shelf.',
+                          style: AppTypography.bodyMedium,
+                        ),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),

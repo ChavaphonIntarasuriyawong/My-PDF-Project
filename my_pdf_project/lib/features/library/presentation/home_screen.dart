@@ -23,8 +23,11 @@ class HomeScreen extends ConsumerStatefulWidget {
   ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
+/// Sentinel used as `shelfId` for the synthetic "All" shelf — recognized
+/// by ShelfContentScreen which then loads books from allBooksProvider.
+const String kAllShelfId = 'all';
+
 class _HomeScreenState extends ConsumerState<HomeScreen> {
-  String? _selectedShelfId;
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   String _greeting() {
@@ -84,15 +87,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final allBooks = ref.watch(allBooksProvider);
 
     final books = allBooks.valueOrNull ?? [];
-    final filtered = _selectedShelfId == null
-        ? books
-        : books.where((b) => b.shelfId == _selectedShelfId).toList();
-    // Recently opened (local Hive). Filter to current shelf when one is selected
-    // so the rail respects the same scope as the book list.
+    // Recent Readings — top 5 books by lastReadAt (most recent first, nulls last).
+    final recentReadings = [...books]..sort((a, b) {
+        final da = a.lastReadAt;
+        final db = b.lastReadAt;
+        if (da == null && db == null) return 0;
+        if (da == null) return 1;
+        if (db == null) return -1;
+        return db.compareTo(da);
+      });
+    final recentReadingsTop5 =
+        recentReadings.take(5).toList(growable: false);
+    // Recently opened rail (local Hive).
     final recents = ref.watch(recentBooksProvider);
-    final recentsScoped = _selectedShelfId == null
-        ? recents
-        : recents.where((b) => b.shelfId == _selectedShelfId).toList();
 
     return Scaffold(
       key: _scaffoldKey,
@@ -158,9 +165,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 _ShelfRow(
                                   name: 'All',
                                   count: books.length,
-                                  selected: _selectedShelfId == null,
+                                  selected: false,
                                   onTap: () =>
-                                      setState(() => _selectedShelfId = null),
+                                      context.push('/shelf/$kAllShelfId'),
                                 ),
                                 ...list.map((s) => _ShelfRow(
                                       name: s.name,
@@ -204,7 +211,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             error: (e, _) => Text('Error: $e',
                                 style: AppTypography.bodySmall),
                           ),
-                          if (recentsScoped.isNotEmpty) ...[
+                          if (recents.isNotEmpty) ...[
                             const SizedBox(height: 32),
                             Text('Recently Opened',
                                 style: AppTypography.titleMedium),
@@ -213,13 +220,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               height: 96,
                               child: ListView.separated(
                                 scrollDirection: Axis.horizontal,
-                                itemCount: recentsScoped.length,
+                                itemCount: recents.length,
                                 separatorBuilder: (_, _) =>
                                     const SizedBox(width: 12),
                                 itemBuilder: (_, i) => _RecentTile(
-                                  book: recentsScoped[i],
-                                  onTap: () => context
-                                      .push('/book/${recentsScoped[i].id}'),
+                                  book: recents[i],
+                                  onTap: () =>
+                                      context.push('/book/${recents[i].id}'),
                                 ),
                               ),
                             ),
@@ -233,7 +240,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ),
                   if (allBooks.isLoading)
                     const SliverToBoxAdapter(child: _ShimmerList(count: 2))
-                  else if (filtered.isEmpty)
+                  else if (recentReadingsTop5.isEmpty)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -256,13 +263,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             child: SizedBox(
                               height: 548,
                               child: PdfCard(
-                                book: filtered[i],
-                                onTap: () =>
-                                    context.push('/book/${filtered[i].id}'),
+                                book: recentReadingsTop5[i],
+                                onTap: () => context.push(
+                                    '/book/${recentReadingsTop5[i].id}'),
                               ),
                             ),
                           ),
-                          childCount: filtered.length,
+                          childCount: recentReadingsTop5.length,
                         ),
                       ),
                     ),

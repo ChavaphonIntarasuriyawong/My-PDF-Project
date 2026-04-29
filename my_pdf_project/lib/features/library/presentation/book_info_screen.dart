@@ -272,7 +272,6 @@ class BookInfoScreen extends ConsumerWidget {
         ? ref.watch(pdfThumbnailProvider(book.link))
         : const AsyncValue<Uint8List?>.data(null);
     final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
-    final notesAsync = ref.watch(notesByBookProvider(book.id));
 
     return Column(
       children: [
@@ -382,86 +381,7 @@ class BookInfoScreen extends ConsumerWidget {
                 ),
                 const SizedBox(height: 32),
                 // ── Annotated Insights section ─────────────────────────
-                notesAsync.when(
-                  loading: () => const Padding(
-                    padding: EdgeInsets.all(24),
-                    child: Center(child: CircularProgressIndicator()),
-                  ),
-                  error: (e, _) => Text('Error: $e',
-                      style: AppTypography.bodySmall),
-                  data: (notes) => Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Annotated Insights (${notes.length})',
-                        style: AppTypography.titleLarge
-                            .copyWith(color: AppColors.primary),
-                      ),
-                      const SizedBox(height: 12),
-                      Align(
-                        alignment: Alignment.centerRight,
-                        child: GestureDetector(
-                          onTap: () => showNoteEditSheet(context,
-                              bookId: book.id),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 12),
-                            decoration: BoxDecoration(
-                              color: AppColors.primary,
-                              borderRadius: BorderRadius.circular(8),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.1),
-                                  blurRadius: 12,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.add_comment_outlined,
-                                    color: Colors.white, size: 18),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Add Note',
-                                  style: AppTypography.bodyMedium.copyWith(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.w700,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      if (notes.isEmpty)
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.borderSubtle),
-                          ),
-                          child: Text(
-                            'No notes yet. Tap "Add Note" to start writing.',
-                            style: AppTypography.bodyMedium
-                                .copyWith(color: AppColors.textSecondary),
-                          ),
-                        )
-                      else
-                        ...notes.map((n) => Padding(
-                              padding: const EdgeInsets.only(bottom: 12),
-                              child: _NotePreview(
-                                note: n,
-                                onTap: () => showNoteEditSheet(context,
-                                    bookId: book.id, noteId: n.id),
-                              ),
-                            )),
-                    ],
-                  ),
-                ),
+                _NotesSection(bookId: book.id),
               ],
             ),
           ),
@@ -471,10 +391,323 @@ class BookInfoScreen extends ConsumerWidget {
   }
 }
 
+/// Notes list with multi-select-on-long-press behavior.
+/// Lives entirely on this screen — selection state is UI-local so a plain
+/// StatefulWidget with setState is appropriate here.
+class _NotesSection extends ConsumerStatefulWidget {
+  final String bookId;
+  const _NotesSection({required this.bookId});
+
+  @override
+  ConsumerState<_NotesSection> createState() => _NotesSectionState();
+}
+
+class _NotesSectionState extends ConsumerState<_NotesSection> {
+  final Set<String> _selected = {};
+  bool get _inSelectionMode => _selected.isNotEmpty;
+
+  void _toggle(String noteId) {
+    setState(() {
+      if (_selected.contains(noteId)) {
+        _selected.remove(noteId);
+      } else {
+        _selected.add(noteId);
+      }
+    });
+  }
+
+  void _selectAll(List<NoteModel> notes) {
+    setState(() {
+      final allIds = notes.map((n) => n.id).toSet();
+      // Toggle: if everything is already selected, deselect all; else select all.
+      if (_selected.length == notes.length &&
+          _selected.containsAll(allIds)) {
+        _selected.clear();
+      } else {
+        _selected
+          ..clear()
+          ..addAll(allIds);
+      }
+    });
+  }
+
+  void _clearSelection() {
+    setState(_selected.clear);
+  }
+
+  void _confirmDeleteSelected() {
+    final count = _selected.length;
+    final ids = _selected.toList();
+    showAppModal(
+      context: context,
+      builder: (ctx) => AppModal(
+        title: count == 1 ? 'Delete Note' : 'Delete Notes',
+        titleIcon: Icons.delete_outline,
+        confirmLabel: 'Delete',
+        confirmDestructive: true,
+        body: Text(
+          count == 1
+              ? 'This note will be permanently deleted. This action cannot be undone.'
+              : 'These $count notes will be permanently deleted. This action cannot be undone.',
+          style: AppTypography.bodyMedium,
+        ),
+        onConfirm: () async {
+          final ctrl = ref.read(libraryControllerProvider.notifier);
+          for (final id in ids) {
+            await ctrl.deleteNote(id);
+          }
+          if (ctx.mounted) Navigator.of(ctx).pop();
+          if (mounted) _clearSelection();
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final notesAsync = ref.watch(notesByBookProvider(widget.bookId));
+    return notesAsync.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(24),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (e, _) =>
+          Text('Error: $e', style: AppTypography.bodySmall),
+      data: (notes) {
+        // Drop selections that no longer exist (e.g., after a delete).
+        final validIds = notes.map((n) => n.id).toSet();
+        _selected.removeWhere((id) => !validIds.contains(id));
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Annotated Insights (${notes.length})',
+              style: AppTypography.titleLarge
+                  .copyWith(color: AppColors.primary),
+            ),
+            const SizedBox(height: 12),
+            // Header action row — Add Note when idle, selection toolbar when selecting.
+            _inSelectionMode
+                ? _SelectionToolbar(
+                    count: _selected.length,
+                    total: notes.length,
+                    allSelected: _selected.length == notes.length,
+                    onCancel: _clearSelection,
+                    onSelectAll: () => _selectAll(notes),
+                    onDelete: _confirmDeleteSelected,
+                  )
+                : Align(
+                    alignment: Alignment.centerRight,
+                    child: GestureDetector(
+                      onTap: () => showNoteEditSheet(context,
+                          bookId: widget.bookId),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 12),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.1),
+                              blurRadius: 12,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.add_comment_outlined,
+                                color: Colors.white, size: 18),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Add Note',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+            const SizedBox(height: 16),
+            if (notes.isEmpty)
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderSubtle),
+                ),
+                child: Text(
+                  'No notes yet. Tap "Add Note" to start writing.',
+                  style: AppTypography.bodyMedium
+                      .copyWith(color: AppColors.textSecondary),
+                ),
+              )
+            else
+              ...notes.map((n) => Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: _NotePreview(
+                      note: n,
+                      selected: _selected.contains(n.id),
+                      selectionMode: _inSelectionMode,
+                      onTap: () {
+                        if (_inSelectionMode) {
+                          _toggle(n.id);
+                        } else {
+                          showNoteEditSheet(context,
+                              bookId: widget.bookId, noteId: n.id);
+                        }
+                      },
+                      onLongPress: () => _toggle(n.id),
+                    ),
+                  )),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _SelectionToolbar extends StatelessWidget {
+  final int count;
+  final int total;
+  final bool allSelected;
+  final VoidCallback onCancel;
+  final VoidCallback onSelectAll;
+  final VoidCallback onDelete;
+
+  const _SelectionToolbar({
+    required this.count,
+    required this.total,
+    required this.allSelected,
+    required this.onCancel,
+    required this.onSelectAll,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.borderSubtle),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Row 1 — count + cancel X
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  '$count of $total selected',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              GestureDetector(
+                onTap: onCancel,
+                behavior: HitTestBehavior.opaque,
+                child: const Padding(
+                  padding: EdgeInsets.all(6),
+                  child: Icon(Icons.close,
+                      color: AppColors.primary, size: 20),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          // Row 2 — Select all + Delete
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: OutlinedButton.icon(
+                    onPressed: onSelectAll,
+                    icon: Icon(
+                      allSelected
+                          ? Icons.check_box
+                          : Icons.check_box_outline_blank,
+                      size: 18,
+                      color: AppColors.primary,
+                    ),
+                    label: Text(
+                      allSelected ? 'Deselect all' : 'Select all',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: AppColors.primary,
+                        fontWeight: FontWeight.w700,
+                        height: 1.0,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      side: const BorderSide(
+                          color: AppColors.primary, width: 1.5),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: SizedBox(
+                  height: 48,
+                  child: ElevatedButton.icon(
+                    onPressed: onDelete,
+                    icon: const Icon(Icons.delete_outline,
+                        size: 18, color: Colors.white),
+                    label: Text(
+                      'Delete ($count)',
+                      style: AppTypography.bodyMedium.copyWith(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        height: 1.0,
+                      ),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.error,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _NotePreview extends StatelessWidget {
   final NoteModel note;
+  final bool selected;
+  final bool selectionMode;
   final VoidCallback onTap;
-  const _NotePreview({required this.note, required this.onTap});
+  final VoidCallback onLongPress;
+
+  const _NotePreview({
+    required this.note,
+    required this.onTap,
+    required this.onLongPress,
+    this.selected = false,
+    this.selectionMode = false,
+  });
 
   String _formatDate(DateTime d) {
     final diff = DateTime.now().difference(d);
@@ -492,41 +725,72 @@ class _NotePreview extends StatelessWidget {
         ? '(empty note)'
         : note.content.trim();
     return Material(
-      color: AppColors.surface,
+      color: selected
+          ? AppColors.primary.withValues(alpha: 0.08)
+          : AppColors.surface,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: selected
+                ? Border.all(color: AppColors.primary, width: 1.5)
+                : null,
+          ),
           padding: const EdgeInsets.all(16),
-          child: Column(
+          child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Text(
-                      title,
-                      style: AppTypography.titleMedium,
-                      maxLines: 1,
+              if (selectionMode) ...[
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Icon(
+                    selected
+                        ? Icons.check_circle
+                        : Icons.radio_button_unchecked,
+                    size: 22,
+                    color: selected
+                        ? AppColors.primary
+                        : AppColors.textMuted,
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ],
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            title,
+                            style: AppTypography.titleMedium,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Text(
+                          _formatDate(note.updatedAt),
+                          style: AppTypography.bodySmall
+                              .copyWith(color: AppColors.textSecondary),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      preview,
+                      style: AppTypography.bodyMedium,
+                      maxLines: 3,
                       overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    _formatDate(note.updatedAt),
-                    style: AppTypography.bodySmall
-                        .copyWith(color: AppColors.textSecondary),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text(
-                preview,
-                style: AppTypography.bodyMedium,
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
+                  ],
+                ),
               ),
             ],
           ),

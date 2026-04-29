@@ -79,7 +79,7 @@ class _AppModalState extends State<AppModal> {
               children: [
                 Expanded(
                   child: SizedBox(
-                    height: 48,
+                    height: 52,
                     child: OutlinedButton(
                       onPressed:
                           _loading ? null : () => Navigator.of(context).pop(),
@@ -94,6 +94,7 @@ class _AppModalState extends State<AppModal> {
                         'Cancel',
                         style: AppTypography.labelButton.copyWith(
                           color: AppColors.primary,
+                          height: 1.0,
                         ),
                       ),
                     ),
@@ -155,7 +156,7 @@ class _DestructiveButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SizedBox(
-      height: 48,
+      height: 52,
       child: OutlinedButton(
         onPressed: onPressed,
         style: OutlinedButton.styleFrom(
@@ -172,7 +173,10 @@ class _DestructiveButton extends StatelessWidget {
               )
             : Text(
                 label,
-                style: AppTypography.labelButton.copyWith(color: AppColors.error),
+                // height: 1.0 keeps descenders ('g','p','y') from being clipped
+                // by the button's bounded height. labelButton ships height: 1.5.
+                style: AppTypography.labelButton
+                    .copyWith(color: AppColors.error, height: 1.0),
               ),
       ),
     );
