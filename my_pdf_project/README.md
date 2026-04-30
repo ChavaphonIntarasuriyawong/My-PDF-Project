@@ -146,7 +146,12 @@ lib/
 supabase/
 └── functions/pdf-proxy/index.ts   ← Deno Edge Function
 
+docs/
+├── projectscope.md     ← full architecture blueprint, schema, plugin role map
+└── design_tokens.md    ← color + typography reference
+
 test/              widget + controller tests
+CLAUDE.md          lean entry point for Claude Code (commands, gotchas, working rules)
 ```
 
 ---
