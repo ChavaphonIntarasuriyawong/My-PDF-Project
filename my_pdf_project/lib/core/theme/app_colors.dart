@@ -16,6 +16,10 @@ class AppColors {
   static const Color progressTrack = Color(0xFFE6E8E9);
   static const Color borderSubtle  = Color(0x4DBFC8CC);
   static const Color borderNav     = Color(0x26BFC8CC);
+  // Added: hairline 10% alpha border used by Figma "Modal Note Card" stroke.
+  static const Color borderHairline = Color(0x1ABFC8CC);
+  // Added: neutral skeleton bar color for the Figma note-edit PDF preview.
+  static const Color surfaceSkeleton = Color(0xFFE1E3E4);
 
   // Status badges
   static const Color statusReadingBg  = Color(0xFFB7EAFF);

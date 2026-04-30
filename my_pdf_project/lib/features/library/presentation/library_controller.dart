@@ -209,6 +209,18 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
       return false;
     }
   }
+
+  /// Batch-delete several notes — used by the multi-select UX on book info.
+  Future<bool> deleteNotes(List<String> noteIds) async {
+    if (noteIds.isEmpty) return true;
+    try {
+      await _ref.read(firestoreDataSourceProvider).deleteNotes(noteIds);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
 }
 
 final libraryControllerProvider =

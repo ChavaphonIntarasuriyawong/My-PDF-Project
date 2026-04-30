@@ -7,10 +7,13 @@ import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import '../../../core/network/pdf_fetcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/app_drawer.dart';
+import '../../../shared/widgets/app_modal.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../data/pdf_metadata.dart';
 import '../domain/book_model.dart';
@@ -142,6 +145,63 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     return extractPdfMetadata(resp.bodyBytes);
   }
 
+  /// Probe whether the PDF has any extractable text in its first few pages.
+  /// Returns true if text layer is effectively empty (image-only / scanned).
+  /// Throws on extraction failure so caller can decide to skip the warning.
+  bool _isBitmapOnlyPdf(Uint8List bytes) {
+    final doc = PdfDocument(inputBytes: bytes);
+    try {
+      final pageCount = doc.pages.count;
+      final sample = pageCount > 3 ? 3 : pageCount;
+      if (sample <= 0) return false;
+      final extractor = PdfTextExtractor(doc);
+      final text =
+          extractor.extractText(startPageIndex: 0, endPageIndex: sample - 1);
+      // Threshold of 5 chars handles PDFs with tiny incidental vector text.
+      return text.trim().length < 5;
+    } finally {
+      doc.dispose();
+    }
+  }
+
+  /// Show a non-blocking warning when PDF has no text layer.
+  /// Returns true if user chose to continue, false if they cancelled.
+  Future<bool> _confirmBitmapPdfUpload() async {
+    final result = await showAppModal<bool>(
+      context: context,
+      builder: (ctx) => AppModal(
+        title: 'No text layer detected',
+        titleIcon: Icons.warning_amber_rounded,
+        body: Text(
+          "This PDF appears to be a scanned or image-only document. Text-to-Speech won't work for this book.",
+          style: AppTypography.bodyMedium,
+        ),
+        confirmLabel: 'Continue anyway',
+        onConfirm: () async {
+          Navigator.of(ctx).pop(true);
+        },
+      ),
+    );
+    return result == true;
+  }
+
+  /// Run the bitmap probe on already-fetched bytes. On extraction error
+  /// (encrypted/corrupt) log + skip the warning so upload isn't blocked.
+  /// Returns true to proceed, false to abort.
+  Future<bool> _checkTextLayerOrConfirm(Uint8List bytes) async {
+    bool isBitmap;
+    try {
+      isBitmap = _isBitmapOnlyPdf(bytes);
+    } catch (e) {
+      // ignore: avoid_print
+      print('[BitmapProbe] error: $e');
+      return true;
+    }
+    if (!isBitmap) return true;
+    if (!mounted) return false;
+    return _confirmBitmapPdfUpload();
+  }
+
   Future<void> _createFromUrl() async {
     final url = _urlCtrl.text.trim();
     if (url.isEmpty) {
@@ -154,7 +214,25 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     });
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
+      // _validateAndExtractMetadata fetches bytes via http.get on mobile only.
+      // For the bitmap probe we share `fetchPdfBytes` so web routes through the
+      // Supabase Edge `pdf-proxy` (CLAUDE.md: always go through fetchPdfBytes).
+      // On probe fetch failure (proxy timeout, 404, server down) we log and
+      // proceed without warning — never block import on probe failure.
       final metadata = await _validateAndExtractMetadata(url);
+      try {
+        final probeResp = await fetchPdfBytes(url);
+        final shouldContinue =
+            await _checkTextLayerOrConfirm(probeResp.bodyBytes);
+        if (!shouldContinue) {
+          if (!mounted) return;
+          setState(() => _loadingUrl = false);
+          return;
+        }
+      } catch (e) {
+        // ignore: avoid_print
+        print('[BitmapProbe] fetch error: $e');
+      }
       final book = BookModel(
         id: '',
         title: _titleFromSource(url),
@@ -200,6 +278,15 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     setState(() => _loadingFile = true);
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
+      // Probe text layer before paying for the Supabase upload. Bytes are
+      // available pre-upload on both mobile + web in this path.
+      final probeBytes = await _readPickedBytes(_pickedFile!);
+      final shouldContinue = await _checkTextLayerOrConfirm(probeBytes);
+      if (!shouldContinue) {
+        if (!mounted) return;
+        setState(() => _loadingFile = false);
+        return;
+      }
       final saved = await _uploadPdf(_pickedFile!, uid);
       final book = BookModel(
         id: '',

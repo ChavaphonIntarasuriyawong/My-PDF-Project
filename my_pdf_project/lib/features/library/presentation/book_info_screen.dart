@@ -15,9 +15,103 @@ import '../domain/note_model.dart';
 import 'library_controller.dart';
 import 'library_providers.dart';
 
-class BookInfoScreen extends ConsumerWidget {
+/// Book Info screen — Figma node 25:741 ("Full PDF Reader & Notes View").
+///
+/// Layout (top to bottom):
+/// 1. Sticky top app bar — back / title / 3-dot. In selection mode (Figma
+///    node 25:796) it swaps to two text buttons: Cancel (left) / Delete
+///    (right), both AppColors.primary.
+/// 2. PDF cover card with an inline circular pencil button → reading screen.
+/// 3. Annotated Insights section (rounded-top muted sheet) with Add Note CTA.
+/// 4. Note cards stacked vertically — long-press enters selection mode.
+/// 5. Bottom nav bar.
+class BookInfoScreen extends ConsumerStatefulWidget {
   final String bookId;
   const BookInfoScreen({super.key, required this.bookId});
+
+  @override
+  ConsumerState<BookInfoScreen> createState() => _BookInfoScreenState();
+}
+
+class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
+  /// Selection-mode state — UI-local, not shared, so plain setState is fine.
+  final Set<String> _selectedNoteIds = {};
+  bool get _inSelectionMode => _selectedNoteIds.isNotEmpty;
+
+  String get bookId => widget.bookId;
+
+  void _toggleNote(String noteId) {
+    setState(() {
+      if (_selectedNoteIds.contains(noteId)) {
+        _selectedNoteIds.remove(noteId);
+      } else {
+        _selectedNoteIds.add(noteId);
+      }
+    });
+  }
+
+  void _exitSelectionMode() {
+    if (_selectedNoteIds.isEmpty) return;
+    setState(_selectedNoteIds.clear);
+  }
+
+  /// Drop selections that no longer exist (e.g. after a delete or stream
+  /// refresh). Called from the notes list builder.
+  void _pruneSelection(Set<String> validIds) {
+    final stale = _selectedNoteIds.where((id) => !validIds.contains(id)).toList();
+    if (stale.isEmpty) return;
+    // Defer so we don't setState during build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      setState(() => _selectedNoteIds.removeAll(stale));
+    });
+  }
+
+  void _confirmDeleteSelected() {
+    final count = _selectedNoteIds.length;
+    final ids = _selectedNoteIds.toList();
+    showAppModal(
+      context: context,
+      builder: (ctx) => AppModal(
+        title: count == 1 ? 'Delete Note' : 'Delete Notes',
+        titleIcon: Icons.delete_outline,
+        confirmLabel: 'Delete',
+        confirmDestructive: true,
+        body: Text(
+          count == 1
+              ? 'This note will be permanently deleted. This action cannot be undone.'
+              : 'These $count notes will be permanently deleted. This action cannot be undone.',
+          style: AppTypography.bodyMedium,
+        ),
+        onConfirm: () async {
+          final ok = await ref
+              .read(libraryControllerProvider.notifier)
+              .deleteNotes(ids);
+          if (ctx.mounted) Navigator.of(ctx).pop();
+          if (!mounted) return;
+          if (ok) {
+            _exitSelectionMode();
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  count == 1 ? '1 note deleted' : '$count notes deleted',
+                ),
+              ),
+            );
+          } else {
+            final err = ref.read(libraryControllerProvider).error;
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(err?.toString() ?? 'Could not delete notes'),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  // ── Modals ──────────────────────────────────────────────────────────────
 
   void _showStatusModal(BuildContext context, WidgetRef ref, BookModel book) {
     String selected = book.status;
@@ -194,9 +288,7 @@ class BookInfoScreen extends ConsumerWidget {
             child: Center(
               child: Text(
                 entry.$2,
-                style: const TextStyle(
-                  fontFamily: 'Inter',
-                  fontSize: 16,
+                style: AppTypography.labelLarge.copyWith(
                   color: AppColors.primary,
                 ),
               ),
@@ -221,251 +313,348 @@ class BookInfoScreen extends ConsumerWidget {
     }
   }
 
+  // ── Build ───────────────────────────────────────────────────────────────
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final bookAsync = ref.watch(bookByIdProvider(bookId));
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      bottomNavigationBar: AppBottomNavBar(
-        onTap: (tab) {
-          if (tab == NavTab.library) context.go('/home');
-          if (tab == NavTab.create) context.push('/book/new');
-          if (tab == NavTab.profile) context.push('/profile');
-        },
-      ),
-      floatingActionButton: bookAsync.valueOrNull == null
-          ? null
-          : FloatingActionButton.extended(
-              onPressed: () => context.push('/book/$bookId/reading'),
-              backgroundColor: AppColors.primary,
-              icon: const Icon(Icons.edit_outlined, color: Colors.white),
-              label: Text(
-                'Read',
-                style: AppTypography.bodyMedium.copyWith(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ),
-      body: SafeArea(
-        bottom: false,
-        child: bookAsync.when(
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (e, _) =>
-              Center(child: Text('Error: $e', style: AppTypography.bodyMedium)),
-          data: (book) {
-            if (book == null) {
-              return Center(
-                  child: Text('Book not found', style: AppTypography.bodyMedium));
-            }
-            return _buildBody(context, ref, book);
+    return PopScope(
+      // Back gesture exits selection mode first; only pops when not selecting.
+      canPop: !_inSelectionMode,
+      onPopInvokedWithResult: (didPop, _) {
+        if (didPop) return;
+        _exitSelectionMode();
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        bottomNavigationBar: AppBottomNavBar(
+          onTap: (tab) {
+            if (tab == NavTab.library) context.go('/home');
+            if (tab == NavTab.create) context.push('/book/new');
+            if (tab == NavTab.profile) context.push('/profile');
           },
+        ),
+        // Figma 25:741 has no floating action button — entry to the reader
+        // moves to the inline pencil next to the cover card.
+        body: SafeArea(
+          bottom: false,
+          child: bookAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(
+                child: Text('Error: $e', style: AppTypography.bodyMedium)),
+            data: (book) {
+              if (book == null) {
+                return Center(
+                    child:
+                        Text('Book not found', style: AppTypography.bodyMedium));
+              }
+              return _buildBody(context, ref, book);
+            },
+          ),
         ),
       ),
     );
   }
 
   Widget _buildBody(BuildContext context, WidgetRef ref, BookModel book) {
-    final progress = book.totalPages > 0 ? book.currentPage / book.totalPages : 0.0;
-    final thumbAsync = book.link.isNotEmpty
-        ? ref.watch(pdfThumbnailProvider(book.link))
-        : const AsyncValue<Uint8List?>.data(null);
     final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
 
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Row(
-            children: [
-              GestureDetector(
-                onTap: () =>
-                    context.canPop() ? context.pop() : context.go('/home'),
-                child:
-                    const Icon(Icons.arrow_back, color: AppColors.primary, size: 20),
-              ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: Text(
-                  book.title,
-                  style: AppTypography.titleLarge,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-              Builder(
-                builder: (btnCtx) => IconButton(
-                  icon: const Icon(Icons.more_vert, color: AppColors.primary),
-                  onPressed: () {
-                    final box = btnCtx.findRenderObject() as RenderBox?;
-                    final anchor = box != null
-                        ? box.localToGlobal(Offset(box.size.width, 0))
-                        : Offset.zero;
-                    _showOptionsMenu(context, ref, book, shelves, anchor);
-                  },
-                ),
-              ),
-            ],
+    return GestureDetector(
+      // Tap outside the notes list (e.g. on the cover area) exits selection.
+      behavior: HitTestBehavior.translucent,
+      onTap: _inSelectionMode ? _exitSelectionMode : null,
+      child: Column(
+        children: [
+          // ── Sticky top bar — swaps in selection mode (Figma 25:741) ────
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: _inSelectionMode
+                ? _buildSelectionTopBar()
+                : _buildDefaultTopBar(book, shelves),
           ),
-        ),
-        Expanded(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 96),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: thumbAsync.when(
-                    loading: () => const _CoverPlaceholder(loading: true),
-                    error: (e, s) => const _CoverPlaceholder(),
-                    data: (bytes) => bytes != null
-                        ? Image.memory(bytes,
-                            width: double.infinity, height: 240, fit: BoxFit.cover)
-                        : const _CoverPlaceholder(),
+
+          // ── Scrollable body ──────────────────────────────────────────────
+          Expanded(
+            child: SingleChildScrollView(
+              padding: EdgeInsets.zero,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // PDF cover card + inline read pencil. Constrained to ≤768px
+                  // wide per Figma so wide web viewports stay tidy.
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+                    child: _PdfDisplayArea(book: book),
                   ),
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Text(book.title, style: AppTypography.headlineMedium),
-                    ),
-                    const SizedBox(width: 12),
-                    GestureDetector(
-                      onTap: () => _showStatusModal(context, ref, book),
-                      child: StatusBadge(book.status),
-                    ),
-                  ],
-                ),
-                if (book.author != null || book.year != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    [
-                      if (book.author != null) 'by ${book.author}',
-                      if (book.year != null) '${book.year}',
-                    ].join(' · '),
-                    style: AppTypography.bodyMedium
-                        .copyWith(color: AppColors.textSecondary),
+
+                  // ── Annotated Insights — rounded-top muted sheet ─────────
+                  _AnnotatedInsightsSheet(
+                    book: book,
+                    selectedNoteIds: _selectedNoteIds,
+                    inSelectionMode: _inSelectionMode,
+                    onToggleNote: _toggleNote,
+                    onPruneSelection: _pruneSelection,
                   ),
                 ],
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Reading Progress', style: AppTypography.labelLarge),
-                    Text(
-                      '${book.currentPage} / ${book.totalPages} pages',
-                      style: AppTypography.bodySmall
-                          .copyWith(color: AppColors.textSecondary),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 10),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: progress.clamp(0.0, 1.0),
-                    backgroundColor: AppColors.progressTrack,
-                    valueColor: const AlwaysStoppedAnimation(AppColors.primary),
-                    minHeight: 8,
-                  ),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  '${book.progress.toStringAsFixed(0)}% complete',
-                  style: AppTypography.bodySmall
-                      .copyWith(color: AppColors.textSecondary),
-                ),
-                const SizedBox(height: 32),
-                // ── Annotated Insights section ─────────────────────────
-                _NotesSection(bookId: book.id),
-              ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDefaultTopBar(BookModel book, List<BookshelfModel> shelves) {
+    return Row(
+      children: [
+        GestureDetector(
+          onTap: () =>
+              context.canPop() ? context.pop() : context.go('/home'),
+          behavior: HitTestBehavior.opaque,
+          child: const Padding(
+            padding: EdgeInsets.all(4),
+            child:
+                Icon(Icons.arrow_back, color: AppColors.primary, size: 16),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            book.title,
+            style: AppTypography.titleLarge,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        Builder(
+          builder: (btnCtx) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              final box = btnCtx.findRenderObject() as RenderBox?;
+              final anchor = box != null
+                  ? box.localToGlobal(Offset(box.size.width, 0))
+                  : Offset.zero;
+              _showOptionsMenu(context, ref, book, shelves, anchor);
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.more_vert,
+                  color: AppColors.primary, size: 20),
             ),
           ),
         ),
       ],
     );
   }
+
+  Widget _buildSelectionTopBar() {
+    // Figma 25:796: two text buttons only — Cancel (left), Delete (right).
+    // Same primary color; the destructive warning shows up only in the
+    // confirm AppModal.
+    final buttonStyle = TextButton.styleFrom(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+      foregroundColor: AppColors.primary,
+      textStyle: AppTypography.labelButton.copyWith(
+        color: AppColors.primary,
+        fontSize: 16,
+      ),
+      minimumSize: Size.zero,
+      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        TextButton(
+          onPressed: _exitSelectionMode,
+          style: buttonStyle,
+          child: const Text('Cancel'),
+        ),
+        TextButton(
+          onPressed: () {
+            if (_selectedNoteIds.isEmpty) return;
+            _confirmDeleteSelected();
+          },
+          style: buttonStyle,
+          child: const Text('Delete'),
+        ),
+      ],
+    );
+  }
 }
 
-/// Notes list with multi-select-on-long-press behavior.
-/// Lives entirely on this screen — selection state is UI-local so a plain
-/// StatefulWidget with setState is appropriate here.
-class _NotesSection extends ConsumerStatefulWidget {
-  final String bookId;
-  const _NotesSection({required this.bookId});
+// ──────────────────────────────────────────────────────────────────────────
+// PDF Display Area — white card + inline pencil → reading screen.
+// Figma: max-width 768, radius 8, shadow 0px 8px 32px rgba(25,28,29,0.08).
+// ──────────────────────────────────────────────────────────────────────────
+
+class _PdfDisplayArea extends ConsumerWidget {
+  final BookModel book;
+  const _PdfDisplayArea({required this.book});
 
   @override
-  ConsumerState<_NotesSection> createState() => _NotesSectionState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final thumbAsync = book.link.isNotEmpty
+        ? ref.watch(pdfThumbnailProvider(book.link))
+        : const AsyncValue<Uint8List?>.data(null);
 
-class _NotesSectionState extends ConsumerState<_NotesSection> {
-  final Set<String> _selected = {};
-  bool get _inSelectionMode => _selected.isNotEmpty;
-
-  void _toggle(String noteId) {
-    setState(() {
-      if (_selected.contains(noteId)) {
-        _selected.remove(noteId);
-      } else {
-        _selected.add(noteId);
-      }
-    });
-  }
-
-  void _selectAll(List<NoteModel> notes) {
-    setState(() {
-      final allIds = notes.map((n) => n.id).toSet();
-      // Toggle: if everything is already selected, deselect all; else select all.
-      if (_selected.length == notes.length &&
-          _selected.containsAll(allIds)) {
-        _selected.clear();
-      } else {
-        _selected
-          ..clear()
-          ..addAll(allIds);
-      }
-    });
-  }
-
-  void _clearSelection() {
-    setState(_selected.clear);
-  }
-
-  void _confirmDeleteSelected() {
-    final count = _selected.length;
-    final ids = _selected.toList();
-    showAppModal(
-      context: context,
-      builder: (ctx) => AppModal(
-        title: count == 1 ? 'Delete Note' : 'Delete Notes',
-        titleIcon: Icons.delete_outline,
-        confirmLabel: 'Delete',
-        confirmDestructive: true,
-        body: Text(
-          count == 1
-              ? 'This note will be permanently deleted. This action cannot be undone.'
-              : 'These $count notes will be permanently deleted. This action cannot be undone.',
-          style: AppTypography.bodyMedium,
+    // Figma 25:741: pencil button sits inside the cover card, vertically
+    // centered, right-anchored with a 16px inset. Cover + pencil share a
+    // Stack so the button overlaps the image.
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 768),
+        child: AspectRatio(
+          aspectRatio: 3 / 4,
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: const [
+                      BoxShadow(
+                        // rgba(25,28,29,0.08)
+                        color: Color(0x14191C1D),
+                        blurRadius: 32,
+                        offset: Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: thumbAsync.when(
+                    loading: () => const _CoverPlaceholder(loading: true),
+                    error: (e, s) => const _CoverPlaceholder(),
+                    data: (bytes) => bytes != null
+                        ? Image.memory(bytes, fit: BoxFit.cover)
+                        : const _CoverPlaceholder(),
+                  ),
+                ),
+              ),
+              // 40x40 teal circle pencil → push reading screen.
+              Positioned(
+                right: 16,
+                top: 0,
+                bottom: 0,
+                child: Align(
+                  alignment: Alignment.centerRight,
+                  child: _InlineReadButton(
+                    onTap: () => context.push('/book/${book.id}/reading'),
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
-        onConfirm: () async {
-          final ctrl = ref.read(libraryControllerProvider.notifier);
-          for (final id in ids) {
-            await ctrl.deleteNote(id);
-          }
-          if (ctx.mounted) Navigator.of(ctx).pop();
-          if (mounted) _clearSelection();
-        },
       ),
     );
   }
+}
+
+class _InlineReadButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _InlineReadButton({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    final notesAsync = ref.watch(notesByBookProvider(widget.bookId));
+    final borderRadius = BorderRadius.circular(12);
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: borderRadius,
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.18),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Material(
+        color: AppColors.primary,
+        shape: RoundedRectangleBorder(
+          borderRadius: borderRadius,
+          side: BorderSide(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+        ),
+        elevation: 0,
+        child: InkWell(
+          customBorder: RoundedRectangleBorder(borderRadius: borderRadius),
+          onTap: onTap,
+          child: const SizedBox(
+            width: 40,
+            height: 40,
+            child: Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Annotated Insights — rounded-top 40 sheet, surfaceMuted, padding 33/24/48.
+// ──────────────────────────────────────────────────────────────────────────
+
+class _AnnotatedInsightsSheet extends ConsumerWidget {
+  final BookModel book;
+  final Set<String> selectedNoteIds;
+  final bool inSelectionMode;
+  final void Function(String noteId) onToggleNote;
+  final void Function(Set<String> validIds) onPruneSelection;
+
+  const _AnnotatedInsightsSheet({
+    required this.book,
+    required this.selectedNoteIds,
+    required this.inSelectionMode,
+    required this.onToggleNote,
+    required this.onPruneSelection,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    return Container(
+      width: double.infinity,
+      decoration: const BoxDecoration(
+        color: AppColors.surfaceMuted,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
+      ),
+      padding: const EdgeInsets.fromLTRB(24, 33, 24, 48 + 80 /* nav bar gap */),
+      child: _NotesSection(
+        bookId: book.id,
+        selectedNoteIds: selectedNoteIds,
+        inSelectionMode: inSelectionMode,
+        onToggleNote: onToggleNote,
+        onPruneSelection: onPruneSelection,
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Notes list. Selection state is owned by the parent BookInfoScreen so the
+// top app bar can swap. Long-press toggles selection; tap toggles when in
+// selection mode, otherwise opens the note editor.
+// ──────────────────────────────────────────────────────────────────────────
+
+class _NotesSection extends ConsumerWidget {
+  final String bookId;
+  final Set<String> selectedNoteIds;
+  final bool inSelectionMode;
+  final void Function(String noteId) onToggleNote;
+  final void Function(Set<String> validIds) onPruneSelection;
+
+  const _NotesSection({
+    required this.bookId,
+    required this.selectedNoteIds,
+    required this.inSelectionMode,
+    required this.onToggleNote,
+    required this.onPruneSelection,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final notesAsync = ref.watch(notesByBookProvider(bookId));
     return notesAsync.when(
       loading: () => const Padding(
         padding: EdgeInsets.all(24),
@@ -474,74 +663,40 @@ class _NotesSectionState extends ConsumerState<_NotesSection> {
       error: (e, _) =>
           Text('Error: $e', style: AppTypography.bodySmall),
       data: (notes) {
-        // Drop selections that no longer exist (e.g., after a delete).
-        final validIds = notes.map((n) => n.id).toSet();
-        _selected.removeWhere((id) => !validIds.contains(id));
+        // Ask the parent to drop selections that no longer exist.
+        onPruneSelection(notes.map((n) => n.id).toSet());
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(
-              'Annotated Insights (${notes.length})',
-              style: AppTypography.titleLarge
-                  .copyWith(color: AppColors.primary),
-            ),
-            const SizedBox(height: 12),
-            // Header action row — Add Note when idle, selection toolbar when selecting.
-            _inSelectionMode
-                ? _SelectionToolbar(
-                    count: _selected.length,
-                    total: notes.length,
-                    allSelected: _selected.length == notes.length,
-                    onCancel: _clearSelection,
-                    onSelectAll: () => _selectAll(notes),
-                    onDelete: _confirmDeleteSelected,
-                  )
-                : Align(
-                    alignment: Alignment.centerRight,
-                    child: GestureDetector(
-                      onTap: () => showNoteEditSheet(context,
-                          bookId: widget.bookId),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 12),
-                        decoration: BoxDecoration(
-                          color: AppColors.primary,
-                          borderRadius: BorderRadius.circular(8),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.1),
-                              blurRadius: 12,
-                              offset: const Offset(0, 6),
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(Icons.add_comment_outlined,
-                                color: Colors.white, size: 18),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Add Note',
-                              style: AppTypography.bodyMedium.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+            // ── Header row — heading + Add Note pill (Figma) ────────────
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Annotated Insights (${notes.length})',
+                    style: AppTypography.titleLarge.copyWith(
+                      fontSize: 20,
+                      letterSpacing: -1.0,
+                      height: 1.4,
                     ),
                   ),
+                ),
+                if (!inSelectionMode)
+                  _AddNotePill(
+                    onTap: () => showNoteEditSheet(context, bookId: bookId),
+                  ),
+              ],
+            ),
             const SizedBox(height: 16),
             if (notes.isEmpty)
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: AppColors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borderSubtle),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: AppColors.borderHairline),
                 ),
                 child: Text(
                   'No notes yet. Tap "Add Note" to start writing.',
@@ -554,17 +709,17 @@ class _NotesSectionState extends ConsumerState<_NotesSection> {
                     padding: const EdgeInsets.only(bottom: 12),
                     child: _NotePreview(
                       note: n,
-                      selected: _selected.contains(n.id),
-                      selectionMode: _inSelectionMode,
+                      selected: selectedNoteIds.contains(n.id),
+                      selectionMode: inSelectionMode,
                       onTap: () {
-                        if (_inSelectionMode) {
-                          _toggle(n.id);
+                        if (inSelectionMode) {
+                          onToggleNote(n.id);
                         } else {
                           showNoteEditSheet(context,
-                              bookId: widget.bookId, noteId: n.id);
+                              bookId: bookId, noteId: n.id);
                         }
                       },
-                      onLongPress: () => _toggle(n.id),
+                      onLongPress: () => onToggleNote(n.id),
                     ),
                   )),
           ],
@@ -574,125 +729,57 @@ class _NotesSectionState extends ConsumerState<_NotesSection> {
   }
 }
 
-class _SelectionToolbar extends StatelessWidget {
-  final int count;
-  final int total;
-  final bool allSelected;
-  final VoidCallback onCancel;
-  final VoidCallback onSelectAll;
-  final VoidCallback onDelete;
-
-  const _SelectionToolbar({
-    required this.count,
-    required this.total,
-    required this.allSelected,
-    required this.onCancel,
-    required this.onSelectAll,
-    required this.onDelete,
-  });
+/// Add Note gradient pill — Figma button: pad 20h/14v, radius 12, gradient.
+class _AddNotePill extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddNotePill({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+    return DecoratedBox(
       decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.borderSubtle),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Row 1 — count + cancel X
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  '$count of $total selected',
-                  style: AppTypography.bodyMedium.copyWith(
-                    color: AppColors.primary,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              GestureDetector(
-                onTap: onCancel,
-                behavior: HitTestBehavior.opaque,
-                child: const Padding(
-                  padding: EdgeInsets.all(6),
-                  child: Icon(Icons.close,
-                      color: AppColors.primary, size: 20),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          // Row 2 — Select all + Delete
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: OutlinedButton.icon(
-                    onPressed: onSelectAll,
-                    icon: Icon(
-                      allSelected
-                          ? Icons.check_box
-                          : Icons.check_box_outline_blank,
-                      size: 18,
-                      color: AppColors.primary,
-                    ),
-                    label: Text(
-                      allSelected ? 'Deselect all' : 'Select all',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w700,
-                        height: 1.0,
-                      ),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      side: const BorderSide(
-                          color: AppColors.primary, width: 1.5),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: SizedBox(
-                  height: 48,
-                  child: ElevatedButton.icon(
-                    onPressed: onDelete,
-                    icon: const Icon(Icons.delete_outline,
-                        size: 18, color: Colors.white),
-                    label: Text(
-                      'Delete ($count)',
-                      style: AppTypography.bodyMedium.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        height: 1.0,
-                      ),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.error,
-                      elevation: 0,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
+        gradient: AppColors.primaryGradient,
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.1),
+            blurRadius: 12,
+            offset: const Offset(0, 6),
           ),
         ],
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.add, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  'Add Note',
+                  style: AppTypography.labelButton.copyWith(
+                    fontSize: 14,
+                    height: 1.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
+
+// ──────────────────────────────────────────────────────────────────────────
+// Note card — Figma "Modal Note Card": white bg, 16 radius, 21 padding,
+// soft shadow, hairline border, 3-line clamp body.
+// ──────────────────────────────────────────────────────────────────────────
 
 class _NotePreview extends StatelessWidget {
   final NoteModel note;
@@ -725,75 +812,82 @@ class _NotePreview extends StatelessWidget {
         ? '(empty note)'
         : note.content.trim();
     return Material(
-      color: selected
-          ? AppColors.primary.withValues(alpha: 0.08)
-          : AppColors.surface,
-      borderRadius: BorderRadius.circular(12),
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      // 0px 1px 1px rgba(0,0,0,0.05)
+      shadowColor: Colors.black.withValues(alpha: 0.05),
+      elevation: 1,
       child: InkWell(
         onTap: onTap,
         onLongPress: onLongPress,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            border: selected
-                ? Border.all(color: AppColors.primary, width: 1.5)
-                : null,
-          ),
-          padding: const EdgeInsets.all(16),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              if (selectionMode) ...[
-                Padding(
-                  padding: const EdgeInsets.only(top: 2),
-                  child: Icon(
-                    selected
-                        ? Icons.check_circle
-                        : Icons.radio_button_unchecked,
-                    size: 22,
-                    color: selected
-                        ? AppColors.primary
-                        : AppColors.textMuted,
-                  ),
-                ),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: Text(
-                            title,
-                            style: AppTypography.titleMedium,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Text(
-                          _formatDate(note.updatedAt),
-                          style: AppTypography.bodySmall
-                              .copyWith(color: AppColors.textSecondary),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      preview,
-                      style: AppTypography.bodyMedium,
-                      maxLines: 3,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+        borderRadius: BorderRadius.circular(16),
+        child: Stack(
+          children: [
+            Container(
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: selected
+                      ? AppColors.primary
+                      : AppColors.borderHairline,
+                  width: selected ? 1.5 : 1,
                 ),
               ),
-            ],
-          ),
+              padding: const EdgeInsets.all(21),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: AppTypography.noteTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          _formatDate(note.updatedAt),
+                          style: AppTypography.captionRegular.copyWith(
+                            color: AppColors.textSecondary,
+                            letterSpacing: 0,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 10.8),
+                  Text(
+                    preview,
+                    style: AppTypography.noteBody,
+                    maxLines: 3,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            // Selection indicator — Figma 25:796 places the circle at the
+            // bottom-right of the card (left:310, top:102.2 inside 342x140.8).
+            if (selectionMode)
+              Positioned(
+                right: 12,
+                bottom: 18,
+                child: Icon(
+                  selected
+                      ? Icons.check_circle
+                      : Icons.radio_button_unchecked,
+                  size: 20,
+                  color: selected
+                      ? AppColors.primary
+                      : AppColors.textDisabled,
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -843,18 +937,16 @@ class _CoverPlaceholder extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 240,
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.borderSubtle),
-      ),
+      color: AppColors.surface,
       child: loading
           ? const Center(
               child: CircularProgressIndicator(
                   color: AppColors.primary, strokeWidth: 2),
             )
-          : const Icon(Icons.picture_as_pdf, size: 72, color: AppColors.primary),
+          : const Center(
+              child: Icon(Icons.picture_as_pdf,
+                  size: 72, color: AppColors.primary),
+            ),
     );
   }
 }

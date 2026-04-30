@@ -24,7 +24,9 @@
       "Read(//tmp/**)",
       "Bash(cp /tmp/figma/edit_profile.png \"C:/Users/pun/Desktop/beta my pdf/.claude/edit_profile.png\")",
       "Bash(cp /tmp/figma/profile.png \"C:/Users/pun/Desktop/beta my pdf/.claude/profile.png\")",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(grep -E \"^[A-Za-z0-9 ,.;:!?'-]{8,}$\")",
+      "Bash(grep -aoE \"[ -~]{15,}\" /tmp/img-doc.pdf)"
     ]
   },
   "enabledPlugins": {}

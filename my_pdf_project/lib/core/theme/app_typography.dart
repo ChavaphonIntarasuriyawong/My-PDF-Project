@@ -165,4 +165,22 @@ class AppTypography {
     height: 1.5,
     color: AppColors.error,
   );
+
+  // Added: Note card heading from Figma node 25:741 — Inter Bold 20 / textSecondary.
+  static const TextStyle noteTitle = TextStyle(
+    fontFamily: 'Inter',
+    fontWeight: FontWeight.w700,
+    fontSize: 20,
+    height: 1.5,
+    color: AppColors.textSecondary,
+  );
+
+  // Added: Note card body from Figma node 25:741 — Inter Reg 14 / textPrimary / lh 22.75 (≈1.625).
+  static const TextStyle noteBody = TextStyle(
+    fontFamily: 'Inter',
+    fontWeight: FontWeight.w400,
+    fontSize: 14,
+    height: 1.625,
+    color: AppColors.textPrimary,
+  );
 }

@@ -197,6 +197,21 @@ class FirestoreDataSource {
     return _db.collection('notes').doc(noteId).delete();
   }
 
+  /// Batch-delete notes. Firestore caps a single batch at 500 ops, so we
+  /// chunk to be safe even though typical selections are tiny.
+  Future<void> deleteNotes(List<String> noteIds) async {
+    if (noteIds.isEmpty) return;
+    const chunkSize = 500;
+    for (var i = 0; i < noteIds.length; i += chunkSize) {
+      final end = (i + chunkSize > noteIds.length) ? noteIds.length : i + chunkSize;
+      final batch = _db.batch();
+      for (final id in noteIds.sublist(i, end)) {
+        batch.delete(_db.collection('notes').doc(id));
+      }
+      await batch.commit();
+    }
+  }
+
   Stream<int> watchUserNotesCount(List<String> bookIds) {
     if (bookIds.isEmpty) return Stream.value(0);
 

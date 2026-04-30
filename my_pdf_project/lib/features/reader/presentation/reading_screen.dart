@@ -110,12 +110,24 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     await _tts.setPitch(1.0);
     // Ensures speak() future resolves on actual completion, not immediately.
     // Without this, Android sometimes drops audio + completionHandler never fires.
-    if (!kIsWeb) {
-      try { await _tts.awaitSpeakCompletion(true); } catch (_) {}
-    }
+    // The web plugin (flutter_tts 4.2.5) also supports awaitSpeakCompletion via
+    // an internal Completer keyed off `utterance.onEnd` — enabling it on web
+    // means our completion handler runs after the future resolves, removing a
+    // race where natural completion arrived before `_ttsSpeaking = true` was
+    // visible to the handler.
+    try { await _tts.awaitSpeakCompletion(true); } catch (_) {}
     _tts.setCompletionHandler(() {
       if (!mounted) return;
+      // Re-entrancy guard: only advance if we were actually speaking. On some
+      // platforms the engine fires `completion` for both natural finish AND
+      // for stop()-triggered cancellation (especially when a fresh
+      // _speakCurrentPage calls _tts.stop() before issuing the new speak).
+      // Without this guard, that stale completion calls _advanceToNextPageForTts
+      // once for the page we just navigated TO, AND a second time from the
+      // legitimate completion of that page — skipping every other page.
+      final wasSpeaking = _ttsSpeaking;
       setState(() => _ttsSpeaking = false);
+      if (!wasSpeaking) return;
       // If the user hasn't pressed Stop, automatically continue to the next page.
       if (_ttsActive) _advanceToNextPageForTts();
     });
@@ -224,8 +236,28 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
   Future<void> _speakCurrentPage(int pageIndex) async {
     final v = ++_speakVersion;
+    // Clear speaking flag BEFORE stop() so the completion handler's
+    // re-entrancy guard sees `_ttsSpeaking == false` if stop() synchronously
+    // fires `completion` (some engines treat stop-mid-utterance as completion).
+    final wasSpeakingBeforeStop = _ttsSpeaking;
+    if (mounted && _ttsSpeaking) {
+      setState(() => _ttsSpeaking = false);
+    } else {
+      _ttsSpeaking = false;
+    }
     await _tts.stop();
     if (v != _speakVersion) return;
+    // Web Chrome bug: synth.cancel() is asynchronous — the underlying plugin
+    // keeps `ttsState == playing` until the cancelled utterance fires onerror
+    // (`interrupted`) or onend on the next microtask. If we call speak() in
+    // that window, the plugin's `_speak` short-circuits because the state is
+    // not yet `stopped`, and our new text is silently dropped — auto-advance
+    // appears to "stop after one page". A short delay lets the cancel event
+    // propagate. Only needed when there was an actual utterance to cancel.
+    if (kIsWeb && wasSpeakingBeforeStop) {
+      await Future.delayed(const Duration(milliseconds: 120));
+      if (v != _speakVersion) return;
+    }
     if (_pdfPath == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
