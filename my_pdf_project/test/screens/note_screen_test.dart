@@ -32,6 +32,13 @@ class _FakeDataSource implements FirestoreDataSource {
     deletedNoteId = noteId;
   }
 
+  List<List<String>> deletedNoteIdLists = [];
+
+  @override
+  Future<void> deleteNotes(List<String> noteIds) async {
+    deletedNoteIdLists.add(List.of(noteIds));
+  }
+
   @override Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
   @override Future<NoteModel> createNote({required String bookId, required String title, required String content}) => throw UnimplementedError();
   @override Future<void> updateNote(String noteId, {required String title, required String content}) => throw UnimplementedError();

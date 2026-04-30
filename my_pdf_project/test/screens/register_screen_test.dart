@@ -60,6 +60,8 @@ void main() {
     testWidgets('does not submit with empty fields', (tester) async {
       final repo = _FakeRepo();
       await tester.pumpWidget(_buildScreen(repo));
+      await tester.ensureVisible(find.widgetWithText(GradientButton, 'Sign Up'));
+      await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(GradientButton, 'Sign Up'));
       await tester.pump();
       expect(find.text('Join the Collection'), findsOneWidget);

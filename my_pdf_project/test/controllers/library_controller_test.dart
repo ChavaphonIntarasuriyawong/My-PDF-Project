@@ -79,6 +79,14 @@ class _FakeDataSource implements FirestoreDataSource {
   @override
   Future<void> deleteNote(String noteId) async => _maybeThrow();
 
+  List<List<String>> deleteNotesCalls = [];
+
+  @override
+  Future<void> deleteNotes(List<String> noteIds) async {
+    deleteNotesCalls.add(List.of(noteIds));
+    _maybeThrow();
+  }
+
   @override
   Future<NoteModel?> getNoteById(String noteId) async => null;
 
@@ -277,6 +285,35 @@ void main() {
         ds.shouldThrow = true;
         final ok = await container.read(libraryControllerProvider.notifier).deleteNote('n1');
         expect(ok, isFalse);
+      });
+    });
+
+    group('deleteNotes', () {
+      test('forwards ids to datasource and returns true on success', () async {
+        final ok = await container
+            .read(libraryControllerProvider.notifier)
+            .deleteNotes(['n1', 'n2']);
+        expect(ok, isTrue);
+        expect(ds.deleteNotesCalls, [
+          ['n1', 'n2']
+        ]);
+      });
+
+      test('failure returns false', () async {
+        ds.shouldThrow = true;
+        final ok = await container
+            .read(libraryControllerProvider.notifier)
+            .deleteNotes(['n1', 'n2']);
+        expect(ok, isFalse);
+      });
+
+      test('empty list short-circuits to true without calling datasource',
+          () async {
+        final ok = await container
+            .read(libraryControllerProvider.notifier)
+            .deleteNotes(const []);
+        expect(ok, isTrue);
+        expect(ds.deleteNotesCalls, isEmpty);
       });
     });
   });

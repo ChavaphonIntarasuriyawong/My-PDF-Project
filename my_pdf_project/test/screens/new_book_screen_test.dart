@@ -44,6 +44,7 @@ class _FakeDataSource implements FirestoreDataSource {
   @override Future<NoteModel> createNote({required String bookId, required String title, required String content}) => throw UnimplementedError();
   @override Future<void> updateNote(String noteId, {required String title, required String content}) => throw UnimplementedError();
   @override Future<void> deleteNote(String noteId) => throw UnimplementedError();
+  @override Future<void> deleteNotes(List<String> noteIds) async {}
   @override Stream<List<NoteModel>> watchNotesByBookId(String bookId) => const Stream.empty();
   @override Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
   @override Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();
@@ -82,6 +83,8 @@ void main() {
       final ds = _FakeDataSource();
       await tester.pumpWidget(_buildScreen(ds));
       await tester.pump();
+      await tester.ensureVisible(find.text('Create PDF').first);
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Create PDF').first);
       await tester.pump();
       expect(ds.createdBook, isNull);

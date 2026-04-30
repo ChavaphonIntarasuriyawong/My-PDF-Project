@@ -45,6 +45,7 @@ class _FakeDataSource implements FirestoreDataSource {
   @override Future<NoteModel> createNote({required String bookId, required String title, required String content}) => throw UnimplementedError();
   @override Future<void> updateNote(String noteId, {required String title, required String content}) => throw UnimplementedError();
   @override Future<void> deleteNote(String noteId) => throw UnimplementedError();
+  @override Future<void> deleteNotes(List<String> noteIds) async {}
   @override Stream<List<NoteModel>> watchNotesByBookId(String bookId) => const Stream.empty();
   @override Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
   @override Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();

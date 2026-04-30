@@ -89,6 +89,30 @@ bool _looksLikePdf(List<int> bytes) {
   return false;
 }
 
+/// Writes already-fetched PDF bytes to the same cache location `pdfPathProvider`
+/// would later download to. Lets the link-import flow reuse the bytes it
+/// already pulled for the bitmap probe, so the very first reader open finds the
+/// file on disk instead of racing a fresh download (which manifested as
+/// `java.io.FileNotFoundException: ENOENT` from PDFView when the user tapped
+/// "Read" before the implicit download finished).
+///
+/// No-op on web (no filesystem) and for `local://` URLs (already on disk).
+/// Best-effort: silently swallows write failures — the reader will fall back
+/// to downloading on demand the way it always has.
+Future<void> primePdfCache(String url, List<int> bytes) async {
+  if (kIsWeb) return;
+  if (url.startsWith('local://')) return;
+  if (bytes.length < 100) return;
+  if (!_looksLikePdf(bytes)) return;
+  try {
+    final docs = await getApplicationDocumentsDirectory();
+    final file = File('${docs.path}/pdf_${url.hashCode.abs()}.pdf');
+    await file.writeAsBytes(bytes, flush: true);
+  } catch (_) {
+    // Non-fatal — pdfPathProvider will re-download if the prime didn't land.
+  }
+}
+
 /// Downloads a PDF URL to a local file and returns the path.
 /// Stored in application documents (NOT temp) so Android doesn't purge it
 /// between download and the native PDFView open call (causes ENOENT).

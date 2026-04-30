@@ -41,7 +41,19 @@ class FirebaseAuthDataSource {
 
   Future<UserModel> _fetchUser(String uid) async {
     final doc = await _firestore.collection('users').doc(uid).get();
-    final data = doc.data()!;
+    final data = doc.data();
+    // Guard: if users/{uid} doc is missing (admin deletion, network race,
+    // legacy account predating Firestore profile), fall back to auth-side
+    // identity so the auth stream keeps emitting and the redirect guard
+    // doesn't break login for that user.
+    if (data == null) {
+      final authUser = _auth.currentUser;
+      return UserModel(
+        uid: uid,
+        name: authUser?.displayName ?? '',
+        email: authUser?.email ?? '',
+      );
+    }
     return UserModel(
       uid: uid,
       name: data['name'] ?? '',

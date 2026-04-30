@@ -39,7 +39,7 @@ Flutter app targeting **Android (primary)** and **Web (secondary)**.
 
 Architecture: Clean (data / domain / presentation per feature).
 
-For full architecture rules, schema, and gotchas: see [`CLAUDE.md`](./CLAUDE.md).
+For full architecture rules, schema, and gotchas: see [`docs/projectscope.md`](./docs/projectscope.md). Lean entry point for Claude Code: [`CLAUDE.md`](./CLAUDE.md).
 
 ---
 

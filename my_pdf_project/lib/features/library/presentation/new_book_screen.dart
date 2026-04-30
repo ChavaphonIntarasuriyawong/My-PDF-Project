@@ -95,7 +95,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     return source.readAsBytes();
   }
 
-  Future<({String link, PdfMetadata metadata})> _uploadPdf(
+  Future<({String link, String supabasePath, PdfMetadata metadata, Uint8List bytes})> _uploadPdf(
       PlatformFile file, String uid) async {
     final bytes = await _readPickedBytes(file);
     if (bytes.isEmpty) {
@@ -118,7 +118,18 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     }
     final publicUrl =
         supabase.storage.from('pdfs').getPublicUrl(supabasePath);
-    return (link: publicUrl, metadata: metadata);
+    return (link: publicUrl, supabasePath: supabasePath, metadata: metadata, bytes: bytes);
+  }
+
+  /// Pre-flight duplicate-title check so we don't pay for a Supabase upload
+  /// only to have `createBook` throw on the existing-title guard. Mirrors
+  /// `LibraryController._norm`. Throws `DuplicateNameException` on collision.
+  void _ensureTitleAvailable(String title) {
+    final n = title.trim().toLowerCase();
+    final existing = ref.read(allBooksProvider).valueOrNull ?? const [];
+    if (existing.any((b) => b.title.trim().toLowerCase() == n)) {
+      throw DuplicateNameException('A book titled "$title" already exists.');
+    }
   }
 
   Future<PdfMetadata> _validateAndExtractMetadata(String url) async {
@@ -229,6 +240,11 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
           setState(() => _loadingUrl = false);
           return;
         }
+        // Reuse the bytes we already pulled to seed the on-device PDF cache.
+        // Without this, the very first "Read" tap races pdfPathProvider's
+        // own download and PDFView opens before the file lands on disk →
+        // `java.io.FileNotFoundException: ENOENT`. No-op on web.
+        await primePdfCache(url, probeResp.bodyBytes);
       } catch (e) {
         // ignore: avoid_print
         print('[BitmapProbe] fetch error: $e');
@@ -278,6 +294,10 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     setState(() => _loadingFile = true);
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
+      // Pre-check duplicate title BEFORE uploading. Avoids paying for a
+      // Supabase upload that will be rolled back when createBook throws.
+      final candidateTitle = _titleFromSource(_pickedFile!.name);
+      _ensureTitleAvailable(candidateTitle);
       // Probe text layer before paying for the Supabase upload. Bytes are
       // available pre-upload on both mobile + web in this path.
       final probeBytes = await _readPickedBytes(_pickedFile!);
@@ -288,31 +308,49 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         return;
       }
       final saved = await _uploadPdf(_pickedFile!, uid);
-      final book = BookModel(
-        id: '',
-        title: _titleFromSource(_pickedFile!.name),
-        link: saved.link,
-        totalPages: 0,
-        currentPage: 0,
-        progress: 0,
-        status: 'reading',
-        shelfId: _fileShelfId ?? '',
-        ownerId: uid,
-        author: saved.metadata.author,
-        year: saved.metadata.year,
-      );
-      final created =
-          await ref.read(libraryControllerProvider.notifier).createBook(book);
+      // Seed the on-device PDF cache with the bytes we already uploaded.
+      // Same rationale as the link-import path: avoids the FileNotFound race
+      // when the user taps "Read" before pdfPathProvider's first download
+      // finishes. No-op on web.
+      await primePdfCache(saved.link, saved.bytes);
+      BookModel? created;
+      try {
+        final book = BookModel(
+          id: '',
+          title: candidateTitle,
+          link: saved.link,
+          totalPages: 0,
+          currentPage: 0,
+          progress: 0,
+          status: 'reading',
+          shelfId: _fileShelfId ?? '',
+          ownerId: uid,
+          author: saved.metadata.author,
+          year: saved.metadata.year,
+        );
+        created = await ref.read(libraryControllerProvider.notifier).createBook(book);
+      } catch (_) {
+        rethrow;
+      }
+      if (created == null) {
+        // createBook returned null — controller wrote a Failure to its state.
+        // Treat as failure: clean up the orphan Supabase blob before bailing.
+        try {
+          await Supabase.instance.client.storage
+              .from('pdfs')
+              .remove([saved.supabasePath]);
+        } catch (_) { /* best-effort */ }
+        if (!mounted) return;
+        setState(() => _loadingFile = false);
+        final err = ref.read(libraryControllerProvider).error;
+        _showError(err?.toString() ?? 'Could not save book.');
+        return;
+      }
       if (!mounted) return;
       setState(() => _loadingFile = false);
-      if (created != null) {
-        // Reset stack to /home, then push book info so back-button returns to library.
-        context.go('/home');
-        context.push('/book/${created.id}');
-      } else {
-        final err = ref.read(libraryControllerProvider).error;
-        if (err != null) _showError(err.toString());
-      }
+      // Reset stack to /home, then push book info so back-button returns to library.
+      context.go('/home');
+      context.push('/book/${created.id}');
     } catch (e) {
       if (!mounted) return;
       setState(() => _loadingFile = false);

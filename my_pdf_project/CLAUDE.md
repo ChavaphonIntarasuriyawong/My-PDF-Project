@@ -1,337 +1,145 @@
-# CLAUDE.md — MyPDF Project Blueprint
+# CLAUDE.md
 
-> **Read this file completely before writing any code.**
-> Single source of truth for all agents working on this project.
-> Reflects current code state (lib/) — not aspirational design.
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
----
-
-## Orchestrator
-
-This file is the **orchestrator**. When a user prompt starts with `audit` (alone or followed by agent names), dispatch in parallel via the Task tool to the relevant subagents under `.claude/agents/`. Each subagent is scoped to one concern; never let one rewrite another's domain.
-
-### Agent registry
-
-| Agent file | Concern |
-|---|---|
-| `.claude/agents/architect.md` | Clean architecture, layering, provider graph, plugin role uniqueness |
-| `.claude/agents/flutter_engineer.md` | UI + Riverpod state + GoRouter wiring + theme tokens |
-| `.claude/agents/qa_engineer.md` | `test/` suite, `flutter analyze`, manual flow QA, edge cases |
-| `.claude/agents/security.md` | Auth, Firestore rules, Supabase RLS, Edge Function, secrets, XSS, CVEs |
-| `.claude/agents/firebase_specialist.md` | Firebase + Supabase datasources, schema, Edge Function, deploys |
-
-### Prompt routing
-
-**Explicit `audit` prefix:**
-- `audit` → run **all five** agents in parallel.
-- `audit <name1> <name2> ...` → only named agents. Aliases: `architect`, `flutter` / `flutter_engineer`, `qa` / `qa_engineer`, `security`, `firebase` / `firebase_specialist`.
-- `audit <feature>` where `<feature>` matches `lib/features/<feature>/` → all five, scoped.
-
-**Auto-routing (no prefix needed):**
-Match the user's request against the topic map below. Dispatch matching agents in parallel. If no topic matches OR the task is trivial (single-file edit, one-line fix, conversational question, file read, status check) → handle inline.
-
-| Topic keywords / intent in user prompt | Agents to auto-dispatch |
-|---|---|
-| add/refactor screen, widget, UI bug, route, navigation, theme, GoRouter, layout, phone-frame, web responsive | `flutter_engineer` |
-| Firestore query/schema, books/shelves/notes data, Supabase upload, bucket, Edge Function, CORS proxy, Crashlytics wiring, datasource bug | `firebase_specialist` |
-| auth flow, login/register, redirect guard, password handling | `firebase_specialist` + `security` |
-| security review, rules, RLS, secrets, CVE, XSS, permissions, public deploy gate | `security` |
-| write/fix tests, flutter analyze red, regression, edge case, flow QA | `qa_engineer` |
-| layering, clean architecture, provider graph, plugin role, domain leak, structure | `architect` |
-| new feature spanning data + UI | `architect` + `flutter_engineer` + `firebase_specialist` |
-| pre-merge / pre-release / "is this ready to ship" | all five |
-
-**Single-agent shortcut:** if exactly one agent owns the area and the task is non-trivial implementation, dispatch just that one and proceed. Don't dispatch every time — small reads, quick answers, and conversational turns stay inline.
-
-**State the routing decision** in one line before the Task call(s): e.g. `Routing → flutter_engineer + firebase_specialist (auth flow change).` This lets the user veto with a follow-up.
-
-### Dispatch rules
-
-1. **Parallel only.** Send a single message containing one Task tool call per agent. Do not dispatch sequentially when the agents are independent.
-2. **Self-contained prompts.** Each agent starts cold. Always include: target paths, the user's original ask, the exact section of `CLAUDE.md` they must read, and what report shape you expect.
-3. **No cross-domain edits.** Architect + security + qa diagnose only. Flutter_engineer + firebase_specialist may edit code, but only inside their listed `What you own` paths.
-4. **Conflict resolution.** When two agents recommend opposing changes, surface both verdicts to the user with file:line and pick the architect's call as tiebreaker for structure, security's call as tiebreaker for auth/data exposure.
-5. **Aggregation.** After all dispatched agents return, post one consolidated report grouped by severity (Critical / High / Medium / Info), each finding tagged with the agent that found it.
-
-### Example dispatch
-
-User: `audit qa security`
-Action: parallel Task calls to `qa_engineer` and `security` only. Then merge their reports. Other agents stay idle.
-
-User: `audit reader`
-Action: parallel Task calls to all five with scope `lib/features/reader/`.
+> **`docs/projectscope.md`** holds the full blueprint (schema, plugin role map, route table, every gotcha). Read it before non-trivial work. This file is the lean entry point.
 
 ---
 
-## App Overview
+## Commands
 
-| Field | Value |
-|---|---|
-| App Name | MyPDF |
-| Type | Flutter + Firebase + Supabase |
-| Platforms | Android (primary), Web (secondary), iOS/desktop scaffolded |
-| Purpose | Save PDFs (link or upload), organize into bookshelves, track reading progress, write notes, TTS read-aloud |
-
----
-
-## Tech Stack (matches `pubspec.yaml`)
-
-| Layer | Package |
-|---|---|
-| Framework | Flutter SDK ^3.10.7 |
-| State | `flutter_riverpod` 2.6.1 |
-| Navigation | `go_router` 14.6.3 (auth-gated redirect) |
-| Firebase bootstrap | `firebase_core` 3.13.1 |
-| Auth | `firebase_auth` 5.5.4 |
-| DB | `cloud_firestore` 5.6.7 |
-| File storage | `supabase_flutter` 2.8.4 (bucket `pdfs`) |
-| CORS proxy (web) | Supabase Edge Function `pdf-proxy` |
-| Crash | `firebase_crashlytics` 4.3.5 (mobile only) |
-| Local storage | `hive` 2.2.3 + `hive_flutter` 1.1.0 |
-| PDF render mobile | `flutter_pdfview` 1.3.2 |
-| PDF render web/thumb | `pdfx` 2.9.0 |
-| PDF metadata + web text | `syncfusion_flutter_pdf` 27.1.48 |
-| PDF text mobile | `flutter_pdf_text` 0.9.0 |
-| TTS | `flutter_tts` 4.2.0 |
-| Functional | `dartz` 0.10.1 |
-| Net + FS | `http` 1.2.2, `path_provider` 2.1.4 |
-| Picker | `file_picker` 8.1.2 |
-| Icons | `font_awesome_flutter` 10.8.0 |
-| Lints (dev) | `flutter_lints` 6.0.0 |
-
-> Firebase Storage NOT used. PDFs → Supabase bucket `pdfs`.
-> Profile = name + email only. No avatar.
-
-Supabase URL + key wired in `lib/main.dart`. Firebase init via `firebase_options.dart`.
-
-### Plugin Role Map
-
-Single role per plugin — do not duplicate purpose across packages.
-
-| Plugin | Role | Platform scope |
-|---|---|---|
-| `flutter_riverpod` | App + feature state. No `setState` for shared state. | All |
-| `go_router` | Routing + auth-gated redirect (`routerProvider`). | All |
-| `firebase_core` | One-time `Firebase.initializeApp` in `main.dart`. | All |
-| `firebase_auth` | Email/password sign-in/up + auth stream. | All |
-| `cloud_firestore` | `users`, `bookshelves`, `books`, `notes` collections. | All |
-| `supabase_flutter` | PDF upload + public URL + Edge Function client. | All |
-| `firebase_crashlytics` | Crash reporting. **Skipped on web** via `kIsWeb` guard. | Mobile only |
-| `hive` / `hive_flutter` | `app_prefs` box → `recent_book_ids`. | All |
-| `flutter_pdfview` | Native PDF reader view. | Mobile only |
-| `pdfx` | PDF render + thumbnail generation. | Web + thumbnails |
-| `syncfusion_flutter_pdf` | Metadata (`author`, `year`) + web TTS text. | All |
-| `flutter_pdf_text` | TTS source on mobile. | Mobile only |
-| `flutter_tts` | Speech engine. Needs `<queries>` intent on Android. | All |
-| `dartz` | `Either<Failure, T>` for repository contracts. | All |
-| `http` | PDF byte fetches via `pdf_fetcher.dart`. | All |
-| `path_provider` | App docs dir for cached PDFs. **Never call on web.** | Mobile/desktop |
-| `file_picker` | PDF picking on new-book screen. | All |
-| `font_awesome_flutter` | Icon set. | All |
-| `flutter_lints` | Static analysis (dev dep). | — |
-
-### Native plugin config
-
-- `android/app/src/main/AndroidManifest.xml` — `<intent action android.intent.action.TTS_SERVICE>` under `<queries>` (Android 11+ package visibility) for `flutter_tts`.
-- `firebase_options.dart` generated by `flutterfire configure` — do not hand-edit.
-- Web build registers `pdfx` via auto-generated `flutter_service_worker.js` (no manual setup).
-
----
-
-## Directory Layout (actual)
-
-```
-lib/
-├── core/
-│   ├── constants/   app_router.dart, app_routes.dart
-│   ├── errors/      failures.dart  (Failure, AuthFailure, ServerFailure)
-│   ├── local/       recent_books_service.dart  (Hive box `app_prefs`)
-│   ├── network/     pdf_fetcher.dart  (shared fetch + Supabase Edge proxy)
-│   └── theme/       app_colors.dart, app_typography.dart, app_theme.dart
-├── features/
-│   ├── auth/
-│   │   ├── data/    firebase_auth_data_source.dart, auth_repository_impl.dart
-│   │   ├── domain/  auth_repository.dart, user_model.dart
-│   │   └── presentation/  login_screen, register_screen, auth_controller, auth_providers
-│   ├── library/
-│   │   ├── data/    firestore_data_source.dart, pdf_metadata.dart
-│   │   ├── domain/  book_model, bookshelf_model, note_model
-│   │   └── presentation/  home_screen, shelf_content_screen, new_book_screen, book_info_screen, library_controller, library_providers
-│   ├── reader/
-│   │   └── presentation/  reading_screen, note_screen, note_edit_screen
-│   └── profile/
-│       └── presentation/  profile_screen, edit_profile_screen
-├── shared/widgets/  pdf_card, status_badge, app_bottom_nav_bar, app_modal, app_drawer, gradient_button, labeled_text_field
-├── firebase_options.dart
-└── main.dart
-
-supabase/functions/pdf-proxy/index.ts   ← Deno Edge Function, CORS proxy
+```bash
+flutter pub get                                  # install deps
+flutter analyze                                  # static analysis (must pass before merge)
+flutter test                                     # full test suite
+flutter test test/screens/reading_screen_test.dart   # single file
+flutter test --plain-name "deletes book"         # single test by name
+flutter run                                      # mobile default device
+flutter run -d chrome                            # web
+flutter build apk --release
+flutter build web --release
+firebase deploy --only hosting                   # web → Firebase Hosting (after build)
+npx supabase functions deploy pdf-proxy --no-verify-jwt   # CORS proxy
 ```
 
-### Domain Rules (still enforced)
-- Zero `flutter/`, `firebase_*`, `supabase_*` imports in `domain/`.
-- Domain types: plain Dart, `Either<Failure, T>` for repository contracts.
+---
+
+## Architecture (big picture)
+
+**Clean architecture per feature.** Each `lib/features/<name>/` has `data/` (Firebase/Supabase datasources, repository impls), `domain/` (plain Dart models, repository interfaces, `Either<Failure, T>` contracts via `dartz`), `presentation/` (screens + Riverpod controllers/providers). `reader/` and `profile/` are presentation-only — they reuse `library/` data + domain.
+
+**State + nav:** `flutter_riverpod` for all shared state (no `setState` for app state). `go_router`'s `routerProvider` watches `authStateProvider` and redirects unauth → `/login`, auth-on-auth-route → `/home`.
+
+**Two backends, distinct roles:**
+- **Firebase** = Auth + Firestore (`users`, `bookshelves`, `books`, `notes` — dates as ISO 8601 strings, not `Timestamp`) + Crashlytics (mobile only, `kIsWeb` guard in `main.dart`).
+- **Supabase** = Storage bucket `pdfs` (path `{uid}/{millis}.pdf`) + Edge Function `pdf-proxy` (Deno, in `supabase/functions/pdf-proxy/`) for web CORS bypass.
+- Firebase Storage is **not** used.
+
+**PDF pipeline (split by platform):**
+- `lib/core/network/pdf_fetcher.dart` → `fetchPdfBytes(url)` is the single network entry. Mobile = direct `http.get`. Web + supabase host = direct. Web + external host = via `kCorsProxyBase` Edge Function. Always use this — never call `http.get` directly for PDFs.
+- `pdfPathProvider` (family, keyed by `book.link`) returns local file path on mobile (downloads + validates `%PDF-` signature, caches under `appDocs/pdf_{hash}.pdf`) or URL on web.
+- Render: `flutter_pdfview` mobile, `pdfx` web + thumbnails.
+- Metadata (`author`, `year`): `syncfusion_flutter_pdf` via `lib/features/library/data/pdf_metadata.dart`.
+- TTS text source: `flutter_pdf_text` mobile, Syncfusion bytes web.
+
+**Cascading deletes** (in `LibraryController.deleteBook`): batch delete notes → purge Supabase object → clear local cache/thumb → remove from Hive recents. `deleteBook` returns the book's `link` to enable storage purge.
+
+**Local cache (Hive):** box `app_prefs` opened in `main.dart`. `RecentBooksService` (`lib/core/local/`) maintains `recent_book_ids` (cap 10, LRU dedupe). Surfaced as horizontal "Recently Opened" rail.
+
+**Web layout:** `MyPdfApp` injects `_PhoneFrame` via `MaterialApp.router(builder:)`. Viewport ≥600 px → centered 412×896 phone frame. <600 px → pass-through.
+
+**Feature flag:** [PENDING] — one major feature must be gated via Firebase Remote Config before submission. Rollback path: disable flag → feature hidden without redeploy. Until wired, no flag-gated code paths exist; add the gate alongside the next major feature (candidates: TTS, web reader, recents rail).
 
 ---
 
-## Routes (`AppRoutes` + `routerProvider`)
+## Subagent orchestration (mandatory)
 
-| Screen | Route |
+This repo uses 5 scoped subagents under `.claude/agents/`. **Dispatch in parallel via the Task tool** for any non-trivial task — do not handle inline.
+
+| Agent | Owns |
 |---|---|
-| Login | `/login` |
-| Register | `/register` |
-| Home | `/home` |
-| Shelf content | `/shelf/:id` |
-| New book | `/book/new` |
-| Book info | `/book/:id` |
-| Reading | `/book/:id/reading` |
-| Note | `/book/:id/note` |
-| Profile | `/profile` |
-| Edit profile | `/profile/edit` |
+| `architect` | Layering, provider graph, plugin role boundaries (diagnose only) |
+| `flutter_engineer` | Screens, controllers, providers, GoRouter, theme, kIsWeb branching (edits) |
+| `firebase_specialist` | Firestore queries/schema, Supabase upload, Edge Function, datasources (edits) |
+| `qa_engineer` | `test/` suite, `flutter analyze`, manual flow QA (diagnose + test edits) |
+| `security` | Auth, Firestore rules, RLS, CORS proxy, secrets, CVEs (diagnose only) |
 
-`routerProvider` watches `authStateProvider`; redirects unauthenticated → `/login`, authed-on-auth-route → `/home`. Loading state: no redirect (avoids flash).
+**Routing:** see `docs/projectscope.md` § Orchestrator for full topic map and `audit` prefix rules. Always state the routing decision in one line before dispatching. Each agent prompt must be self-contained (target paths, original ask, expected report shape).
 
 ---
 
-## Firestore Schema
+## Critical gotchas
 
-```
-users/{uid}            { name, email }
-bookshelves/{shelfId}  { name, ownerId, createdAt(ISO) }
-books/{bookId}         { title, link, totalPages, currentPage, progress, status, shelfId, ownerId, lastReadAt(ISO), author?, year? }
-notes/{noteId}         { bookId, title, content, updatedAt(ISO) }
-```
-
-`status` ∈ `reading | on_hold | finished`. `progress` = `currentPage / totalPages * 100`.
-Note: dates stored as ISO 8601 strings (not Firestore `Timestamp`).
-
-`book.author` + `book.year` extracted from PDF metadata via Syncfusion (`pdf_metadata.dart`).
-
-### Cascades
-- Delete shelf → books unshelved (`shelfId = ''`), shelf doc deleted.
-- Delete book → notes deleted (batch) + Supabase object purged + local cache/thumb purged + recents entry removed.
-- `deleteBook` returns deleted `book.link` so controller can purge storage/cache.
-
-### Notes count
-`watchUserNotesCount` chunks `bookIds` by 30 (Firestore `whereIn` limit), merges streams.
+- **Web vs mobile branches everywhere.** `kIsWeb` guard required for: `path_provider`, `dart:io File`, `firebase_crashlytics`, `flutter_pdf_text`, `flutter_pdfview`. `local://` book links rejected on web.
+- **TTS on Android 11+** needs `<intent action android.intent.action.TTS_SERVICE>` inside `<queries>` in `AndroidManifest.xml` (package visibility).
+- **Web TTS voices** populate async — `_trySetWebVoice` polls `getVoices()` and retries on first user gesture.
+- **Firestore `whereIn` cap is 30** — `watchUserNotesCount` chunks `bookIds` and merges streams.
+- **Theme tokens only** — use `AppColors` / `AppTypography`, never raw hex/font names.
+- **Routes only via `GoRouter`** — no `Navigator.push`.
+- **`firebase_options.dart`** is generated by `flutterfire configure`. Do not hand-edit.
+- **Edge Function URL** lives as `kCorsProxyBase` constant in `lib/core/network/pdf_fetcher.dart`. Update after redeploy.
+- **No avatar field** on user profile — name + email only.
 
 ---
 
-## Supabase
+## DO NOT
 
-### Storage
-```
-Bucket : pdfs (public)
-Path   : {uid}/{millis}.pdf
-```
-Auth rule: user writes only under their own `{uid}/`.
-Upload via `uploadBinary(path, bytes, FileOptions(contentType: 'application/pdf'))`.
-Public URL via `getPublicUrl(path)` saved as `book.link`.
-
-### Edge Function `pdf-proxy`
-File: `supabase/functions/pdf-proxy/index.ts` (Deno).
-Deployed via `npx supabase functions deploy pdf-proxy --no-verify-jwt`.
-Endpoint: `https://wtjwmwisitohlzyinoaf.supabase.co/functions/v1/pdf-proxy?url=<encoded URL>`.
-Returns upstream PDF bytes with `Access-Control-Allow-Origin: *` so the web build can read external PDFs (bypasses browser CORS). Mobile bypasses the proxy entirely.
+- **Never** import `flutter/`, `firebase_*`, or `supabase_*` packages inside any `domain/` layer — domain stays plain Dart.
+- **Never** use `setState` for app/shared state — Riverpod providers only. UI-local ephemeral state (form focus, animation tickers) is the only exception.
+- **Never** hardcode colors, font families, or text sizes — use `AppColors` / `AppTypography` only.
+- **Never** call `http.get` directly for PDF bytes — go through `fetchPdfBytes` in `lib/core/network/pdf_fetcher.dart` so the web CORS proxy is honored.
+- **Never** use `Navigator.push` / `Navigator.pop` for navigation — GoRouter only (`context.go` / `context.push` / route constants in `app_routes.dart`).
+- **Never** hand-edit `lib/firebase_options.dart` — regenerate via `flutterfire configure`.
+- **Never** use `flutter_pdfview` on web — it's mobile-only. Web reader must use `pdfx` + cached bytes.
+- **Never** store or accept `local://` book links on web — reject in `pdfPathProvider`. Mobile-legacy only.
+- **Never** add Firebase Storage — all PDFs go to Supabase bucket `pdfs`.
+- **Never** call `path_provider` or `dart:io File` without a `kIsWeb` guard.
+- **Never** import `flutter_pdf_text` on web — use Syncfusion bytes for web TTS text.
+- **Never** add an avatar field or any profile column beyond `name` + `email`.
 
 ---
 
-## Network Layer (`lib/core/network/pdf_fetcher.dart`)
+## Working rules (mandatory)
 
-`fetchPdfBytes(url)` is the single entry point used by reading screen + thumbnail provider:
+**Assumptions explicit.** If context missing, state the assumption before acting. Don't hallucinate hidden infra or invent unspecified services.
 
-| Caller context | Path |
+**Evidence before assertions.** Never claim a change is complete without running verification. "I edited the file" is not done — "I edited the file and here's the `flutter analyze` / `flutter test` output" is done. No "should work now."
+
+**Surface concerns before major change:**
+- Blast radius if this goes wrong?
+- What assumptions are we making?
+- Reversibility path?
+- What are we NOT seeing because of momentum?
+
+**Track scope drift.** Flag when:
+- "Just one more thing" accumulates
+- Nice-to-haves get treated as must-haves
+- Ask was "fix bug X" but we're now "refactoring the entire module"
+
+**Reversibility tiers:**
+- **R0 (irreversible)** — STOP. Ask before proceeding. (force-push, dropping data, deleting branches, deploying to prod, deleting Supabase objects, dropping Firestore docs in bulk)
+- **R1 (costly to reverse)** — Do it, but say why first. (schema migrations, rule changes, dependency upgrades, hand-edits to generated files)
+- **R2 (easily reversed)** — Just do it. (local file edits, new tests, refactors with green tests, stage/unstage)
+
+---
+
+## Quality gates (must pass before merge)
+
+| Gate | Requirement |
 |---|---|
-| Mobile | Direct `http.get` (no CORS) |
-| Web + `*.supabase.co/...` URL | Direct `http.get` (Supabase CORS allows) |
-| Web + external host | Routes through `kCorsProxyBase` (Edge Function) |
+| **Correctness** | `flutter analyze` clean (zero warnings/errors) · `flutter test` green · domain layer (`lib/features/*/domain/`) >80% line coverage |
+| **Security** | No secrets committed (Supabase anon key in `main.dart` is public-by-design; service keys never in repo) · Firestore rules + Supabase RLS reviewed for any new collection/bucket path · auth state checked on every protected route |
+| **Accessibility** | `Semantics` labels on every interactive widget (buttons, list items, icon-only taps) · WCAG AA contrast on `AppColors` pairings · tap targets ≥48×48 dp |
+| **Performance** | No unbounded `ListView` (use `.builder` + key) · all images and thumbnails cached · streams disposed in `ref.onDispose` · no synchronous PDF byte work on the UI isolate for files >2 MB |
 
-`kCorsProxyBase` constant in this file points at the deployed Edge Function URL.
-
----
-
-## PDF Path Resolution (`pdfPathProvider`)
-
-Family provider keyed by `book.link`. Returns local file path or remote URL depending on context:
-
-| Context | Behavior |
-|---|---|
-| Web | Returns URL as-is (reader/thumbnail then call `fetchPdfBytes`). `local://` rejected. |
-| Mobile + remote URL | Downloads to `appDocs/pdf_{hash}.pdf`, validates `%PDF-` signature in first 1100 bytes, caches. |
-| Mobile + `local://` | Reads from `appDocs/local_pdfs/{filename}`. Legacy path — new uploads go to Supabase. |
-
-Reading screen uses `flutter_pdfview` (mobile) or web fallback that fetches bytes + renders via pdfx.
+Coverage check: `flutter test --coverage && genhtml coverage/lcov.info -o coverage/html` (lcov optional, `--coverage` produces `lcov.info`).
 
 ---
 
-## Local Storage (Hive)
+## Configuration touch-points
 
-Box `app_prefs` opened in `main.dart` after Firebase init.
-
-| Key | Type | Purpose |
-|---|---|---|
-| `recent_book_ids` | `List<String>` | Most-recent-first book IDs, capped at 10 |
-
-`RecentBooksService` (`lib/core/local/recent_books_service.dart`):
-- `markOpened(bookId)` called from `ReadingScreen.initState` — dedupes + bumps to front
-- `remove(bookId)` called from `LibraryController.deleteBook`
-- `watch()` reactive stream
-
-Providers in `library_providers.dart`:
-- `recentBooksServiceProvider` — service instance
-- `recentBookIdsProvider` — `StreamProvider<List<String>>`
-- `recentBooksProvider` — joins ids ↔ `allBooksProvider`, drops missing, preserves recency
-
-Surfaced on home screen as horizontal "Recently Opened" rail (hidden when empty, respects shelf filter).
-
----
-
-## Web Layout
-
-`MyPdfApp` (`main.dart`) injects `_PhoneFrame` via `MaterialApp.router(builder:)`:
-- Viewport ≥ 600 px → centered 412×896 frame, rounded 28 px, shadow on `surfaceMuted` background.
-- Viewport < 600 px → full-width pass-through (real mobile browser).
-- Mobile/desktop native: untouched.
-
----
-
-## Implementation State
-
-| Area | Status |
-|---|---|
-| Auth (login/register/logout, redirect guard) | DONE |
-| Firestore CRUD shelves/books/notes | DONE |
-| Theme (AppColors, AppTypography Manrope/Inter via system fonts) | DONE |
-| New book — link import | DONE — mobile probes URL+metadata; web skips probe |
-| New book — file upload | DONE — Supabase Storage, mobile + web |
-| Reading screen + progress save + auto-jump | DONE |
-| Web reader page tracking (viewport center + bottom snap) | DONE |
-| TTS mobile (`flutter_pdf_text`) | DONE — needs `<intent TTS_SERVICE>` query in AndroidManifest |
-| TTS web (Syncfusion bytes + voiceschanged poll) | DONE — interrupt errors ignored |
-| Web external link reading via Edge Function proxy | DONE |
-| Web thumbnail via Edge Function proxy | DONE |
-| Notes per book (auto-name `Note (N)` on empty title) | DONE |
-| Note delete UX (close vs trash icons separated) | DONE |
-| Profile + edit (empty-name guard) | DONE |
-| Recently Opened rail (Hive) | DONE |
-| Storage cleanup on book delete (Supabase + cache) | DONE |
-| Crashlytics wired (skipped on web) | DONE |
-| Phone-frame on web wide viewports | DONE |
-| Test suite (`test/`) | UPDATED — fakes match current `FirestoreDataSource` signatures |
-
----
-
-## Common Mistakes — Avoid
-
-- No `setState` for app state (UI-local only OK). Use Riverpod.
-- No Firebase/Supabase calls in widgets — go through datasources.
-- No hardcoded colors/fonts — use `AppColors`/`AppTypography`.
-- No `Navigator.push` — use GoRouter.
-- No Firebase Storage — Supabase only.
-- No avatar fields — name + email only.
-- No `dart:io` `File` on web paths (`kIsWeb` guard required for any FS code).
-- `path_provider` is mobile/desktop only. Don't call on web.
-- `flutter_pdf_text` is mobile only — web text extraction goes through Syncfusion + cached bytes.
-- TTS on Android needs `<intent action TTS_SERVICE>` inside `<queries>` in `AndroidManifest.xml` (Android 11+ package visibility).
-- Web TTS: poll `getVoices` (Chrome/Edge populate async), call `_trySetWebVoice` again on first user gesture if init missed it.
-- Always go through `fetchPdfBytes` (not `http.get` directly) when fetching PDF data — guarantees the web CORS proxy is used.
+- `lib/main.dart` — Supabase URL + anon key, Hive box open, Firebase + Crashlytics init
+- `lib/firebase_options.dart` — Firebase config (generated)
+- `lib/core/network/pdf_fetcher.dart` — Edge Function URL
+- `android/app/src/main/AndroidManifest.xml` — TTS_SERVICE intent query
+- `supabase/functions/pdf-proxy/index.ts` — Deno CORS proxy source

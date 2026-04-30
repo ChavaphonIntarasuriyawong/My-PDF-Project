@@ -26,7 +26,17 @@
       "Bash(cp /tmp/figma/profile.png \"C:/Users/pun/Desktop/beta my pdf/.claude/profile.png\")",
       "Bash(curl *)",
       "Bash(grep -E \"^[A-Za-z0-9 ,.;:!?'-]{8,}$\")",
-      "Bash(grep -aoE \"[ -~]{15,}\" /tmp/img-doc.pdf)"
+      "Bash(grep -aoE \"[ -~]{15,}\" /tmp/img-doc.pdf)",
+      "Bash(git mv *)",
+      "Bash(kill %1)",
+      "Bash(pkill -f \"flutter.*chrome\")",
+      "Bash(git -C \"C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/\" check-ignore android/app/google-services.json lib/firebase_options.dart .mcp.json)",
+      "Bash(git -C \"C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/\" check-ignore -v android/app/google-services.json lib/firebase_options.dart .mcp.json supabase/.temp/linked-project.json)",
+      "Bash(git -C \"C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/\" ls-files android/app/google-services.json lib/firebase_options.dart .mcp.json)",
+      "Bash(git -C \"C:/Users/pun/Desktop/My-PDF-Project/my_pdf_project/\" ls-files supabase/.temp/ supabase/)",
+      "Bash(command -v deno)",
+      "Bash(deno check *)",
+      "Bash(git checkout *)"
     ]
   },
   "enabledPlugins": {}
