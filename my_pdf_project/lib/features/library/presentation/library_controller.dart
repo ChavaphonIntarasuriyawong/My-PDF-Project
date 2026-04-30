@@ -72,6 +72,9 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     try {
       final existing = _ref.read(allBooksProvider).valueOrNull ?? [];
       final n = _norm(book.title);
+      if (n.isEmpty) {
+        throw DuplicateNameException('Title cannot be empty.');
+      }
       if (existing.any((b) => _norm(b.title) == n)) {
         throw DuplicateNameException('A book titled "${book.title}" already exists.');
       }
@@ -138,7 +141,8 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
         totalPages: totalPages,
       );
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
       return false;
     }
   }
@@ -147,7 +151,8 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     try {
       await _ref.read(firestoreDataSourceProvider).updateBookStatus(bookId, status);
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
       return false;
     }
   }
@@ -156,6 +161,9 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     try {
       final existing = _ref.read(allBooksProvider).valueOrNull ?? [];
       final n = _norm(newTitle);
+      if (n.isEmpty) {
+        throw DuplicateNameException('Title cannot be empty.');
+      }
       if (existing.any((b) => b.id != bookId && _norm(b.title) == n)) {
         throw DuplicateNameException('A book titled "$newTitle" already exists.');
       }
@@ -172,7 +180,8 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     try {
       await _ref.read(firestoreDataSourceProvider).moveBook(bookId, newShelfId);
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
       return false;
     }
   }
@@ -186,7 +195,8 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
       return await _ref
           .read(firestoreDataSourceProvider)
           .createNote(bookId: bookId, title: title, content: content);
-    } catch (_) {
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
       return null;
     }
   }
@@ -196,7 +206,8 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
       await _ref.read(firestoreDataSourceProvider)
           .updateNote(noteId, title: title, content: content);
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
       return false;
     }
   }
@@ -205,7 +216,8 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     try {
       await _ref.read(firestoreDataSourceProvider).deleteNote(noteId);
       return true;
-    } catch (_) {
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
       return false;
     }
   }

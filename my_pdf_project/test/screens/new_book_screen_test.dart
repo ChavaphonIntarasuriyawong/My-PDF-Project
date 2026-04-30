@@ -30,7 +30,6 @@ class _FakeDataSource implements FirestoreDataSource {
   @override Future<void> updateShelfName(String s, String n) => throw UnimplementedError();
   @override Future<void> deleteShelf(String s) => throw UnimplementedError();
   @override Future<String?> deleteBook(String b) => throw UnimplementedError();
-  @override Future<void> updateBook(BookModel b) => throw UnimplementedError();
   @override Future<void> updateReadingProgress({required String bookId, required int currentPage, required int totalPages}) => throw UnimplementedError();
   @override Future<void> updateBookStatus(String b, String s) => throw UnimplementedError();
   @override Future<void> updateBookTitle(String b, String t) => throw UnimplementedError();
@@ -39,7 +38,6 @@ class _FakeDataSource implements FirestoreDataSource {
 
   @override
   Stream<int> watchUserNotesCount(List<String> bookIds) => Stream.value(0);
-  @override Future<BookModel?> getBook(String b) => throw UnimplementedError();
   @override Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
   @override Future<NoteModel> createNote({required String bookId, required String title, required String content}) => throw UnimplementedError();
   @override Future<void> updateNote(String noteId, {required String title, required String content}) => throw UnimplementedError();
@@ -48,7 +46,7 @@ class _FakeDataSource implements FirestoreDataSource {
   @override Stream<List<NoteModel>> watchNotesByBookId(String bookId) => const Stream.empty();
   @override Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
   @override Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();
-  @override Stream<List<BookModel>> watchBooksByShelf(String s) => const Stream.empty();
+  @override Stream<List<BookModel>> watchBooksByShelf({required String shelfId, required String ownerId}) => const Stream.empty();
   @override Stream<BookModel?> watchBook(String b) => const Stream.empty();
 }
 

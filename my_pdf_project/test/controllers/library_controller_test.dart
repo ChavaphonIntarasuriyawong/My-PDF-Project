@@ -100,16 +100,10 @@ class _FakeDataSource implements FirestoreDataSource {
   Stream<List<BookModel>> watchBooks(String ownerId) => const Stream.empty();
 
   @override
-  Stream<List<BookModel>> watchBooksByShelf(String shelfId) => const Stream.empty();
+  Stream<List<BookModel>> watchBooksByShelf({required String shelfId, required String ownerId}) => const Stream.empty();
 
   @override
   Stream<BookModel?> watchBook(String bookId) => const Stream.empty();
-
-  @override
-  Future<BookModel?> getBook(String bookId) async => throw UnimplementedError();
-
-  @override
-  Future<void> updateBook(BookModel book) async => _maybeThrow();
 
   @override
   Future<void> moveBook(String bookId, String newShelfId) async => _maybeThrow();

@@ -46,7 +46,11 @@ final shelvesProvider = StreamProvider<List<BookshelfModel>>((ref) {
 });
 
 final booksByShelfProvider = StreamProvider.family<List<BookModel>, String>((ref, shelfId) {
-  return ref.watch(firestoreDataSourceProvider).watchBooksByShelf(shelfId);
+  final uid = ref.watch(authStateProvider).valueOrNull?.uid;
+  if (uid == null) return const Stream.empty();
+  return ref
+      .watch(firestoreDataSourceProvider)
+      .watchBooksByShelf(shelfId: shelfId, ownerId: uid);
 });
 
 final allBooksProvider = StreamProvider<List<BookModel>>((ref) {

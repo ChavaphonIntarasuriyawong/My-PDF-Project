@@ -10,13 +10,19 @@ class AuthRepositoryImpl implements AuthRepository {
 
   AuthRepositoryImpl(this._dataSource);
 
-  static String _friendlyError(FirebaseAuthException e) {
+  /// `forLogin = true` collapses `user-not-found` + `wrong-password` +
+  /// `invalid-credential` to a single message so we don't leak whether the
+  /// email is registered (account-existence oracle / email enumeration).
+  /// On register, keeping `email-already-in-use` distinct is intentional —
+  /// the user is claiming the email; we should tell them it's taken.
+  static String _friendlyError(FirebaseAuthException e, {bool forLogin = false}) {
     switch (e.code) {
       case 'user-not-found':
-        return 'No account found with this email.';
       case 'wrong-password':
       case 'invalid-credential':
-        return 'Incorrect email or password.';
+        return forLogin
+            ? 'Incorrect email or password.'
+            : 'Incorrect email or password.';
       case 'invalid-email':
         return 'Please enter a valid email address.';
       case 'email-already-in-use':
@@ -45,7 +51,7 @@ class AuthRepositoryImpl implements AuthRepository {
       final user = await _dataSource.login(email: email, password: password);
       return Right(user);
     } on FirebaseAuthException catch (e) {
-      return Left(AuthFailure(_friendlyError(e)));
+      return Left(AuthFailure(_friendlyError(e, forLogin: true)));
     } catch (_) {
       return const Left(ServerFailure('Something went wrong. Please try again.'));
     }

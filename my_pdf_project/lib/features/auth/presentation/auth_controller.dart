@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../library/presentation/library_providers.dart';
 import '../domain/user_model.dart';
 import 'auth_providers.dart';
 
@@ -76,6 +77,11 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<void> logout() async {
     await _ref.read(authRepositoryProvider).logout();
+    // Clear local user-scoped state so the next account doesn't inherit
+    // the previous user's "Recently Opened" rail.
+    try {
+      await _ref.read(recentBooksServiceProvider).clear();
+    } catch (_) { /* best-effort */ }
     state = const AuthState();
   }
 

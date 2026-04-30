@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_pdf_text/flutter_pdf_text.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
@@ -34,10 +34,19 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   final FlutterTts _tts = FlutterTts();
   bool _ttsActive = false;
   bool _ttsSpeaking = false;
-  String? _pdfPath;
+  bool _isDisposed = false; // gates TTS handlers from firing post-dispose
   PDFDoc? _pdfDoc; // cached so we don't reload on every page (mobile only)
   Uint8List? _webPdfBytes; // cached fetched bytes on web for Syncfusion text extractor
+  String? _webPdfBytesKey; // book.link the cached _webPdfBytes belong to
   final WebPdfReaderController _webController = WebPdfReaderController();
+
+  /// Resolves current PDF path/URL by reading the book + provider. Avoids
+  /// caching in a field that goes stale on book switch / hot-reload.
+  String? _currentPdfPath() {
+    final book = ref.read(bookByIdProvider(widget.bookId)).valueOrNull;
+    if (book == null) return null;
+    return ref.read(pdfPathProvider(book.link)).valueOrNull;
+  }
 
   // Web uses the W3C SpeechSynthesis scale where 1.0 is "normal speed".
   // Mobile (Android/iOS) uses 0.5 as the natural default — anything higher
@@ -64,30 +73,24 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   }
 
   Future<void> _initTts() async {
-    // ignore: avoid_print
-    print('[TTS] init start, web=$kIsWeb');
+    debugPrint('[TTS] init start, web=$kIsWeb');
     if (!kIsWeb) {
       try {
         final engines = await _tts.getEngines;
-        // ignore: avoid_print
-        print('[TTS] engines available: $engines');
+        debugPrint('[TTS] engines available: $engines');
         final defaultEngine = await _tts.getDefaultEngine;
-        // ignore: avoid_print
-        print('[TTS] default engine: $defaultEngine');
+        debugPrint('[TTS] default engine: $defaultEngine');
       } catch (e) {
-        // ignore: avoid_print
-        print('[TTS] engine query failed: $e');
+        debugPrint('[TTS] engine query failed: $e');
       }
     }
     // setLanguage returns -1 (NOT_SUPPORTED) or -2 (MISSING_DATA) on devices
     // without English TTS pack — fall back to device default in that case.
     final langResult = await _tts.setLanguage('en-US');
-    // ignore: avoid_print
-    print('[TTS] setLanguage(en-US) returned: $langResult');
+    debugPrint('[TTS] setLanguage(en-US) returned: $langResult');
     if (langResult is int && langResult < 0) {
       final langs = await _tts.getLanguages;
-      // ignore: avoid_print
-      print('[TTS] available languages: $langs');
+      debugPrint('[TTS] available languages: $langs');
       final list = langs as List?;
       if (list != null && list.isNotEmpty) {
         // Prefer any English variant before random first locale.
@@ -96,8 +99,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           orElse: () => list.first,
         );
         final r = await _tts.setLanguage(en.toString());
-        // ignore: avoid_print
-        print('[TTS] fallback setLanguage($en) returned: $r');
+        debugPrint('[TTS] fallback setLanguage($en) returned: $r');
       }
     }
 
@@ -117,7 +119,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     // visible to the handler.
     try { await _tts.awaitSpeakCompletion(true); } catch (_) {}
     _tts.setCompletionHandler(() {
-      if (!mounted) return;
+      if (_isDisposed || !mounted) return;
       // Re-entrancy guard: only advance if we were actually speaking. On some
       // platforms the engine fires `completion` for both natural finish AND
       // for stop()-triggered cancellation (especially when a fresh
@@ -132,10 +134,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       if (_ttsActive) _advanceToNextPageForTts();
     });
     _tts.setCancelHandler(() {
-      if (mounted) setState(() => _ttsSpeaking = false);
+      if (_isDisposed || !mounted) return;
+      setState(() => _ttsSpeaking = false);
     });
     _tts.setErrorHandler((msg) {
-      if (!mounted) return;
+      if (_isDisposed || !mounted) return;
       // Web SpeechSynthesis fires `error` with type "interrupted"/"canceled"
       // every time we call stop() to switch pages. Not a real error — ignore
       // so auto-advance doesn't self-cancel mid-stream.
@@ -143,8 +146,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       if (lower.contains('interrupt') ||
           lower.contains('cancel') ||
           lower.contains('not-allowed')) {
-        // ignore: avoid_print
-        print('[TTS] benign error ignored: $msg');
+        debugPrint('[TTS] benign error ignored: $msg');
         return;
       }
       setState(() { _ttsActive = false; _ttsSpeaking = false; });
@@ -165,8 +167,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         }
         await Future.delayed(const Duration(milliseconds: 150));
       }
-      // ignore: avoid_print
-      print('[TTS] web voices found: ${voices?.length ?? 0}');
+      debugPrint('[TTS] web voices found: ${voices?.length ?? 0}');
       if (voices == null) return;
       int score(Map v) {
         final name = (v['name'] as String? ?? '').toLowerCase();
@@ -196,17 +197,26 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           'locale': ranked.first['locale'].toString(),
         });
         _webVoiceSet = true;
-        // ignore: avoid_print
-        print('[TTS] web voice set: ${ranked.first['name']}');
+        debugPrint('[TTS] web voice set: ${ranked.first['name']}');
       }
     } catch (_) {/* best-effort */}
   }
 
   @override
   void dispose() {
+    _isDisposed = true;
+    // Detach handlers FIRST so any in-flight stop()/cancel from the engine
+    // doesn't fire setState on a disposed state. The flag above is the
+    // belt-and-suspenders guard for the case where the plugin's platform
+    // channel races us.
+    _tts.setCompletionHandler(() {});
+    _tts.setCancelHandler(() {});
+    _tts.setErrorHandler((_) {});
     _tts.stop();
     // Release native PDF text-extractor handle on Android — leak otherwise.
     _pdfDoc = null;
+    _webPdfBytes = null;
+    _webPdfBytesKey = null;
     super.dispose();
   }
 
@@ -258,7 +268,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       await Future.delayed(const Duration(milliseconds: 120));
       if (v != _speakVersion) return;
     }
-    if (_pdfPath == null) {
+    final pdfPath = _currentPdfPath();
+    if (pdfPath == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('PDF still loading, try again in a moment.')),
@@ -271,12 +282,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     String? pageText;
     try {
       if (kIsWeb) {
-        // _pdfPath is the URL on web. Fetch bytes once, cache, then use
-        // Syncfusion to extract text — flutter_pdf_text doesn't support web.
-        if (_webPdfBytes == null) {
-          final response = await fetchPdfBytes(_pdfPath!);
+        // pdfPath is the URL on web. Cache bytes per book.link so switching
+        // books reloads the right document — without the key check, TTS would
+        // read the previous book's text on the new book.
+        if (_webPdfBytes == null || _webPdfBytesKey != pdfPath) {
+          final response = await fetchPdfBytes(pdfPath);
           if (v != _speakVersion) return;
           _webPdfBytes = response.bodyBytes;
+          _webPdfBytesKey = pdfPath;
         }
         final doc = sf.PdfDocument(inputBytes: _webPdfBytes!);
         final extractor = sf.PdfTextExtractor(doc);
@@ -289,7 +302,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         doc.dispose();
       } else {
         // Mobile path — flutter_pdf_text from local file.
-        final pdfFile = File(_pdfPath!);
+        final pdfFile = File(pdfPath);
         if (!await pdfFile.exists() || await pdfFile.length() < 100) {
           _pdfDoc = null;
           if (mounted) {
@@ -300,7 +313,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           }
           return;
         }
-        _pdfDoc ??= await PDFDoc.fromPath(_pdfPath!);
+        _pdfDoc ??= await PDFDoc.fromPath(pdfPath);
         if (v != _speakVersion) return;
         final docLen = _pdfDoc!.length;
         if (docLen == 0) return;
@@ -328,11 +341,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       }
       if (mounted) setState(() => _ttsSpeaking = true);
       // Diagnostic: extracted text length is a common failure mode (image-only PDFs).
-      // ignore: avoid_print
-      print('[TTS] speaking ${pageText.length} chars, rate=$_speechRate pitch=$_pitch web=$kIsWeb');
+      debugPrint('[TTS] speaking ${pageText.length} chars, rate=$_speechRate pitch=$_pitch web=$kIsWeb');
       final result = await _tts.speak(pageText);
-      // ignore: avoid_print
-      print('[TTS] speak() returned: $result (version=$v, current=$_speakVersion)');
+      debugPrint('[TTS] speak() returned: $result (version=$v, current=$_speakVersion)');
       // With awaitSpeakCompletion(true), result==0 also fires on legitimate
       // interruption (stop() before completion). Don't surface as error.
     } catch (e) {
@@ -518,11 +529,20 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   Widget build(BuildContext context) {
     final bookAsync = ref.watch(bookByIdProvider(widget.bookId));
     final book = bookAsync.valueOrNull;
-    final pdfAsync = book != null ? ref.watch(pdfPathProvider(book.link)) : null;
 
-    if (pdfAsync?.valueOrNull != null && _pdfPath == null) {
-      _pdfPath = pdfAsync!.valueOrNull;
+    // Mid-read delete: book stream resolved but doc is gone (deleted from
+    // shelf or book info while reader was open). Bail back to /home so the
+    // reader doesn't sit on a dead URL.
+    if (bookAsync.hasValue && book == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) context.go('/home');
+      });
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
     }
+
+    final pdfAsync = book != null ? ref.watch(pdfPathProvider(book.link)) : null;
 
     final progress = _totalPages > 0 ? _currentPage / _totalPages : 0.0;
 
@@ -551,7 +571,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                     ],
                   ),
                 ),
-                data: (path) => kIsWeb
+                data: (path) => Padding(
+                  // Push PDF below the top bar overlay so the first line of
+                  // text isn't hidden behind it. Status bar + toolbar +
+                  // progress bar ≈ 56dp on top of the system inset.
+                  padding: EdgeInsets.only(
+                    top: MediaQuery.of(context).padding.top + 56,
+                  ),
+                  child: kIsWeb
                     ? _WebPdfReader(
                         key: ValueKey(path),
                         url: path,
@@ -600,6 +627,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                     _pdfController = controller;
                   },
                   onPageChanged: _onPageChanged,
+                ),
                 ),
               ),
             )

@@ -1,7 +1,8 @@
 import 'dart:io';
+import 'dart:math';
 import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -102,7 +103,11 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
       throw Exception('Picked file is empty.');
     }
     final metadata = extractPdfMetadata(bytes);
-    final supabasePath = '$uid/${DateTime.now().millisecondsSinceEpoch}.pdf';
+    // Random suffix prevents collisions when two uploads land in the same
+    // millisecond (rapid retry on fast hardware). `upsert: false` would
+    // otherwise throw on the second.
+    final rand = Random().nextInt(0xFFFFFF).toRadixString(36);
+    final supabasePath = '$uid/${DateTime.now().millisecondsSinceEpoch}_$rand.pdf';
     final supabase = Supabase.instance.client;
     try {
       await supabase.storage.from('pdfs').uploadBinary(
@@ -204,8 +209,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     try {
       isBitmap = _isBitmapOnlyPdf(bytes);
     } catch (e) {
-      // ignore: avoid_print
-      print('[BitmapProbe] error: $e');
+      debugPrint('[BitmapProbe] error: $e');
       return true;
     }
     if (!isBitmap) return true;
@@ -246,8 +250,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         // `java.io.FileNotFoundException: ENOENT`. No-op on web.
         await primePdfCache(url, probeResp.bodyBytes);
       } catch (e) {
-        // ignore: avoid_print
-        print('[BitmapProbe] fetch error: $e');
+        debugPrint('[BitmapProbe] fetch error: $e');
       }
       final book = BookModel(
         id: '',

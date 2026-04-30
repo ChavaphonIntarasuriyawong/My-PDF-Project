@@ -37,12 +37,27 @@ class FirestoreDataSource {
         .collection('books')
         .where('shelfId', isEqualTo: shelfId)
         .get();
-    final batch = _db.batch();
-    for (final b in books.docs) {
-      batch.update(b.reference, {'shelfId': ''});
+    // Firestore caps a single batch at 500 ops. Chunk so a shelf with many
+    // books still deletes atomically per-batch (last batch carries the
+    // shelf-doc delete to keep the operation observably consistent at end).
+    const chunkSize = 499;
+    final docs = books.docs;
+    if (docs.isEmpty) {
+      await _db.collection('bookshelves').doc(shelfId).delete();
+      return;
     }
-    batch.delete(_db.collection('bookshelves').doc(shelfId));
-    await batch.commit();
+    for (var i = 0; i < docs.length; i += chunkSize) {
+      final end = (i + chunkSize > docs.length) ? docs.length : i + chunkSize;
+      final batch = _db.batch();
+      for (final b in docs.sublist(i, end)) {
+        batch.update(b.reference, {'shelfId': ''});
+      }
+      // Tack the shelf-doc delete onto the final batch.
+      if (end >= docs.length) {
+        batch.delete(_db.collection('bookshelves').doc(shelfId));
+      }
+      await batch.commit();
+    }
   }
 
   // --- Books ---
@@ -55,18 +70,16 @@ class FirestoreDataSource {
         .map((s) => s.docs.map((d) => BookModel.fromMap(d.id, d.data())).toList());
   }
 
-  Stream<List<BookModel>> watchBooksByShelf(String shelfId) {
+  Stream<List<BookModel>> watchBooksByShelf({
+    required String shelfId,
+    required String ownerId,
+  }) {
     return _db
         .collection('books')
+        .where('ownerId', isEqualTo: ownerId)
         .where('shelfId', isEqualTo: shelfId)
         .snapshots()
         .map((s) => s.docs.map((d) => BookModel.fromMap(d.id, d.data())).toList());
-  }
-
-  Future<BookModel?> getBook(String bookId) async {
-    final doc = await _db.collection('books').doc(bookId).get();
-    if (!doc.exists || doc.data() == null) return null;
-    return BookModel.fromMap(doc.id, doc.data()!);
   }
 
   Future<BookModel> createBook(BookModel book) async {
@@ -88,22 +101,23 @@ class FirestoreDataSource {
     return newBook;
   }
 
-  Future<void> updateBook(BookModel book) {
-    return _db.collection('books').doc(book.id).update(book.toMap());
-  }
-
   Future<void> updateReadingProgress({
     required String bookId,
     required int currentPage,
     required int totalPages,
   }) {
-    final progress = totalPages > 0 ? currentPage / totalPages * 100 : 0.0;
-    return _db.collection('books').doc(bookId).update({
+    // PDFView reports `totalPages: 0` during init. Skipping the totalPages +
+    // progress fields when 0 prevents corrupting a previously-saved value
+    // (which would reset progress to 0% and break auto-resume).
+    final updates = <String, dynamic>{
       'currentPage': currentPage,
-      'totalPages': totalPages,
-      'progress': progress,
       'lastReadAt': DateTime.now().toIso8601String(),
-    });
+    };
+    if (totalPages > 0) {
+      updates['totalPages'] = totalPages;
+      updates['progress'] = currentPage / totalPages * 100;
+    }
+    return _db.collection('books').doc(bookId).update(updates);
   }
 
   Future<void> updateBookStatus(String bookId, String status) {
