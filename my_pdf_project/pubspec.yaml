@@ -32,12 +32,6 @@ dependencies:
   pdfx: ^2.9.0
   syncfusion_flutter_pdf: ^27.1.48
 
-  # TTS
-  flutter_tts: ^4.2.0
-
-  # PDF text extraction (for TTS)
-  flutter_pdf_text: ^0.9.0
-
   # Functional
   dartz: ^0.10.1
 

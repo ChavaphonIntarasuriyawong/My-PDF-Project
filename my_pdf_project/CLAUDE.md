@@ -40,7 +40,6 @@ npx supabase functions deploy pdf-proxy --no-verify-jwt   # CORS proxy
 - `pdfPathProvider` (family, keyed by `book.link`) returns local file path on mobile (downloads + validates `%PDF-` signature, caches under `appDocs/pdf_{hash}.pdf`) or URL on web.
 - Render: `flutter_pdfview` mobile, `pdfx` web + thumbnails.
 - Metadata (`author`, `year`): `syncfusion_flutter_pdf` via `lib/features/library/data/pdf_metadata.dart`.
-- TTS text source: `flutter_pdf_text` mobile, Syncfusion bytes web.
 
 **Cascading deletes** (in `LibraryController.deleteBook`): batch delete notes → purge Supabase object → clear local cache/thumb → remove from Hive recents. `deleteBook` returns the book's `link` to enable storage purge.
 
@@ -48,7 +47,7 @@ npx supabase functions deploy pdf-proxy --no-verify-jwt   # CORS proxy
 
 **Web layout:** `MyPdfApp` injects `_PhoneFrame` via `MaterialApp.router(builder:)`. Viewport ≥600 px → centered 412×896 phone frame. <600 px → pass-through.
 
-**Feature flag:** [PENDING] — one major feature must be gated via Firebase Remote Config before submission. Rollback path: disable flag → feature hidden without redeploy. Until wired, no flag-gated code paths exist; add the gate alongside the next major feature (candidates: TTS, web reader, recents rail).
+**Feature flag:** [PENDING] — one major feature must be gated via Firebase Remote Config before submission. Rollback path: disable flag → feature hidden without redeploy. Until wired, no flag-gated code paths exist; add the gate alongside the next major feature (candidates: web reader, recents rail).
 
 ---
 
@@ -70,9 +69,7 @@ This repo uses 5 scoped subagents under `.claude/agents/`. **Dispatch in paralle
 
 ## Critical gotchas
 
-- **Web vs mobile branches everywhere.** `kIsWeb` guard required for: `path_provider`, `dart:io File`, `firebase_crashlytics`, `flutter_pdf_text`, `flutter_pdfview`. `local://` book links rejected on web.
-- **TTS on Android 11+** needs `<intent action android.intent.action.TTS_SERVICE>` inside `<queries>` in `AndroidManifest.xml` (package visibility).
-- **Web TTS voices** populate async — `_trySetWebVoice` polls `getVoices()` and retries on first user gesture.
+- **Web vs mobile branches everywhere.** `kIsWeb` guard required for: `path_provider`, `dart:io File`, `firebase_crashlytics`, `flutter_pdfview`. `local://` book links rejected on web.
 - **Firestore `whereIn` cap is 30** — `watchUserNotesCount` chunks `bookIds` and merges streams.
 - **Theme tokens only** — use `AppColors` / `AppTypography`, never raw hex/font names.
 - **Routes only via `GoRouter`** — no `Navigator.push`.
@@ -94,7 +91,6 @@ This repo uses 5 scoped subagents under `.claude/agents/`. **Dispatch in paralle
 - **Never** store or accept `local://` book links on web — reject in `pdfPathProvider`. Mobile-legacy only.
 - **Never** add Firebase Storage — all PDFs go to Supabase bucket `pdfs`.
 - **Never** call `path_provider` or `dart:io File` without a `kIsWeb` guard.
-- **Never** import `flutter_pdf_text` on web — use Syncfusion bytes for web TTS text.
 - **Never** add an avatar field or any profile column beyond `name` + `email`.
 
 ---
@@ -141,5 +137,4 @@ Coverage check: `flutter test --coverage && genhtml coverage/lcov.info -o covera
 - `lib/main.dart` — Supabase URL + anon key, Hive box open, Firebase + Crashlytics init
 - `lib/firebase_options.dart` — Firebase config (generated)
 - `lib/core/network/pdf_fetcher.dart` — Edge Function URL
-- `android/app/src/main/AndroidManifest.xml` — TTS_SERVICE intent query
 - `supabase/functions/pdf-proxy/index.ts` — Deno CORS proxy source
