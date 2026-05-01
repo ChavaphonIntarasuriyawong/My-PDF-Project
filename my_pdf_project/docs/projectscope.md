@@ -318,6 +318,7 @@ Surfaced on home screen as horizontal "Recently Opened" rail (hidden when empty,
 | Crashlytics wired (skipped on web) | DONE |
 | Phone-frame on web wide viewports | DONE |
 | Test suite (`test/`) | UPDATED — fakes match current `FirestoreDataSource` signatures |
+| Feature flag (Firebase Remote Config) | PENDING — one major feature must be gated before submission. Wire alongside next major feature (TTS / web reader / recents rail). |
 
 ---
 

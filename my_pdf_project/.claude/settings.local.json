@@ -37,7 +37,9 @@
       "Bash(command -v deno)",
       "Bash(deno check *)",
       "Bash(git checkout *)",
-      "PowerShell(Get-CimInstance *)"
+      "PowerShell(Get-CimInstance *)",
+      "Bash(dir test *)",
+      "Bash(findstr /v \"\\\\.dart_tool\")"
     ]
   },
   "enabledPlugins": {}
