@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../core/local/achievement_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
@@ -107,6 +108,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     _StatCard(label: 'NOTES', value: '$notesCount'),
                     const SizedBox(height: 8),
                     _StatCard(label: 'SHELVES', value: '$shelvesCount'),
+                    const SizedBox(height: 32),
+
+                    // ── Achievements ─────────────────────────────────
+                    const _AchievementsSection(),
                     const SizedBox(height: 32),
 
                     // ── Account Settings ─────────────────────────────
@@ -260,6 +265,206 @@ class _SettingsRow extends StatelessWidget {
                 const Icon(Icons.chevron_right,
                     size: 20, color: AppColors.textSecondary),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Profile screen achievement grid. Section title shows progress
+/// `(unlocked/total)`; tiles are 3 across with a circular icon, label, and
+/// locked-state overlay. Tapping a tile opens a small modal with the
+/// description and unlock date.
+class _AchievementsSection extends ConsumerWidget {
+  const _AchievementsSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final achievements = ref.watch(achievementsProvider);
+    final unlockedCount = achievements.where((a) => a.unlocked).length;
+    final total = achievements.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'ACHIEVEMENTS',
+              style: AppTypography.sectionMeta,
+            ),
+            const Spacer(),
+            Text(
+              '$unlockedCount / $total',
+              style: AppTypography.captionBold.copyWith(
+                color: AppColors.primary,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 0.85,
+          ),
+          itemCount: total,
+          itemBuilder: (ctx, i) => _AchievementTile(
+            achievement: achievements[i],
+            onTap: () => _showDetail(context, achievements[i]),
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _showDetail(BuildContext context, Achievement a) {
+    showModalBottomSheet<void>(
+      context: context,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 16, 24, 28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.borderSubtle,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              CircleAvatar(
+                radius: 32,
+                backgroundColor: a.unlocked
+                    ? AppColors.iconBlueTint
+                    : AppColors.surfaceMuted,
+                child: Icon(
+                  a.icon,
+                  size: 32,
+                  color: a.unlocked ? AppColors.primary : AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(a.title, style: AppTypography.titleLarge),
+              const SizedBox(height: 4),
+              Text(
+                a.description,
+                textAlign: TextAlign.center,
+                style: AppTypography.bodyMedium,
+              ),
+              const SizedBox(height: 12),
+              if (a.unlocked && a.unlockedAt != null)
+                Text(
+                  'Unlocked ${_formatDate(a.unlockedAt!)}',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                )
+              else
+                Text(
+                  'Locked',
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  static String _formatDate(DateTime d) {
+    final y = d.year.toString().padLeft(4, '0');
+    final m = d.month.toString().padLeft(2, '0');
+    final day = d.day.toString().padLeft(2, '0');
+    return '$y-$m-$day';
+  }
+}
+
+class _AchievementTile extends StatelessWidget {
+  final Achievement achievement;
+  final VoidCallback onTap;
+  const _AchievementTile({required this.achievement, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final unlocked = achievement.unlocked;
+    return Semantics(
+      button: true,
+      label: 'Achievement: ${achievement.title}, '
+          '${unlocked ? "unlocked" : "locked"}',
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Stack(
+                  alignment: Alignment.bottomRight,
+                  children: [
+                    CircleAvatar(
+                      radius: 24,
+                      backgroundColor: unlocked
+                          ? AppColors.iconBlueTint
+                          : AppColors.surfaceMuted,
+                      child: Icon(
+                        achievement.icon,
+                        size: 24,
+                        color: unlocked
+                            ? AppColors.primary
+                            : AppColors.textDisabled,
+                      ),
+                    ),
+                    if (!unlocked)
+                      Container(
+                        decoration: const BoxDecoration(
+                          color: AppColors.surface,
+                          shape: BoxShape.circle,
+                        ),
+                        padding: const EdgeInsets.all(2),
+                        child: const Icon(
+                          Icons.lock,
+                          size: 12,
+                          color: AppColors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  achievement.title,
+                  textAlign: TextAlign.center,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AppTypography.captionBold.copyWith(
+                    fontSize: 11,
+                    color: unlocked
+                        ? AppColors.textPrimary
+                        : AppColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

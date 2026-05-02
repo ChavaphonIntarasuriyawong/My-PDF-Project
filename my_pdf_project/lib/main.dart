@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
+import 'package:firebase_remote_config/firebase_remote_config.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -39,6 +40,29 @@ void main() async {
       url: 'https://wtjwmwisitohlzyinoaf.supabase.co',
       anonKey: 'sb_publishable_WY9c8ogY4iVKHU7sFT5slw_oUoQFAl8',
     );
+
+    // Remote Config: feature-flag the karaoke captions UI so we can flip a
+    // server-side kill-switch without redeploying. Defaults to on so the
+    // very first cold start (before fetch lands) still shows the feature.
+    // Wrapped in try/catch — RC init failure must NOT block app startup.
+    try {
+      final remoteConfig = FirebaseRemoteConfig.instance;
+      await remoteConfig.setDefaults(const {
+        'karaoke_tts_enabled': true,
+      });
+      await remoteConfig.setConfigSettings(RemoteConfigSettings(
+        fetchTimeout: const Duration(seconds: 10),
+        minimumFetchInterval: const Duration(hours: 1),
+      ));
+      // Fire-and-forget: defaults already cover the first paint.
+      unawaited(remoteConfig.fetchAndActivate().catchError((e) {
+        debugPrint('[remote_config] fetchAndActivate failed: $e');
+        return false;
+      }));
+    } catch (e) {
+      debugPrint('[remote_config] init failed: $e');
+    }
+
     runApp(const ProviderScope(child: MyPdfApp()));
   }, (error, stack) {
     if (!kIsWeb) {

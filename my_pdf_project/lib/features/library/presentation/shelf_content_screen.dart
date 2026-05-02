@@ -134,21 +134,23 @@ class ShelfContentScreen extends ConsumerWidget {
         bottom: false,
         child: Column(
           children: [
-            // Header
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 24, vertical: 16),
               child: Row(
                 children: [
                   GestureDetector(
-                    onTap: () =>
-                        context.canPop() ? context.pop() : context.go('/home'),
+                    onTap: () => context.canPop()
+                        ? context.pop()
+                        : context.go('/home'),
                     child: Container(
                       width: 40,
                       height: 40,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.arrow_back, color: AppColors.primary, size: 16),
+                      child: const Icon(Icons.arrow_back,
+                          color: AppColors.primary, size: 16),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -162,15 +164,19 @@ class ShelfContentScreen extends ConsumerWidget {
                   if (!_isAll)
                     Builder(
                       builder: (btnCtx) => IconButton(
-                        icon: const Icon(Icons.more_vert, color: AppColors.primary),
+                        icon: const Icon(Icons.more_vert,
+                            color: AppColors.primary),
                         onPressed: shelf == null
                             ? null
                             : () {
-                                final box = btnCtx.findRenderObject() as RenderBox?;
+                                final box = btnCtx.findRenderObject()
+                                    as RenderBox?;
                                 final anchor = box != null
-                                    ? box.localToGlobal(Offset(box.size.width, 0))
+                                    ? box.localToGlobal(
+                                        Offset(box.size.width, 0))
                                     : Offset.zero;
-                                _showShelfMenu(context, ref, shelf.name, anchor);
+                                _showShelfMenu(
+                                    context, ref, shelf.name, anchor);
                               },
                       ),
                     ),
@@ -204,18 +210,22 @@ class ShelfContentScreen extends ConsumerWidget {
                     : ListView.builder(
                         padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),
                         itemCount: list.length,
-                        itemBuilder: (_, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 24),
-                          child: SizedBox(
-                            height: 548,
-                            child: PdfCard(
-                              book: list[i],
-                              onTap: () => context.push('/book/${list[i].id}'),
+                        itemBuilder: (_, i) {
+                          final book = list[i];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            child: SizedBox(
+                              height: 548,
+                              child: PdfCard(
+                                book: book,
+                                onTap: () => context.push('/book/${book.id}'),
+                              ),
                             ),
-                          ),
-                        ),
+                          );
+                        },
                       ),
-                loading: () => const Center(child: CircularProgressIndicator()),
+                loading: () =>
+                    const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(child: Text('Error: $e')),
               ),
             ),

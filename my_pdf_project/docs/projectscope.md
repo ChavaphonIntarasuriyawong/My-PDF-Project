@@ -84,10 +84,12 @@ Action: parallel Task calls to all five with scope `lib/features/reader/`.
 | Firebase bootstrap | `firebase_core` 3.13.1 |
 | Auth | `firebase_auth` 5.5.4 |
 | DB | `cloud_firestore` 5.6.7 |
+| Remote Config | `firebase_remote_config` 5.4.0 (karaoke kill-switch) |
 | File storage | `supabase_flutter` 2.8.4 (bucket `pdfs`) |
 | CORS proxy (web) | Supabase Edge Function `pdf-proxy` |
 | Crash | `firebase_crashlytics` 4.3.5 (mobile only) |
 | Local storage | `hive` 2.2.3 + `hive_flutter` 1.1.0 |
+| Confetti | `confetti` 0.7.0 (book finish + streak milestones) |
 | PDF render mobile | `flutter_pdfview` 1.3.2 |
 | PDF render web/thumb | `pdfx` 2.9.0 |
 | PDF metadata + web text | `syncfusion_flutter_pdf` 27.1.48 |
@@ -115,6 +117,7 @@ Single role per plugin — do not duplicate purpose across packages.
 | `firebase_core` | One-time `Firebase.initializeApp` in `main.dart`. | All |
 | `firebase_auth` | Email/password sign-in/up + auth stream. | All |
 | `cloud_firestore` | `users`, `bookshelves`, `books`, `notes` collections. | All |
+| `firebase_remote_config` | Server-side kill-switch for karaoke captions (`karaoke_tts_enabled`). Defaults baked in `main.dart`. | All |
 | `supabase_flutter` | PDF upload + public URL + Edge Function client. | All |
 | `firebase_crashlytics` | Crash reporting. **Skipped on web** via `kIsWeb` guard. | Mobile only |
 | `hive` / `hive_flutter` | `app_prefs` box → `recent_book_ids`. | All |
@@ -128,6 +131,7 @@ Single role per plugin — do not duplicate purpose across packages.
 | `path_provider` | App docs dir for cached PDFs. **Never call on web.** | Mobile/desktop |
 | `file_picker` | PDF picking on new-book screen. | All |
 | `font_awesome_flutter` | Icon set. | All |
+| `confetti` | One-shot celebration bursts (book finish, streak milestones, achievement unlocks). | All |
 | `flutter_lints` | Static analysis (dev dep). | — |
 
 ### Native plugin config
@@ -143,9 +147,10 @@ Single role per plugin — do not duplicate purpose across packages.
 ```
 lib/
 ├── core/
+│   ├── config/      feature_flags.dart  (Remote Config `karaoke_tts_enabled` provider)
 │   ├── constants/   app_router.dart, app_routes.dart
 │   ├── errors/      failures.dart  (Failure, AuthFailure, ServerFailure)
-│   ├── local/       recent_books_service.dart  (Hive box `app_prefs`)
+│   ├── local/       recent_books_service.dart, book_finish_service.dart, streak_service.dart, achievement_service.dart  (all in Hive box `app_prefs`)
 │   ├── network/     pdf_fetcher.dart  (shared fetch + Supabase Edge proxy)
 │   └── theme/       app_colors.dart, app_typography.dart, app_theme.dart
 ├── features/
@@ -158,7 +163,10 @@ lib/
 │   │   ├── domain/  book_model, bookshelf_model, note_model
 │   │   └── presentation/  home_screen, shelf_content_screen, new_book_screen, book_info_screen, library_controller, library_providers
 │   ├── reader/
-│   │   └── presentation/  reading_screen, note_screen, note_edit_screen
+│   │   └── presentation/
+│   │       ├── reading_screen, note_screen, note_edit_screen
+│   │       ├── controllers/  karaoke_controller.dart  (StateNotifier for caption pane)
+│   │       └── widgets/      karaoke_text_pane.dart   (slide-up captions + click-to-seek + speed slider)
 │   └── profile/
 │       └── presentation/  profile_screen, edit_profile_screen
 ├── shared/widgets/  pdf_card, status_badge, app_bottom_nav_bar, app_modal, app_drawer, gradient_button, labeled_text_field
@@ -266,23 +274,83 @@ Reading screen uses `flutter_pdfview` (mobile) or web fallback that fetches byte
 
 ## Local Storage (Hive)
 
-Box `app_prefs` opened in `main.dart` after Firebase init.
+Single box `app_prefs` opened once in `main.dart` after Firebase init. Four services share it.
 
-| Key | Type | Purpose |
-|---|---|---|
-| `recent_book_ids` | `List<String>` | Most-recent-first book IDs, capped at 10 |
+| Key | Type | Owner | Purpose |
+|---|---|---|---|
+| `recent_book_ids` | `List<String>` | `RecentBooksService` | Most-recent-first book IDs, capped at 10 |
+| `finished_book_{bookId}` | `bool` | `BookFinishService` | One-shot first-finish flag — drives reader confetti |
+| `streak_count` | `int` | `StreakService` | Current consecutive-day reading streak |
+| `streak_last_open_iso` | `String` (yyyy-MM-dd) | `StreakService` | Last day a book was opened (local time) |
+| `streak_milestones_celebrated` | `String` (csv of int) | `StreakService` | Milestones already celebrated (7 / 30 / 100) |
+| `achv_counter_books_finished` | `int` | `AchievementService` | Counter for First Steps + Bookworm |
+| `achv_counter_surprise_me` | `int` | `AchievementService` | Counter for Surprise Reader badge |
+| `achv_set_tts_books` | `String` (csv of bookId) | `AchievementService` | Unique book IDs that used TTS — Karaoke Star |
+| `achv_max_streak` | `int` | `AchievementService` | High-water streak count for streak badges |
+| `achv_unlocked_<id>` | `bool` | `AchievementService` | Per-badge unlock flag |
+| `achv_unlocked_at_<id>` | `String` (ISO) | `AchievementService` | Unlock timestamp |
 
-`RecentBooksService` (`lib/core/local/recent_books_service.dart`):
-- `markOpened(bookId)` called from `ReadingScreen.initState` — dedupes + bumps to front
-- `remove(bookId)` called from `LibraryController.deleteBook`
-- `watch()` reactive stream
+Service responsibilities:
 
-Providers in `library_providers.dart`:
-- `recentBooksServiceProvider` — service instance
-- `recentBookIdsProvider` — `StreamProvider<List<String>>`
-- `recentBooksProvider` — joins ids ↔ `allBooksProvider`, drops missing, preserves recency
+- **`RecentBooksService`** (`lib/core/local/recent_books_service.dart`)
+  - `markOpened(bookId)` from `ReadingScreen.initState` — dedupes + bumps to front
+  - `remove(bookId)` from `LibraryController.deleteBook`
+  - `watch()` reactive stream
+- **`BookFinishService`** (`lib/core/local/book_finish_service.dart`)
+  - `markFinished(bookId)` — returns `true` only on the first call per book; reader fires confetti + snackbar on `true`. Idempotent on repeat.
+  - Not cleared on book delete (orthogonal to recents rail).
+- **`StreakService`** (`lib/core/local/streak_service.dart`)
+  - `recordOpen()` — idempotent per local day. Returns `StreakResult { count, justHitMilestone }`.
+  - Streak breaks if `lastOpenIso` is older than yesterday; otherwise increments.
+  - Milestones (7/30/100) recorded as celebrated once — never re-fire.
+  - `takePendingMilestone()` — defensive cold-start path for home screen.
+- **`AchievementService`** (`lib/core/local/achievement_service.dart`)
+  - 7-badge static catalog (`First Steps`, `Bookworm`, `Streak Starter` 3-day, `On Fire` 7-day, `Inferno` 30-day, `Surprise Reader`, `Karaoke Star`).
+  - `recordEvent(AchievementEvent)` mutates the right counter and re-evaluates every catalog entry; returns IDs unlocked during this call.
+  - Local-only — re-installing the app resets counters (acceptable per spec).
 
-Surfaced on home screen as horizontal "Recently Opened" rail (hidden when empty, respects shelf filter).
+Providers (in respective service files + `library_providers.dart`):
+- `recentBooksServiceProvider`, `recentBookIdsProvider` (`StreamProvider`), `recentBooksProvider` (joined view)
+- `bookFinishServiceProvider`
+- `streakServiceProvider`, `streakStateProvider` (`StateNotifierProvider<int>` — reactive count for the home pill)
+- `achievementServiceProvider`, `achievementsProvider` (`StateNotifierProvider<List<Achievement>>`)
+
+Surfaced UI:
+- "Recently Opened" rail on home (hidden when empty, respects shelf filter)
+- Streak pill on home (hidden when count == 0)
+- Surprise Me FAB on home — picks a random non-finished, non-top-3-recents book; bumps Surprise Reader counter
+- Streak milestone confetti on home (one-shot per crossing)
+- Book-finish confetti + snackbar in reader (one-shot per book)
+- Achievements grid in profile screen with detail dialog
+
+---
+
+## Feature Flags (Remote Config)
+
+Bootstrapped in `main.dart` after Supabase init. Wrapped in try/catch — RC failure must never block startup.
+
+| Flag | Default | Owner | Effect |
+|---|---|---|---|
+| `karaoke_tts_enabled` | `true` | `karaokeEnabledProvider` (`lib/core/config/feature_flags.dart`) | Hides karaoke captions UI in reader when `false`. Kill-switch only — no graceful migration needed. |
+
+Settings: `fetchTimeout` 10s, `minimumFetchInterval` 1h. Defaults applied via `setDefaults` so first cold start renders before fetch lands. `kRemoteConfigDefaults` map mirrors the call for documentation; source of truth at boot is `main.dart`.
+
+`remoteConfigRefreshProvider` (`StateProvider<int>`) is a re-fetch trigger — bump it to invalidate `karaokeEnabledProvider` consumers without app restart. Currently unused at call sites; reserved for a future force-refresh button or `onConfigUpdated` listener.
+
+---
+
+## TTS Karaoke Captions
+
+Slide-up caption pane in the reader that highlights the spoken word in real time.
+
+- **State:** `karaokeControllerProvider` (`StateNotifierProvider.autoDispose`) holds `KaraokeState { fullText, currentStart, currentEnd, isVisible, isSpeaking, fallbackSentenceMode, baseOffset }`.
+- **Word events (mobile + Chrome with `boundary` support):** `flutter_tts.setProgressHandler` → `controller.onProgress(text, start, end, word)`.
+- **Sentence fallback:** if no progress event arrives within 2 s of `speak()`, controller flips `fallbackSentenceMode = true` and the reader's sentence queue drives `controller.onSentenceTick(start, end)`.
+- **Click-to-seek:** tapping a word in `KaraokeTextPane` calls back into the reader, which issues `speak(fullText.substring(wordStart))` and passes `baseOffset = wordStart` to `onTtsStart` so subsequent progress offsets re-anchor to the un-sliced text coordinate space.
+- **Speed slider:** in-header slider (range 0.5–2.0×, 15 divisions) wired to the engine's `setSpeechRate`. Hidden when not provided.
+- **Auto-follow:** Spotify-style. User scroll suspends auto-follow → "Jump to current word" pill appears → tap re-engages. New utterance / pane open / span clear all reset follow.
+- **Tokenization:** memoized regex `\S+` per `fullText` identity — re-tokenizing every progress tick on long pages is wasted work.
+- **Gated by `karaokeEnabledProvider`** — Remote Config kill-switch hides the pane and skips wiring without a redeploy.
 
 ---
 
@@ -318,7 +386,12 @@ Surfaced on home screen as horizontal "Recently Opened" rail (hidden when empty,
 | Crashlytics wired (skipped on web) | DONE |
 | Phone-frame on web wide viewports | DONE |
 | Test suite (`test/`) | UPDATED — fakes match current `FirestoreDataSource` signatures |
-| Feature flag (Firebase Remote Config) | PENDING — one major feature must be gated before submission. Wire alongside next major feature (TTS / web reader / recents rail). |
+| Feature flag (Firebase Remote Config) | DONE — `karaoke_tts_enabled` gates the karaoke captions pane via `karaokeEnabledProvider`. Defaults baked in `main.dart`. |
+| Karaoke captions (word-sync TTS pane + click-to-seek + speed slider) | DONE |
+| Streak tracker + milestone confetti (7 / 30 / 100 days) | DONE — Hive-backed via `StreakService`, surfaced as home pill |
+| Book-finish confetti (one-shot per book) | DONE — `BookFinishService` |
+| Surprise Me (random non-finished book picker) | DONE — home FAB, feeds Surprise Reader badge |
+| Achievements (7-badge catalog + profile grid) | DONE — `AchievementService`, all counters local-only in `app_prefs` |
 
 ---
 
@@ -336,3 +409,8 @@ Surfaced on home screen as horizontal "Recently Opened" rail (hidden when empty,
 - TTS on Android needs `<intent action TTS_SERVICE>` inside `<queries>` in `AndroidManifest.xml` (Android 11+ package visibility).
 - Web TTS: poll `getVoices` (Chrome/Edge populate async), call `_trySetWebVoice` again on first user gesture if init missed it.
 - Always go through `fetchPdfBytes` (not `http.get` directly) when fetching PDF data — guarantees the web CORS proxy is used.
+- **Karaoke progress events on web:** not all SpeechSynthesis voices emit `boundary` events. The reader arms a 2 s timer and falls back to sentence-granularity highlighting if no progress event lands. Don't disable the timer — fallback is the only highlight on those voices.
+- **Click-to-seek `baseOffset`:** when slicing `fullText` for a mid-page seek, always pass `baseOffset = wordStart` to `KaraokeController.onTtsStart` so progress offsets re-anchor to the un-sliced coordinate space.
+- **`karaokeEnabledProvider` is fail-open:** if Remote Config read throws, defaults to `true`. To fail-closed, change `kRemoteConfigDefaults` AND the `setDefaults` call in `main.dart` together.
+- **Streak `recordOpen()` is local-time:** DST jumps + timezone changes can produce off-by-one streaks at the boundary. Acceptable per spec — don't add UTC normalization without revisiting the spec.
+- **Achievements / streak / finish state is device-local.** Re-installing the app resets everything. Cross-device sync is out of scope.

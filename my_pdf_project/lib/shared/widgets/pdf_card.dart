@@ -11,7 +11,11 @@ class PdfCard extends ConsumerWidget {
   final BookModel book;
   final VoidCallback? onTap;
 
-  const PdfCard({super.key, required this.book, this.onTap});
+  const PdfCard({
+    super.key,
+    required this.book,
+    this.onTap,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

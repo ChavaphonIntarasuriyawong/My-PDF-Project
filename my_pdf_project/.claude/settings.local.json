@@ -39,7 +39,22 @@
       "Bash(git checkout *)",
       "PowerShell(Get-CimInstance *)",
       "Bash(dir test *)",
-      "Bash(findstr /v \"\\\\.dart_tool\")"
+      "Bash(findstr /v \"\\\\.dart_tool\")",
+      "Bash(cmd *)",
+      "Bash(dir *)",
+      "Bash(findstr /i flutter_tts)",
+      "Bash(where flutter *)",
+      "Bash(powershell *)",
+      "Bash(findstr /R \"passed failed +[0-9]*$\")",
+      "PowerShell(Get-Process *)",
+      "Bash(Select-Object -Last 20)",
+      "Bash(findstr /i \"palette confetti\")",
+      "Bash(Select-String -Pattern \"palette|confetti\")",
+      "Bash(dart format *)",
+      "Bash(Remove-Item -Path \"C:\\\\Users\\\\pun\\\\Desktop\\\\My-PDF-Project\\\\my_pdf_project\\\\lib\\\\features\\\\reader\\\\presentation\\\\providers\\\\book_accent_provider.dart\" -Force)",
+      "Bash(Remove-Item -Path \"C:\\\\Users\\\\pun\\\\Desktop\\\\My-PDF-Project\\\\my_pdf_project\\\\lib\\\\features\\\\reader\\\\presentation\\\\providers\" -Force -Recurse)",
+      "Bash(git status *)",
+      "Bash(xargs grep *)"
     ]
   },
   "enabledPlugins": {}
