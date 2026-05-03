@@ -1,6 +1,6 @@
 # MyPDF
 
-PDF reading progress tracker. Save PDFs by upload or link, organize them into bookshelves, track reading progress, write notes, and listen via text-to-speech.
+PDF reading progress tracker. Save PDFs by upload or link, organize them into bookshelves, track reading progress, and write per-book notes.
 
 Flutter app targeting **Android (primary)** and **Web (secondary)**.
 
