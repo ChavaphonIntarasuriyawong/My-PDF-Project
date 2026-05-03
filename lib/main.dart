@@ -12,6 +12,7 @@ import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
 
+// this works
 void main() async {
   await runZonedGuarded(() async {
     WidgetsFlutterBinding.ensureInitialized();
