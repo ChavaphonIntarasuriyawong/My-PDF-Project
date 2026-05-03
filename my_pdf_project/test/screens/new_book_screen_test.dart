@@ -88,12 +88,49 @@ void main() {
       expect(ds.createdBook, isNull);
     });
 
-    // Skipped: link import does a real http.get to validate the URL is a PDF.
-    // flutter_test forces all HTTP responses to 400 (no real network), so this
-    // path is unreachable in widget tests. Covered by manual QA.
-    testWidgets('creates book and navigates on success', (tester) async {
-      // intentionally empty
-    }, skip: true);
+    // The "creates book and navigates on success" path used to live here as
+    // skip:true. Replaced with a hermetic test that exercises the validation
+    // branch we CAN reach without the network: a URL with no scheme → instant
+    // "Invalid URL scheme" rejection (no http.get call). The successful
+    // import branch requires injecting an http.Client into NewBookScreen — an
+    // R1 production refactor — so it stays manual-QA-only per the comment in
+    // _validateAndExtractMetadata.
+    testWidgets('rejects URL with no scheme without calling datasource',
+        (tester) async {
+      final ds = _FakeDataSource();
+      await tester.pumpWidget(_buildScreen(ds));
+      await tester.pump();
+      // Find the URL TextField — it's the first Text input on the screen.
+      // LabeledTextField wraps a real TextField, so use byType and pick the
+      // first one.
+      final textFieldFinder = find.byType(TextField).first;
+      await tester.enterText(textFieldFinder, 'not-a-real-url');
+      // Tap the Create PDF button next to the URL field. There may be two
+      // (one per import method); the URL one is rendered first.
+      await tester.ensureVisible(find.text('Create PDF').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create PDF').first);
+      await tester.pump();
+      // Production logs a SnackBar — we don't assert its content (it varies
+      // by error message style). Critical: no book was created downstream.
+      expect(ds.createdBook, isNull);
+    });
+
+    testWidgets('rejects empty URL with snackbar (no datasource call)',
+        (tester) async {
+      final ds = _FakeDataSource();
+      await tester.pumpWidget(_buildScreen(ds));
+      await tester.pump();
+      // Don't enter any URL — tap directly. Production short-circuits with
+      // "Please paste a PDF URL." before any network code runs.
+      await tester.ensureVisible(find.text('Create PDF').first);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Create PDF').first);
+      await tester.pump();
+      expect(ds.createdBook, isNull);
+      // The error snackbar is shown via ScaffoldMessenger.
+      expect(find.text('Please paste a PDF URL.'), findsOneWidget);
+    });
 
     testWidgets('shows shelf dropdown', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeDataSource()));

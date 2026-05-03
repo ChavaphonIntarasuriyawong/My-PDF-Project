@@ -28,6 +28,12 @@ class Achievement {
   final IconData icon;
   final bool unlocked;
   final DateTime? unlockedAt;
+  // Progress metadata so the UI can render "current / target" + a progress
+  // bar without re-deriving counters from Hive. Populated by
+  // [AchievementService.all] and [findById]; clamped to [0, target] so a
+  // post-unlock counter that's still incrementing doesn't overshoot the bar.
+  final int current;
+  final int target;
 
   const Achievement({
     required this.id,
@@ -36,7 +42,18 @@ class Achievement {
     required this.icon,
     required this.unlocked,
     required this.unlockedAt,
+    required this.current,
+    required this.target,
   });
+
+  /// 0..1 progress ratio — returns 1.0 for unlocked badges so the bar fills
+  /// even if the counter has since been reset (re-install) or otherwise
+  /// drifted below target.
+  double get ratio {
+    if (unlocked) return 1.0;
+    if (target <= 0) return 0;
+    return (current / target).clamp(0.0, 1.0);
+  }
 
   Achievement copyWith({bool? unlocked, DateTime? unlockedAt}) {
     return Achievement(
@@ -46,6 +63,8 @@ class Achievement {
       icon: icon,
       unlocked: unlocked ?? this.unlocked,
       unlockedAt: unlockedAt ?? this.unlockedAt,
+      current: current,
+      target: target,
     );
   }
 }
@@ -160,9 +179,56 @@ class AchievementService {
   ];
 
   /// Catalog entries paired with their current unlock state from Hive.
-  /// Returns the same length and order on every call.
+  /// Returns the same length and order on every call. Each entry includes
+  /// a [Achievement.current] / [Achievement.target] progress snapshot so the
+  /// profile screen can render "X / Y" without re-poking Hive.
   List<Achievement> all() {
     final box = _box;
+    final booksFinished = box?.get(_kBooksFinished, defaultValue: 0) as int? ?? 0;
+    final surpriseMe = box?.get(_kSurpriseMe, defaultValue: 0) as int? ?? 0;
+    final ttsRaw = box?.get(_kTtsBooks, defaultValue: '') as String? ?? '';
+    final ttsBooks = ttsRaw.isEmpty
+        ? 0
+        : ttsRaw.split(',').where((s) => s.isNotEmpty).length;
+    final maxStreak = box?.get(_kMaxStreak, defaultValue: 0) as int? ?? 0;
+
+    int currentFor(String id) {
+      switch (id) {
+        case AchievementIds.firstBook:
+        case AchievementIds.bookworm:
+          return booksFinished;
+        case AchievementIds.streak3:
+        case AchievementIds.streak7:
+        case AchievementIds.streak30:
+          return maxStreak;
+        case AchievementIds.surpriseReader:
+          return surpriseMe;
+        case AchievementIds.karaokeStar:
+          return ttsBooks;
+      }
+      return 0;
+    }
+
+    int targetFor(String id) {
+      switch (id) {
+        case AchievementIds.firstBook:
+          return 1;
+        case AchievementIds.bookworm:
+          return 5;
+        case AchievementIds.streak3:
+          return 3;
+        case AchievementIds.streak7:
+          return 7;
+        case AchievementIds.streak30:
+          return 30;
+        case AchievementIds.surpriseReader:
+          return 5;
+        case AchievementIds.karaokeStar:
+          return 3;
+      }
+      return 0;
+    }
+
     return [
       for (final e in _catalog)
         Achievement(
@@ -176,6 +242,8 @@ class AchievementService {
             final raw = box?.get(_unlockedAtKey(e.id)) as String?;
             return raw == null ? null : DateTime.tryParse(raw);
           }(),
+          current: currentFor(e.id),
+          target: targetFor(e.id),
         ),
     ];
   }

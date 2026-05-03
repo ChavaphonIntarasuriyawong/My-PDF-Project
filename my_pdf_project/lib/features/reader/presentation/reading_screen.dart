@@ -56,6 +56,24 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   String? _webPdfBytesKey; // book.link the cached _webPdfBytes belong to
   final WebPdfReaderController _webController = WebPdfReaderController();
 
+  // Per-page extracted text cache. Extraction is the dominant latency on
+  // press-Read (mobile flutter_pdf_text + web Syncfusion both run on UI
+  // isolate and can take 200-800ms on dense pages). Caching means a re-read
+  // of the same page or auto-advance to a page we prefetched starts speaking
+  // immediately. Cleared on book switch via [_resetPageCacheIfBookChanged].
+  final Map<int, String> _pageTextCache = {};
+  String? _pageCacheBookKey; // book.link the cached entries belong to.
+  // Tracks an in-flight prefetch so we don't queue duplicate extractions
+  // when the user mashes Read or auto-advance fires before the previous
+  // prefetch finishes.
+  final Set<int> _pageTextInflight = {};
+
+  // Last applied engine config — skip redundant async round-trips when the
+  // value hasn't changed since the previous speak. setSpeechRate / setPitch
+  // are platform channel calls that add ~10-30ms each on Android.
+  double? _lastAppliedEngineRate;
+  double? _lastAppliedPitch;
+
   /// Resolves current PDF path/URL by reading the book + provider. Avoids
   /// caching in a field that goes stale on book switch / hot-reload.
   String? _currentPdfPath() {
@@ -64,11 +82,140 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     return ref.read(pdfPathProvider(book.link)).valueOrNull;
   }
 
-  // Web uses the W3C SpeechSynthesis scale where 1.0 is "normal speed".
-  // Mobile (Android/iOS) uses 0.5 as the natural default — anything higher
-  // sounds rushed. Both platforms read from the same persisted Hive value
-  // (`tts_rate`); if no value is stored we fall back to the platform default.
-  double _speechRate = kIsWeb ? 1.0 : 0.5;
+  /// Drops cached page text + extractor handle when the active book changed.
+  /// Called from [_speakCurrentPage] before the cache is consulted, so a
+  /// stale entry from a previous book never feeds into TTS.
+  void _resetPageCacheIfBookChanged(String pdfPath) {
+    if (_pageCacheBookKey == pdfPath) return;
+    _pageCacheBookKey = pdfPath;
+    _pageTextCache.clear();
+    _pageTextInflight.clear();
+    _pdfDoc = null;
+  }
+
+  /// Extract page text once, cache the result, return it. The cache key is
+  /// (pdfPath, pageIndex). Returns null when the file is missing/empty —
+  /// caller surfaces a snackbar in that case (existing behavior preserved).
+  /// Parallel calls for the same page coalesce via [_pageTextInflight] so
+  /// prefetch + on-demand don't double-extract.
+  Future<String?> _extractPageText(int pageIndex) async {
+    final cached = _pageTextCache[pageIndex];
+    if (cached != null) return cached;
+    final pdfPath = _currentPdfPath();
+    if (pdfPath == null) return null;
+    _resetPageCacheIfBookChanged(pdfPath);
+    // Re-check after cache reset (rare: book switched between cache hit
+    // and now; cache cleared, fall through to extraction).
+    final cached2 = _pageTextCache[pageIndex];
+    if (cached2 != null) return cached2;
+    if (_pageTextInflight.contains(pageIndex)) {
+      // Spin until the in-flight extraction completes. 50ms ticks keep this
+      // off the busy loop and bail at 5s total so a stuck extractor doesn't
+      // wedge the UI forever.
+      for (var i = 0; i < 100; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+        final ready = _pageTextCache[pageIndex];
+        if (ready != null) return ready;
+        if (!_pageTextInflight.contains(pageIndex)) break;
+      }
+      return _pageTextCache[pageIndex];
+    }
+    _pageTextInflight.add(pageIndex);
+    try {
+      String? raw;
+      if (kIsWeb) {
+        if (_webPdfBytes == null || _webPdfBytesKey != pdfPath) {
+          final response = await fetchPdfBytes(pdfPath);
+          _webPdfBytes = response.bodyBytes;
+          _webPdfBytesKey = pdfPath;
+        }
+        final doc = sf.PdfDocument(inputBytes: _webPdfBytes!);
+        try {
+          final extractor = sf.PdfTextExtractor(doc);
+          final docLen = doc.pages.count;
+          if (docLen == 0) return null;
+          final clampedIndex = pageIndex.clamp(0, docLen - 1);
+          raw = extractor.extractText(
+            startPageIndex: clampedIndex,
+            endPageIndex: clampedIndex,
+          );
+        } finally {
+          doc.dispose();
+        }
+      } else {
+        final pdfFile = File(pdfPath);
+        if (!await pdfFile.exists() || await pdfFile.length() < 100) {
+          return null;
+        }
+        _pdfDoc ??= await PDFDoc.fromPath(pdfPath);
+        final docLen = _pdfDoc!.length;
+        if (docLen == 0) return null;
+        final pageNum = (pageIndex + 1).clamp(1, docLen);
+        raw = await _pdfDoc!.pageAt(pageNum).text;
+      }
+      final cleaned = _cleanForTts(raw);
+      _pageTextCache[pageIndex] = cleaned;
+      return cleaned;
+    } catch (e) {
+      debugPrint('[TTS] extract page $pageIndex failed: $e');
+      return null;
+    } finally {
+      _pageTextInflight.remove(pageIndex);
+    }
+  }
+
+  /// Background prefetch for a page so a future on-demand request hits the
+  /// cache instead of blocking on extraction. Fire-and-forget; failures are
+  /// silent. The optional [delay] lets us push the heavy work outside the
+  /// engine's startup window — text extraction runs on the UI isolate and
+  /// can starve `flutter_tts` progress callbacks (which marshal through the
+  /// platform channel on the same thread). 3s is enough for the engine to
+  /// stabilize on the current speak before extraction begins.
+  void _prefetchPageText(
+    int pageIndex, {
+    Duration delay = Duration.zero,
+  }) {
+    if (pageIndex < 0) return;
+    if (_totalPages > 0 && pageIndex >= _totalPages) return;
+    if (_pageTextCache.containsKey(pageIndex)) return;
+    if (_pageTextInflight.contains(pageIndex)) return;
+    Future<void> run() async {
+      if (delay > Duration.zero) {
+        await Future<void>.delayed(delay);
+        if (_isDisposed || !mounted) return;
+        if (_pageTextCache.containsKey(pageIndex)) return;
+        if (_pageTextInflight.contains(pageIndex)) return;
+      }
+      await _extractPageText(pageIndex);
+    }
+    unawaited(run());
+  }
+
+  /// Apply rate/pitch to the engine only when the value actually changed
+  /// since the last apply. Each setter is a platform-channel round-trip
+  /// (~10-30ms on Android) — skipping no-ops cuts ~40-80ms off the hot
+  /// path on every page advance.
+  Future<void> _applyEngineConfigIfChanged() async {
+    if (_lastAppliedEngineRate != _engineRate) {
+      await _tts.setSpeechRate(_engineRate);
+      _lastAppliedEngineRate = _engineRate;
+    }
+    if (_lastAppliedPitch != _pitch) {
+      await _tts.setPitch(_pitch);
+      _lastAppliedPitch = _pitch;
+    }
+  }
+
+  // User-facing speech rate: 1.0 = "normal" on every platform. Slider in
+  // the karaoke pane and Voice Settings shows this value. The number sent
+  // to the engine is platform-corrected via [_engineRate] because Android +
+  // iOS treat 0.5 as their natural baseline (1.0 sounds 2× speed).
+  double _speechRate = 1.0;
+
+  /// Translates the user-facing rate to what the engine needs.
+  /// Web SpeechSynthesis: 1.0 = normal → pass through.
+  /// Mobile flutter_tts: natural ≈ 0.5 → halve so user's 1.0 sounds normal.
+  double get _engineRate => kIsWeb ? _speechRate : _speechRate * 0.5;
   double _pitch = 1.0;
 
   /// Tracks whether we've already recorded a TTS-on-this-book event for the
@@ -78,6 +225,29 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   // Cancellation: incremented each time a new speak starts;
   // stale async work checks version before proceeding.
   int _speakVersion = 0;
+
+  // Programmatic-stop quiet window. Some engines (web Chrome, Android in
+  // certain release builds) fire `cancel` AND/OR `error("interrupted")` on
+  // a delay AFTER our own _tts.stop() returns — sometimes after we've
+  // already begun the next speak(). A counter approach is fragile because
+  // the same stop can surface as zero, one, or two events depending on
+  // platform. Instead we stamp the time of every programmatic stop and
+  // ignore cancel/interrupt events within a short window. Real user-
+  // initiated cancels (toggling Stop) bypass the stamp because they don't
+  // call _markProgrammaticStop().
+  DateTime? _lastProgrammaticStopAt;
+  static const Duration _kProgrammaticStopQuietWindow =
+      Duration(milliseconds: 600);
+
+  bool get _isInProgrammaticStopWindow {
+    final at = _lastProgrammaticStopAt;
+    if (at == null) return false;
+    return DateTime.now().difference(at) < _kProgrammaticStopQuietWindow;
+  }
+
+  void _markProgrammaticStop() {
+    _lastProgrammaticStopAt = DateTime.now();
+  }
 
   // Web: voiceschanged fires after first user gesture in some browsers, so
   // initState often sees an empty voice list. Track whether we've installed
@@ -165,6 +335,21 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     // sheet previews, etc. don't qualify.
     // Defer until first frame so a Hive failure (test envs without an open
     // box) is async-swallowed in the controller and doesn't block paint.
+    // Cache-warm the page the user is about to read. PDF text extraction
+    // is the dominant press-Read latency (~200-800ms on dense pages); doing
+    // it eagerly while the reader paints means the first Read tap starts
+    // speaking almost instantly. Deferred via post-frame so we don't fight
+    // the initial layout for the UI isolate.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final book = ref.read(bookByIdProvider(widget.bookId)).valueOrNull;
+      if (book == null) return;
+      // Book may load with currentPage == 0; default to first page.
+      final page0 = (book.currentPage > 0 ? book.currentPage : 1) - 1;
+      // Small additional delay so the PDF view itself can claim the
+      // isolate first — extraction finishes well before the user can tap.
+      _prefetchPageText(page0, delay: const Duration(milliseconds: 600));
+    });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       try {
@@ -188,27 +373,28 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     });
   }
 
-  /// Reads `tts_rate` from the shared `app_prefs` Hive box on cold start. The
-  /// box may not be open in test envs — failures degrade silently to the
-  /// platform default initialized at field declaration.
+  /// Reads `tts_rate` from the shared `app_prefs` Hive box on cold start.
+  /// Stored value is the user-facing rate (1.0 = normal). Legacy values
+  /// outside the 0.5-2.0 slider range are clamped on read so an old install
+  /// that persisted 0.5 as "Android normal" doesn't lock the user at half-
+  /// speed under the new platform-corrected math.
   void _restoreSpeechRate() {
     try {
       final box = Hive.box(RecentBooksService.boxName);
       final raw = box.get(_kTtsRateKey);
       if (raw is num) {
-        final v = raw.toDouble();
-        if (v >= 0.1 && v <= 3.0) {
-          _speechRate = v;
-        }
+        _speechRate = raw.toDouble().clamp(0.5, 2.0);
       }
     } catch (_) {
-      /* Hive not open — keep platform default. */
+      /* Hive not open — keep default. */
     }
   }
 
-  /// Slider hook for the karaoke pane speed slider. Applies the new rate to
-  /// the engine immediately (next utterance picks it up — we don't re-speak
-  /// mid-sentence to avoid jarring restarts) and persists to Hive.
+  /// Slider hook for the karaoke pane speed slider. Updates state, applies
+  /// the platform-corrected engine rate, and persists. Realtime mid-utterance
+  /// re-speak is wired separately in [_applyRateToActiveTts] so the karaoke
+  /// pane can opt in via [onSpeedChange] without forcing a restart on every
+  /// drag tick.
   void _setSpeechRate(double next) {
     final clamped = next.clamp(0.5, 2.0);
     if (mounted) {
@@ -218,11 +404,44 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     }
     // Best-effort engine update — flutter_tts swallows errors internally,
     // so we don't need a try/catch here.
-    _tts.setSpeechRate(clamped);
+    _tts.setSpeechRate(_engineRate);
     try {
       Hive.box(RecentBooksService.boxName).put(_kTtsRateKey, clamped);
     } catch (_) {
       /* Hive not open — silent, in-memory only. */
+    }
+    // Realtime apply: most engines do NOT honor setSpeechRate mid-utterance —
+    // the new rate only takes effect on the next speak() call. Re-speak from
+    // the current word/sentence so the user hears the change immediately.
+    _applyRateToActiveTts();
+  }
+
+  /// Re-speak the current page (or remaining slice) so a mid-utterance rate
+  /// change is audible without waiting for the next page. No-op when TTS is
+  /// idle or paused. Reuses [_seekTtsTo] in word-mode (preserves highlight
+  /// anchor) and [_speakCurrentPage] in sentence-fallback mode.
+  void _applyRateToActiveTts() {
+    if (!_ttsActive || !_ttsSpeaking) return;
+    final s = ref.read(karaokeControllerProvider);
+    if (s.fullText.isEmpty) return;
+    if (s.fallbackSentenceMode) {
+      // Sentence-mode: simplest correct path is a full restart of the
+      // current page. _speakCurrentPage already detects fallback mode and
+      // resumes via the sentence queue if a resume slot is set, but here
+      // we want to reflect the current word, not restart from the top.
+      _captureResume();
+      final page = _currentPage > 0 ? _currentPage - 1 : 0;
+      _speakCurrentPage(page);
+      return;
+    }
+    // Word-mode: seek back to the currently-highlighted word so the new
+    // rate kicks in mid-page without losing position. If no progress event
+    // has fired yet (currentStart < 0), fall back to a full page restart.
+    if (s.currentStart >= 0 && s.currentStart < s.fullText.length) {
+      _seekTtsTo(s.currentStart);
+    } else {
+      final page = _currentPage > 0 ? _currentPage - 1 : 0;
+      _speakCurrentPage(page);
     }
   }
 
@@ -302,8 +521,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     if (kIsWeb) {
       await _trySetWebVoice();
     }
+    // Mobile: rely on the system-default voice. Earlier attempts at name-
+    // based ranking ("network"/"premium"/"enhanced") produced false-positive
+    // matches on cheaper voices that happened to share a substring. Letting
+    // the OS pick avoids a regression in audio quality compared to bare TTS.
 
-    await _tts.setSpeechRate(_speechRate);
+    await _tts.setSpeechRate(_engineRate);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
     // Ensures speak() future resolves on actual completion, not immediately.
@@ -357,13 +580,20 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     });
     _tts.setCancelHandler(() {
       if (_isDisposed || !mounted) return;
+      // Self-induced cancel: a programmatic stop() above us is still
+      // draining its echo. Skip mutation — the caller is already mid-
+      // restart and will re-arm the karaoke span + speaking flag itself.
+      // Without this guard the late cancel races the new speak() and
+      // clobbers isSpeaking back to false (so progress events bail) and
+      // wipes currentStart/currentEnd (so the highlight never appears on
+      // a seek/resume).
+      if (_isInProgrammaticStopWindow) return;
       setState(() => _ttsSpeaking = false);
       // Capture resume slot BEFORE onTtsStop() wipes currentStart/currentEnd.
       // Music-app behavior: next play picks up where we left off.
       _captureResume();
-      // Cancel was the user pressing Stop or our internal stop(). Clear the
-      // karaoke active span — page text stays in the pane so the user can
-      // still scroll-read the last extracted page.
+      // User-initiated stop. Clear the karaoke active span — page text
+      // stays in the pane so the user can still scroll-read the last page.
       ref.read(karaokeControllerProvider.notifier).onTtsStop();
     });
     _tts.setErrorHandler((msg) {
@@ -375,6 +605,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       if (lower.contains('interrupt') ||
           lower.contains('cancel') ||
           lower.contains('not-allowed')) {
+        // Same quiet-window check as the cancel handler. A programmatic
+        // stop can surface here instead of in setCancelHandler depending
+        // on the engine — both paths defer to the timestamp.
         debugPrint('[TTS] benign error ignored: $msg');
         return;
       }
@@ -532,6 +765,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     } else {
       _ttsSpeaking = false;
     }
+    if (wasSpeakingBeforeStop) _markProgrammaticStop();
     await _tts.stop();
     if (v != _speakVersion) return;
     // Web Chrome bug: synth.cancel() is asynchronous — the underlying plugin
@@ -563,55 +797,28 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
     String? pageText;
     try {
-      if (kIsWeb) {
-        // pdfPath is the URL on web. Cache bytes per book.link so switching
-        // books reloads the right document — without the key check, TTS would
-        // read the previous book's text on the new book.
-        if (_webPdfBytes == null || _webPdfBytesKey != pdfPath) {
-          final response = await fetchPdfBytes(pdfPath);
-          if (v != _speakVersion) return;
-          _webPdfBytes = response.bodyBytes;
-          _webPdfBytesKey = pdfPath;
-        }
-        final doc = sf.PdfDocument(inputBytes: _webPdfBytes!);
-        final extractor = sf.PdfTextExtractor(doc);
-        final docLen = doc.pages.count;
-        final clampedIndex = pageIndex.clamp(0, docLen - 1);
-        pageText = extractor.extractText(
-          startPageIndex: clampedIndex,
-          endPageIndex: clampedIndex,
-        );
-        doc.dispose();
-      } else {
-        // Mobile path — flutter_pdf_text from local file.
-        final pdfFile = File(pdfPath);
-        if (!await pdfFile.exists() || await pdfFile.length() < 100) {
-          _pdfDoc = null;
-          if (mounted) {
-            setState(() {
-              _ttsActive = false;
-              _ttsSpeaking = false;
-            });
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text(
-                  'PDF file not accessible. Reopen the book and try again.',
-                ),
-              ),
-            );
-          }
-          return;
-        }
-        _pdfDoc ??= await PDFDoc.fromPath(pdfPath);
-        if (v != _speakVersion) return;
-        final docLen = _pdfDoc!.length;
-        if (docLen == 0) return;
-        final pageNum = (pageIndex + 1).clamp(1, docLen);
-        pageText = await _pdfDoc!.pageAt(pageNum).text;
-      }
-
+      // Cache-first extract. First call per page does the real work (~200-
+      // 800ms on dense pages); subsequent calls and prefetched pages hit
+      // the cache and return instantly. _extractPageText already does the
+      // _cleanForTts pass before storing.
+      pageText = await _extractPageText(pageIndex);
       if (v != _speakVersion) return;
-      pageText = _cleanForTts(pageText);
+      if (pageText == null) {
+        if (mounted) {
+          setState(() {
+            _ttsActive = false;
+            _ttsSpeaking = false;
+          });
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'PDF file not accessible. Reopen the book and try again.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
       if (pageText.trim().isEmpty) {
         if (mounted) {
           setState(() {
@@ -631,8 +838,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       // of restarting at the top. The tight string-equality guard ensures we
       // never resume into a different page (extraction differences = skip).
       if (_hasResume && _resumeFullText == pageText) {
-        await _tts.setSpeechRate(_speechRate);
-        await _tts.setPitch(_pitch);
+        await _applyEngineConfigIfChanged();
         if (kIsWeb && !_webVoiceSet) {
           await _trySetWebVoice();
         }
@@ -674,8 +880,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           return;
         }
       }
-      await _tts.setSpeechRate(_speechRate);
-      await _tts.setPitch(_pitch);
+      await _applyEngineConfigIfChanged();
       // Web: voices populate asynchronously after first user gesture. Retry
       // voice selection here (after the Read button tap) if init missed it.
       if (kIsWeb && !_webVoiceSet) {
@@ -732,6 +937,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       // this book. Placed after all early-returns so a failed text-extract
       // doesn't burn the credit.
       _maybeRecordTtsForBook();
+      // Prefetch the next page's text 3s later, after the engine has
+      // stabilized on the current speak. Doing it immediately starves the
+      // platform-channel progress callbacks because PDF text extraction
+      // pegs the UI isolate, breaking the karaoke detect timer (no progress
+      // events for 2s → fallback flips → tap-to-seek dies).
+      _prefetchPageText(
+        pageIndex + 1,
+        delay: const Duration(seconds: 3),
+      );
       // Diagnostic: extracted text length is a common failure mode (image-only PDFs).
       debugPrint(
         '[TTS] speaking ${pageText.length} chars, rate=$_speechRate pitch=$_pitch web=$kIsWeb',
@@ -744,6 +958,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       // interruption (stop() before completion). Don't surface as error.
     } catch (e) {
       _pdfDoc = null;
+      _pageTextCache.clear();
+      _pageTextInflight.clear();
       if (mounted) {
         setState(() {
           _ttsActive = false;
@@ -871,6 +1087,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     } else {
       _ttsSpeaking = false;
     }
+    if (wasSpeakingBeforeStop) _markProgrammaticStop();
     await _tts.stop();
     if (v != _speakVersion) return;
     // Web cancel is async — same workaround as _speakCurrentPage.
@@ -1066,10 +1283,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                   ],
                 ),
                 Slider(
-                  value: rate,
-                  min: 0.1,
-                  max: 1.0,
-                  divisions: 9,
+                  // Range must match _setSpeechRate clamp (0.5-2.0) and the
+                  // karaoke pane speed slider — otherwise opening this sheet
+                  // after the user nudges karaoke speed past 1.0 throws a
+                  // Slider value-out-of-range assertion.
+                  value: rate.clamp(0.5, 2.0),
+                  min: 0.5,
+                  max: 2.0,
+                  divisions: 15,
                   activeColor: AppColors.primary,
                   onChanged: (v) => setSheet(() => rate = v),
                   onChangeEnd: (v) {
@@ -1702,3 +1923,5 @@ class _PdfPageImageState extends State<_PdfPageImage> {
     );
   }
 }
+
+

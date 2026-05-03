@@ -311,7 +311,9 @@ class _AchievementsSection extends ConsumerWidget {
             crossAxisCount: 3,
             crossAxisSpacing: 12,
             mainAxisSpacing: 12,
-            childAspectRatio: 0.85,
+            // 0.7 aspect leaves room for the locked-state progress bar +
+            // counter under the title without clipping the icon.
+            childAspectRatio: 0.7,
           ),
           itemCount: total,
           itemBuilder: (ctx, i) => _AchievementTile(
@@ -374,13 +376,36 @@ class _AchievementsSection extends ConsumerWidget {
                     color: AppColors.textMuted,
                   ),
                 )
-              else
+              else ...[
+                // Locked: show progress bar + "X / Y to go" hint so the user
+                // sees how close they are. Hidden for unlocked badges where
+                // the unlock date is the more useful signal.
                 Text(
-                  'Locked',
+                  '${a.current} / ${a.target}',
                   style: AppTypography.bodySmall.copyWith(
                     color: AppColors.textMuted,
                   ),
                 ),
+                const SizedBox(height: 8),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: a.ratio,
+                    minHeight: 6,
+                    backgroundColor: AppColors.progressTrack,
+                    valueColor: const AlwaysStoppedAnimation<Color>(
+                      AppColors.primary,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  _remainingHint(a),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                ),
+              ],
             ],
           ),
         ),
@@ -393,6 +418,38 @@ class _AchievementsSection extends ConsumerWidget {
     final m = d.month.toString().padLeft(2, '0');
     final day = d.day.toString().padLeft(2, '0');
     return '$y-$m-$day';
+  }
+
+  /// Natural-language hint per-achievement, used under the progress bar in
+  /// the detail dialog. Numeric remainders kept singular/plural-correct so
+  /// "1 book to go" doesn't read "1 books to go".
+  static String _remainingHint(Achievement a) {
+    final remaining = (a.target - a.current).clamp(0, a.target);
+    if (remaining == 0 && !a.unlocked) {
+      return 'Almost there — open the app once more to unlock.';
+    }
+    switch (a.id) {
+      case AchievementIds.firstBook:
+      case AchievementIds.bookworm:
+        return remaining == 1
+            ? 'Finish 1 more book'
+            : 'Finish $remaining more books';
+      case AchievementIds.streak3:
+      case AchievementIds.streak7:
+      case AchievementIds.streak30:
+        return remaining == 1
+            ? '1 more day to go'
+            : '$remaining more days to go';
+      case AchievementIds.surpriseReader:
+        return remaining == 1
+            ? 'Use Surprise Me 1 more time'
+            : 'Use Surprise Me $remaining more times';
+      case AchievementIds.karaokeStar:
+        return remaining == 1
+            ? 'Use TTS in 1 more book'
+            : 'Use TTS in $remaining more books';
+    }
+    return '$remaining to go';
   }
 }
 
@@ -463,6 +520,30 @@ class _AchievementTile extends StatelessWidget {
                         : AppColors.textMuted,
                   ),
                 ),
+                if (!unlocked) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    '${achievement.current}/${achievement.target}',
+                    style: AppTypography.bodySmall.copyWith(
+                      fontSize: 10,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(2),
+                    child: SizedBox(
+                      height: 3,
+                      child: LinearProgressIndicator(
+                        value: achievement.ratio,
+                        backgroundColor: AppColors.progressTrack,
+                        valueColor: const AlwaysStoppedAnimation<Color>(
+                          AppColors.primary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
