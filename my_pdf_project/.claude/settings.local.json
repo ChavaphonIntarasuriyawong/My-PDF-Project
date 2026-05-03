@@ -39,7 +39,10 @@
       "Bash(git checkout *)",
       "PowerShell(Get-CimInstance *)",
       "Bash(dir test *)",
-      "Bash(findstr /v \"\\\\.dart_tool\")"
+      "Bash(findstr /v \"\\\\.dart_tool\")",
+      "Bash(npx supabase *)",
+      "Bash(Select-Object -First 25)",
+      "Bash(nslookup os.ecci.ucr.ac.cr)"
     ]
   },
   "enabledPlugins": {}

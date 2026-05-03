@@ -20,7 +20,7 @@ Future<http.Response> fetchPdfBytes(String url) async {
   if (!kIsWeb || isCorsFriendlyHost(url)) {
     final resp = await http
         .get(Uri.parse(url))
-        .timeout(const Duration(seconds: 30));
+        .timeout(const Duration(seconds: 180));
     if (resp.statusCode != 200) {
       throw Exception('HTTP ${resp.statusCode}');
     }
@@ -34,9 +34,10 @@ Future<http.Response> fetchPdfBytes(String url) async {
   final proxyUrl = '$kCorsProxyBase?url=${Uri.encodeQueryComponent(url)}';
   final resp = await http
       .get(Uri.parse(proxyUrl))
-      .timeout(const Duration(seconds: 30));
+      .timeout(const Duration(seconds: 180));
   if (resp.statusCode != 200) {
-    throw Exception('Proxy HTTP ${resp.statusCode}');
+    throw Exception(
+        'Proxy HTTP ${resp.statusCode}: ${resp.body.substring(0, resp.body.length.clamp(0, 200))}');
   }
   return resp;
 }

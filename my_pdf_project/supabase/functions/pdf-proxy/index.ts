@@ -19,7 +19,7 @@
 
 const ALLOW_ORIGIN = "*"; // tighten to your deployed origin if you want
 const MAX_BYTES = 50 * 1024 * 1024;
-const FETCH_TIMEOUT_MS = 30_000;
+const FETCH_TIMEOUT_MS = 120_000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": ALLOW_ORIGIN,
@@ -65,6 +65,27 @@ function isPrivateIp(ip: string): boolean {
   return false;
 }
 
+// DNS-over-HTTPS fallback (Cloudflare 1.1.1.1). Used only when Deno's system
+// resolver returns nothing for both A and AAAA — some TLDs (.cr observed)
+// flake on the Edge runtime's resolver path even though `fetch()` could
+// reach them. We still validate the resolved IPs through `isPrivateIp`
+// downstream so SSRF defense is preserved.
+async function dohResolve(hostname: string, type: "A" | "AAAA"): Promise<string[]> {
+  try {
+    const r = await fetch(
+      `https://cloudflare-dns.com/dns-query?name=${encodeURIComponent(hostname)}&type=${type}`,
+      { headers: { Accept: "application/dns-json" }, signal: AbortSignal.timeout(5000) },
+    );
+    if (!r.ok) return [];
+    const j = await r.json();
+    if (!Array.isArray(j.Answer)) return [];
+    const want = type === "A" ? 1 : 28;
+    return j.Answer.filter((a: any) => a.type === want).map((a: any) => String(a.data));
+  } catch (_) {
+    return [];
+  }
+}
+
 // Resolve hostname to A + AAAA records and reject if any resolves into a
 // private range. Defends against SSRF + DNS rebinding (we re-check after the
 // fetch chain too). Returns `null` on success, error string on rejection.
@@ -87,6 +108,16 @@ async function ssrfCheck(hostname: string): Promise<string | null> {
   let v6: string[] = [];
   try { v4 = await Deno.resolveDns(hostname, "A"); } catch (_) { /* ignore */ }
   try { v6 = await Deno.resolveDns(hostname, "AAAA"); } catch (_) { /* ignore */ }
+  // System resolver fallback: some TLDs flake on Deno.resolveDns in the
+  // Supabase Edge runtime. Try DoH (Cloudflare) before giving up.
+  if (v4.length === 0 && v6.length === 0) {
+    const [dohV4, dohV6] = await Promise.all([
+      dohResolve(hostname, "A"),
+      dohResolve(hostname, "AAAA"),
+    ]);
+    v4 = dohV4;
+    v6 = dohV6;
+  }
   if (v4.length === 0 && v6.length === 0) {
     return `Could not resolve '${hostname}'`;
   }
