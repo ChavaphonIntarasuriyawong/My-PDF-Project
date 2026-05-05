@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/config/feature_flags.dart';
 import 'core/constants/app_router.dart';
 import 'core/local/recent_books_service.dart';
 import 'core/theme/app_colors.dart';
@@ -17,6 +18,11 @@ void main() async {
     WidgetsFlutterBinding.ensureInitialized();
 
     await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+    // Remote Config: kill switches + feature flags. Never throws — logs and
+    // falls through to defaults on offline / fetch errors.
+    final featureFlags = FeatureFlags();
+    await featureFlags.initialize();
 
     await Hive.initFlutter();
     await Hive.openBox(RecentBooksService.boxName);
@@ -39,7 +45,14 @@ void main() async {
       url: 'https://wtjwmwisitohlzyinoaf.supabase.co',
       anonKey: 'sb_publishable_WY9c8ogY4iVKHU7sFT5slw_oUoQFAl8',
     );
-    runApp(const ProviderScope(child: MyPdfApp()));
+    runApp(ProviderScope(
+      overrides: [
+        // Inject the already-initialized singleton so every `ref.read` reuses
+        // the same Remote Config instance — see featureFlagsProvider.
+        featureFlagsProvider.overrideWithValue(featureFlags),
+      ],
+      child: const MyPdfApp(),
+    ));
   }, (error, stack) {
     if (!kIsWeb) {
       FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);

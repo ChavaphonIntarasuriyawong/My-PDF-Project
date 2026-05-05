@@ -10,7 +10,9 @@ import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
+import '../../../core/config/feature_flags.dart';
 import '../../../core/network/pdf_fetcher.dart';
+import '../../../core/text/tts_text_cleaner.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../library/presentation/library_controller.dart';
@@ -62,6 +64,17 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   // initState often sees an empty voice list. Track whether we've installed
   // a voice; retry just-in-time before each speak() if not.
   bool _webVoiceSet = false;
+
+  // OCR fallback (Wave 3) — UI-local ephemeral state.
+  // `_ocrInProgress` toggles the linear progress strip while a foreground OCR
+  // is running for the current page. `_ocrSessionNoticeShown` ensures the
+  // "first OCR may take a few seconds" snackbar fires once per reader session.
+  bool _ocrInProgress = false;
+  bool _ocrSessionNoticeShown = false;
+  // Cancellation token for background pre-OCR — mirrors `_speakVersion`.
+  // Bumped on dispose / book switch / fresh foreground OCR trigger so any
+  // in-flight loop iteration bails on its next check.
+  int _bgOcrVersion = 0;
 
   @override
   void initState() {
@@ -213,6 +226,18 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     _tts.setCancelHandler(() {});
     _tts.setErrorHandler((_) {});
     _tts.stop();
+    // Cancel any in-flight background OCR sweep. Bumping the version makes
+    // the loop's next iteration check bail; the loop's own `finally` would
+    // normally clear the progress provider, but it only does so if it owns
+    // the sweep — which it no longer will after the bump. So we clear
+    // progress here too, scheduled post-frame to avoid Riverpod barking
+    // about state mutations during widget tree teardown.
+    _bgOcrVersion++;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      try {
+        ref.read(bookOcrProgressProvider.notifier).state = null;
+      } catch (_) {/* container disposed before frame — best effort */}
+    });
     // Release native PDF text-extractor handle on Android — leak otherwise.
     _pdfDoc = null;
     _webPdfBytes = null;
@@ -322,15 +347,81 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       }
 
       if (v != _speakVersion) return;
-      pageText = _cleanForTts(pageText);
+      pageText = cleanForTts(pageText);
       if (pageText.trim().isEmpty) {
-        if (mounted) {
-          setState(() { _ttsActive = false; _ttsSpeaking = false; });
+        // Text-layer extraction came back empty. Two paths:
+        //   1. OCR fallback disabled (Remote Config kill switch) — preserve
+        //      the original "scanned PDF?" snackbar so the user still sees
+        //      a clear dead-end message.
+        //   2. OCR enabled — render the page as an image, run OCR, swap the
+        //      result back into `pageText`, then fall through to the speak
+        //      path below.
+        final flags = ref.read(featureFlagsProvider);
+        if (!flags.ocrFallbackEnabled) {
+          if (mounted) {
+            setState(() { _ttsActive = false; _ttsSpeaking = false; });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('No readable text on this page (scanned PDF?)')),
+            );
+          }
+          return;
+        }
+
+        if (!mounted) return;
+        // First OCR of the session: gentle heads-up that the next few seconds
+        // will feel slow (engine init + traineddata load on web, traineddata
+        // load on mobile). Subsequent pages don't show this.
+        if (!_ocrSessionNoticeShown) {
+          _ocrSessionNoticeShown = true;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('No readable text on this page (scanned PDF?)')),
+            const SnackBar(content: Text(
+              'Using OCR for scanned PDF — first page may take a few seconds.',
+            )),
           );
         }
-        return;
+        setState(() => _ocrInProgress = true);
+        String ocrText;
+        try {
+          ocrText = await ref.read(ocrPageTextProvider((
+            bookId: widget.bookId,
+            url: pdfPath,
+            pageIndex: pageIndex,
+          )).future);
+        } catch (e) {
+          debugPrint('[OCR] failed: $e');
+          if (mounted) {
+            setState(() {
+              _ttsActive = false;
+              _ttsSpeaking = false;
+              _ocrInProgress = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Could not extract text from this page. ($e)')),
+            );
+          }
+          return;
+        } finally {
+          if (mounted && _ocrInProgress) {
+            setState(() => _ocrInProgress = false);
+          }
+        }
+        // User navigated / pressed Stop while OCR was running — drop result.
+        if (v != _speakVersion) return;
+        if (ocrText.trim().isEmpty) {
+          if (mounted) {
+            setState(() { _ttsActive = false; _ttsSpeaking = false; });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Could not extract any text from this page.')),
+            );
+          }
+          return;
+        }
+        // ocrPageTextProvider already runs cleanForTts before caching — no
+        // double-clean needed here.
+        pageText = ocrText;
+        // First successful OCR — kick off background pre-OCR for the rest of
+        // the book so subsequent pages are instant.
+        _maybeStartBackgroundOcr(pageIndex, pdfPath);
       }
       await _tts.setSpeechRate(_speechRate);
       await _tts.setPitch(_pitch);
@@ -360,25 +451,77 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     }
   }
 
-  /// Cleans PDF-extracted text so a TTS engine reads it like prose:
-  ///   - joins broken hyphenated words across lines
-  ///   - turns single line breaks into spaces (engines pause on \n)
-  ///   - keeps double newlines as paragraph breaks
-  ///   - strips control chars and page-numberish noise the extractor emits
-  ///   - skips runs of unreadable symbols (often left over from images / glyphs)
-  String _cleanForTts(String raw) {
-    var text = raw.replaceAll('\r', '\n');
-    text = text.replaceAll(RegExp(r'-\s*\n\s*'), ''); // "exam-\nple" -> "example"
-    text = text.replaceAll(RegExp(r'(?<!\n)\n(?!\n)'), ' '); // single \n -> space
-    text = text.replaceAll(RegExp(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]'), '');
-    // Replace runs of broken-font glyphs / exotic symbols with a single space.
-    // Keep printable ASCII, Latin supplement, Latin Extended-A, curly quotes,
-    // en/em dashes, and newlines.
-    text = text.replaceAll(
-        RegExp(r"[^ -~ -ſ‘’“”–—\n]+"),
-        ' ');
-    text = text.replaceAll(RegExp(r' {2,}'), ' ');
-    return text.trim();
+  /// Kicks off best-effort background pre-OCR for every other page in the
+  /// book once the foreground (lazy) OCR has surfaced its first hit. Cached
+  /// pages are skipped so the loop is idempotent — re-entering the book mid
+  /// pre-OCR resumes where it left off.
+  ///
+  /// Cancellation: `_bgOcrVersion` is bumped on dispose, on any subsequent
+  /// `_maybeStartBackgroundOcr` call, and via the dispose hook. The captured
+  /// `v` is checked at the top of every iteration so the loop bails within
+  /// one page-time of the trigger.
+  ///
+  /// Errors per page are swallowed (`debugPrint` only) so a single bad page
+  /// can't crash the whole pre-OCR sweep. Total pages is read from
+  /// `_totalPages` which is populated by `onPageChanged` / `onRender` for
+  /// both mobile and web before this method ever runs (any successful TTS
+  /// invocation implies the reader has rendered at least once).
+  void _maybeStartBackgroundOcr(int triggeringPageIndex, String pdfPath) {
+    final total = _totalPages;
+    if (total <= 1) return; // single-page book — nothing to pre-fetch.
+    final v = ++_bgOcrVersion;
+    final bookId = widget.bookId;
+    // Surface a starting state immediately so the UI chip pops in without
+    // waiting for the first page to finish.
+    ref.read(bookOcrProgressProvider.notifier).state = (done: 1, total: total);
+
+    // Run the loop on its own microtask so the caller (foreground TTS) can
+    // continue uninterrupted.
+    Future<void>(() async {
+      var done = 1; // triggering page is already cached.
+      try {
+        for (var i = 0; i < total; i++) {
+          if (v != _bgOcrVersion) return; // cancelled.
+          if (i == triggeringPageIndex) continue;
+
+          // Skip pages already cached so re-entry / next-session resume
+          // is zero-cost.
+          final cached = ref.read(ocrCacheServiceProvider).get(bookId, i);
+          if (cached == null) {
+            try {
+              await ref.read(ocrPageTextProvider((
+                bookId: bookId,
+                url: pdfPath,
+                pageIndex: i,
+              )).future);
+            } catch (e) {
+              // Per-page failure is non-fatal — we'll fall back to
+              // foreground OCR (or the empty snackbar) if the user
+              // navigates here.
+              debugPrint('[OCR] bg page $i failed: $e');
+            }
+          }
+          if (v != _bgOcrVersion) return;
+          done += 1;
+          ref.read(bookOcrProgressProvider.notifier).state =
+              (done: done, total: total);
+          // Yield back to the event loop so UI repaints, scroll & tap
+          // gestures stay responsive, and the cancellation flag has a
+          // chance to flip.
+          await Future<void>.delayed(Duration.zero);
+        }
+      } catch (e) {
+        // Belt-and-suspenders: nothing here should escape, but if it does,
+        // never let a background sweep crash the screen.
+        debugPrint('[OCR] bg sweep aborted: $e');
+      } finally {
+        // Only clear progress if we're still the active sweep — otherwise a
+        // later sweep will manage its own lifecycle.
+        if (v == _bgOcrVersion) {
+          ref.read(bookOcrProgressProvider.notifier).state = null;
+        }
+      }
+    });
   }
 
   void _advanceToNextPageForTts() {
@@ -741,6 +884,40 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                               const AlwaysStoppedAnimation(AppColors.primary),
                           minHeight: 2,
                         ),
+                        // OCR foreground progress strip — only present while
+                        // the current page's text is being recovered. Sits
+                        // beneath the existing reading-progress bar so layout
+                        // doesn't shift when it appears/disappears.
+                        if (_ocrInProgress) ...[
+                          const LinearProgressIndicator(
+                            backgroundColor: AppColors.progressTrack,
+                            valueColor:
+                                AlwaysStoppedAnimation(AppColors.primary),
+                            minHeight: 2,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 16, vertical: 4),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  Icons.text_snippet_outlined,
+                                  size: 12,
+                                  color: AppColors.textSecondary,
+                                ),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    'Extracting text from scanned page...',
+                                    style: AppTypography.bodySmall.copyWith(
+                                      color: AppColors.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ),

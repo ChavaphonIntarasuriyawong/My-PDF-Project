@@ -39,7 +39,9 @@
       "Bash(git checkout *)",
       "PowerShell(Get-CimInstance *)",
       "Bash(dir test *)",
-      "Bash(findstr /v \"\\\\.dart_tool\")"
+      "Bash(findstr /v \"\\\\.dart_tool\")",
+      "Bash(Select-String -Pattern \"Some tests failed|All tests passed|loading.*\\\\[E\\\\]|^FAILED|^00:.*-\\\\d+\")",
+      "Bash(Select-Object -Last 30)"
     ]
   },
   "enabledPlugins": {}

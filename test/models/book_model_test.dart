@@ -93,5 +93,130 @@ void main() {
         expect(m.status, s);
       }
     });
+
+    // -----------------------------------------------------------------
+    // needsOcr round-trip (Wave 4 OCR fallback)
+    // -----------------------------------------------------------------
+    // The flag is persisted on the Firestore book doc when the upload
+    // probe sees no text layer. fromMap/toMap and copyWith all need to
+    // carry it without surprises so the reader's text-extraction probe
+    // skip is reliable.
+
+    test('needsOcr defaults to false on the const constructor', () {
+      expect(book.needsOcr, isFalse);
+    });
+
+    test('toMap serializes needsOcr=true', () {
+      const scanned = BookModel(
+        id: 'b1',
+        title: 'Scanned Book',
+        link: 'https://pdf.url',
+        totalPages: 10,
+        currentPage: 0,
+        progress: 0,
+        status: 'reading',
+        shelfId: 's1',
+        ownerId: 'u1',
+        needsOcr: true,
+      );
+      expect(scanned.toMap()['needsOcr'], isTrue);
+    });
+
+    test('toMap serializes needsOcr=false explicitly', () {
+      // Even though false is the default, the on-disk shape must include
+      // the field so old clients don't accidentally re-write a true to
+      // false during a partial update.
+      expect(book.toMap()['needsOcr'], isFalse);
+      expect(book.toMap().containsKey('needsOcr'), isTrue);
+    });
+
+    test('fromMap reads needsOcr=true', () {
+      final m = BookModel.fromMap('b1', {
+        'title': 'Scanned',
+        'link': 'https://pdf.url',
+        'totalPages': 10,
+        'currentPage': 0,
+        'status': 'reading',
+        'shelfId': 's1',
+        'ownerId': 'u1',
+        'needsOcr': true,
+      });
+      expect(m.needsOcr, isTrue);
+    });
+
+    test('fromMap with missing needsOcr key defaults to false (backward compat)',
+        () {
+      // Existing books written before Wave 4 have no `needsOcr` field;
+      // fromMap must tolerate the absence and return false.
+      final m = BookModel.fromMap('legacy_book', {
+        'title': 'Legacy',
+        'link': 'https://pdf.url',
+        'totalPages': 10,
+        'currentPage': 0,
+        'status': 'reading',
+        'shelfId': 's1',
+        'ownerId': 'u1',
+      });
+      expect(m.needsOcr, isFalse);
+    });
+
+    test('fromMap with explicit null needsOcr defaults to false', () {
+      final m = BookModel.fromMap('b1', {
+        'title': 'Book',
+        'link': '',
+        'totalPages': 10,
+        'currentPage': 0,
+        'status': 'reading',
+        'shelfId': 's1',
+        'ownerId': 'u1',
+        'needsOcr': null,
+      });
+      expect(m.needsOcr, isFalse);
+    });
+
+    test('copyWith(needsOcr: true) flips the field while preserving siblings',
+        () {
+      final updated = book.copyWith(needsOcr: true);
+      expect(updated.needsOcr, isTrue);
+      expect(updated.title, book.title);
+      expect(updated.link, book.link);
+      expect(updated.id, book.id);
+      expect(updated.ownerId, book.ownerId);
+    });
+
+    test('copyWith without needsOcr preserves the existing value', () {
+      const scanned = BookModel(
+        id: 'b1',
+        title: 'Scanned',
+        link: '',
+        totalPages: 1,
+        currentPage: 0,
+        progress: 0,
+        status: 'reading',
+        shelfId: 's1',
+        ownerId: 'u1',
+        needsOcr: true,
+      );
+      // Mutating an unrelated field must not silently reset needsOcr.
+      final updated = scanned.copyWith(title: 'Renamed');
+      expect(updated.needsOcr, isTrue);
+    });
+
+    test('toMap then fromMap round-trips needsOcr=true', () {
+      const scanned = BookModel(
+        id: 'b1',
+        title: 'Scanned',
+        link: 'https://pdf.url',
+        totalPages: 10,
+        currentPage: 0,
+        progress: 0,
+        status: 'reading',
+        shelfId: 's1',
+        ownerId: 'u1',
+        needsOcr: true,
+      );
+      final reconstructed = BookModel.fromMap('b1', scanned.toMap());
+      expect(reconstructed.needsOcr, isTrue);
+    });
   });
 }

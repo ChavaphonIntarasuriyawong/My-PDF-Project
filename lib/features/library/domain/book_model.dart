@@ -11,6 +11,10 @@ class BookModel {
   final DateTime? lastReadAt;
   final String? author;
   final int? year;
+  // Set at upload time when `_isBitmapOnlyPdf` detects no text layer. Lets
+  // the reader skip the text-extraction probe and route straight to OCR.
+  // Defaults to false for backward compat with books written before this field.
+  final bool needsOcr;
 
   const BookModel({
     required this.id,
@@ -25,6 +29,7 @@ class BookModel {
     this.lastReadAt,
     this.author,
     this.year,
+    this.needsOcr = false,
   });
 
   BookModel copyWith({
@@ -38,6 +43,7 @@ class BookModel {
     DateTime? lastReadAt,
     String? author,
     int? year,
+    bool? needsOcr,
   }) {
     return BookModel(
       id: id,
@@ -52,6 +58,7 @@ class BookModel {
       lastReadAt: lastReadAt ?? this.lastReadAt,
       author: author ?? this.author,
       year: year ?? this.year,
+      needsOcr: needsOcr ?? this.needsOcr,
     );
   }
 
@@ -67,6 +74,7 @@ class BookModel {
     'lastReadAt': lastReadAt?.toIso8601String(),
     'author': author,
     'year': year,
+    'needsOcr': needsOcr,
   };
 
   factory BookModel.fromMap(String id, Map<String, dynamic> map) {
@@ -85,6 +93,7 @@ class BookModel {
       lastReadAt: map['lastReadAt'] != null ? DateTime.tryParse(map['lastReadAt']) : null,
       author: map['author'] as String?,
       year: (map['year'] as num?)?.toInt(),
+      needsOcr: map['needsOcr'] as bool? ?? false,
     );
   }
 }

@@ -43,3 +43,12 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# OCR binary assets — user action to download per asset directory READMEs.
+# Not committed: traineddata is ~15 MB/lang and bloats the repo.
+assets/tessdata/*.traineddata
+web/ocr/*.js
+web/ocr/*.wasm
+web/ocr/*.wasm.*
+web/ocr/lang/*.traineddata
+web/ocr/lang/*.traineddata.gz

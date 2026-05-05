@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
+import '../../../core/local/ocr_cache_service.dart';
 import '../../../core/local/recent_books_service.dart';
 import '../../../core/network/pdf_fetcher.dart';
+import '../../../core/text/tts_text_cleaner.dart';
 import '../data/firestore_data_source.dart';
+import '../data/ocr_data_source.dart';
 import '../domain/book_model.dart';
 import '../domain/bookshelf_model.dart';
 import '../domain/note_model.dart';
@@ -197,8 +200,25 @@ final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
   return file.absolute.path;
 });
 
-/// Renders the first page of a PDF as JPEG bytes (cached to disk).
-final pdfThumbnailProvider = FutureProvider.family<Uint8List?, String>((ref, url) async {
+/// Renders an arbitrary page of a PDF as JPEG bytes.
+///
+/// `pageIndex` is **0-based** to match the reader screen convention; we add
+/// `+1` at the `pdfx` call site (its API is 1-based).
+///
+/// Render dimensions are clamped to 1600 px on the long edge to keep memory
+/// bounded — phone-shot scans routinely report 4-5 k pixel pages and would
+/// OOM mid-stream during background OCR otherwise.
+///
+/// Mobile caches the JPEG to `${docs}/page_imgs/img_{hash(url)}_{pageIndex}.jpg`
+/// so repeat reads are zero-cost. Web has no filesystem, so it renders fresh
+/// every time (the OCR cache layer handles dedupe at the text level).
+final pdfPageImageProvider = FutureProvider.family<
+    Uint8List?, ({String url, int pageIndex})>((ref, args) async {
+  final url = args.url;
+  final pageIndex = args.pageIndex;
+  // pdfx is 1-based; we accept 0-based to match reader_screen.
+  final pdfxPageNumber = pageIndex + 1;
+
   try {
     if (kIsWeb) {
       // No filesystem on web — fetch bytes and render directly, no disk cache.
@@ -207,10 +227,15 @@ final pdfThumbnailProvider = FutureProvider.family<Uint8List?, String>((ref, url
       if (url.startsWith('local://')) return null;
       final response = await fetchPdfBytes(url);
       final document = await PdfDocument.openData(response.bodyBytes);
-      final page = await document.getPage(1);
+      final page = await document.getPage(pdfxPageNumber);
+      final scale = page.width > 0 && page.width > 1600.0
+          ? 1600.0 / page.width
+          : 1.0;
+      final renderWidth = (page.width * scale).clamp(1.0, 1600.0).toDouble();
+      final renderHeight = (page.height * scale).clamp(1.0, 1600.0).toDouble();
       final pageImage = await page.render(
-        width: page.width,
-        height: page.height,
+        width: renderWidth,
+        height: renderHeight,
         format: PdfPageImageFormat.jpeg,
       );
       await page.close();
@@ -219,28 +244,116 @@ final pdfThumbnailProvider = FutureProvider.family<Uint8List?, String>((ref, url
     }
 
     final docs = await getApplicationDocumentsDirectory();
-    final thumbsDir = Directory('${docs.path}/thumbs');
-    if (!await thumbsDir.exists()) {
-      await thumbsDir.create(recursive: true);
+    final imgsDir = Directory('${docs.path}/page_imgs');
+    if (!await imgsDir.exists()) {
+      await imgsDir.create(recursive: true);
     }
-    final thumbFile = File('${thumbsDir.path}/thumb_${url.hashCode.abs()}.jpg');
-    if (await thumbFile.exists()) return await thumbFile.readAsBytes();
+    final imgFile = File(
+        '${imgsDir.path}/img_${url.hashCode.abs()}_$pageIndex.jpg');
+    if (await imgFile.exists()) return await imgFile.readAsBytes();
 
     final pdfPath = await ref.read(pdfPathProvider(url).future);
     final document = await PdfDocument.openFile(pdfPath);
-    final page = await document.getPage(1);
+    final page = await document.getPage(pdfxPageNumber);
+    final scale = page.width > 0 && page.width > 1600.0
+        ? 1600.0 / page.width
+        : 1.0;
+    final renderWidth = (page.width * scale).clamp(1.0, 1600.0).toDouble();
+    final renderHeight = (page.height * scale).clamp(1.0, 1600.0).toDouble();
     final pageImage = await page.render(
-      width: page.width,
-      height: page.height,
+      width: renderWidth,
+      height: renderHeight,
       format: PdfPageImageFormat.jpeg,
     );
     await page.close();
     await document.close();
 
     final bytes = pageImage?.bytes;
-    if (bytes != null) await thumbFile.writeAsBytes(bytes);
+    if (bytes != null) await imgFile.writeAsBytes(bytes);
     return bytes;
   } catch (_) {
     return null;
   }
 });
+
+/// Renders the first page of a PDF as JPEG bytes (cached to disk).
+///
+/// Backward-compat thin wrapper around [pdfPageImageProvider]; kept so
+/// existing thumbnail call sites (`pdf_card`, `note_edit_screen`,
+/// `book_info_screen`) need no changes.
+final pdfThumbnailProvider =
+    FutureProvider.family<Uint8List?, String>((ref, url) {
+  return ref.watch(pdfPageImageProvider((url: url, pageIndex: 0)).future);
+});
+
+/// Cache for OCR'd page text. Backed by Hive (`app_prefs` box) and keyed by
+/// `ocr_v1_{bookId}_{pageIndex}` so a future engine swap can cut a new
+/// namespace without colliding with stale entries.
+final ocrCacheServiceProvider =
+    Provider<OcrCacheService>((ref) => OcrCacheService());
+
+/// Owns the OCR engine for the current platform. Disposed automatically when
+/// the provider scope tears down (e.g. on logout / hot restart).
+final ocrDataSourceProvider = Provider<OcrDataSource>((ref) {
+  final ds = createOcrDataSource();
+  ref.onDispose(() {
+    // Engines may be wired in a later wave — swallow stub UnimplementedError
+    // so disposal during tests / hot-restart doesn't blow up the scope.
+    try {
+      ds.dispose();
+    } catch (_) {/* best-effort */}
+  });
+  return ds;
+});
+
+/// OCR pipeline for a single PDF page. Cache → render → recognise → clean →
+/// cache → return.
+///
+/// Caller passes the book identity (`bookId` for cache scoping), the resolved
+/// `url` that `pdfPageImageProvider` keys off (mobile = local file path, web =
+/// remote/proxy URL), and the 0-based `pageIndex`. Returns the cleaned text
+/// ready to feed straight into TTS; an empty string means "the page truly
+/// has no recoverable text" (caller surfaces a snackbar).
+///
+/// The page image is invalidated from the Riverpod cache on the way out
+/// (success OR failure) so the rendered JPEG bytes don't pin memory during
+/// background pre-OCR of long PDFs — without this, a 200-page scan would
+/// climb to ~3 GB resident on phones.
+final ocrPageTextProvider = FutureProvider.family<String,
+    ({String bookId, String url, int pageIndex})>((ref, args) async {
+  final cache = ref.read(ocrCacheServiceProvider);
+
+  // Cache hit: skip every other step. Hive reads are sync + sub-ms.
+  final cached = cache.get(args.bookId, args.pageIndex);
+  if (cached != null) return cached;
+
+  final pageImageKey = (url: args.url, pageIndex: args.pageIndex);
+
+  try {
+    final bytes = await ref.read(pdfPageImageProvider(pageImageKey).future);
+    if (bytes == null) {
+      throw StateError(
+          'Could not render page ${args.pageIndex + 1} for OCR (image bytes were null).');
+    }
+
+    final raw =
+        await ref.read(ocrDataSourceProvider).recognize(bytes, langs: 'eng+tha');
+    final cleaned = cleanForTts(raw);
+
+    // Persist even empty results so we don't OCR the same blank page over and
+    // over (cache hit short-circuits next call). Best-effort write — failures
+    // here just mean we'll OCR again on next visit.
+    await cache.put(args.bookId, args.pageIndex, cleaned);
+
+    return cleaned;
+  } finally {
+    // Drop the rendered JPEG from Riverpod's family cache. Critical for
+    // memory headroom during background pre-OCR loops.
+    ref.invalidate(pdfPageImageProvider(pageImageKey));
+  }
+});
+
+/// Surfaces background-OCR progress (done / total) for the app-bar chip in
+/// Wave 3. `null` means no background pre-OCR is currently running.
+final bookOcrProgressProvider =
+    StateProvider<({int done, int total})?>((ref) => null);

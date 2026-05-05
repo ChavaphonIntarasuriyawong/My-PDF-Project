@@ -22,6 +22,7 @@ dependencies:
   cloud_firestore: ^5.6.7
   supabase_flutter: ^2.8.4
   firebase_crashlytics: ^4.3.5
+  firebase_remote_config: ^5.4.0
 
   # Local cache
   hive: ^2.2.3
@@ -51,6 +52,12 @@ dependencies:
   # Icons
   font_awesome_flutter: ^10.8.0
 
+  # OCR (mobile only — Wave 2 OCR fallback for scanned PDFs)
+  tesseract_ocr: ^0.5.0
+
+  # Modern web interop (replaces dart:html for Tesseract.js bridge)
+  web: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -58,3 +65,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/tessdata_config.json
+    - assets/tessdata/
