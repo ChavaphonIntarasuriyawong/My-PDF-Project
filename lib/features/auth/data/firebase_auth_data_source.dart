@@ -19,8 +19,11 @@ class FirebaseAuthDataSource {
     required String password,
   }) async {
     final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
-    final user = UserModel(uid: cred.user!.uid, name: name, email: email);
-    await _firestore.collection('users').doc(user.uid).set(user.toMap());
+    final user = UserModel(uid: cred.user!.uid, name: name, email: email, role: 'user');
+    await _firestore.collection('users').doc(user.uid).set({
+      ...user.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
     return user;
   }
 
@@ -54,10 +57,6 @@ class FirebaseAuthDataSource {
         email: authUser?.email ?? '',
       );
     }
-    return UserModel(
-      uid: uid,
-      name: data['name'] ?? '',
-      email: data['email'] ?? '',
-    );
+    return UserModel.fromMap(uid, data);
   }
 }

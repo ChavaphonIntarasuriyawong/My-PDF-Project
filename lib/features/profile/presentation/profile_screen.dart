@@ -46,12 +46,19 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      child: const Icon(Icons.menu,
-                          color: AppColors.primary, size: 20),
+                  Semantics(
+                    button: true,
+                    label: 'Open navigation menu',
+                    child: GestureDetector(
+                      onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                      child: Container(
+                        constraints: const BoxConstraints(
+                            minWidth: 48, minHeight: 48),
+                        padding: const EdgeInsets.all(8),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.menu,
+                            color: AppColors.primary, size: 20),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -219,7 +226,10 @@ class _SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(8),
       child: InkWell(
@@ -263,6 +273,7 @@ class _SettingsRow extends StatelessWidget {
           ),
         ),
       ),
+    ),
     );
   }
 }

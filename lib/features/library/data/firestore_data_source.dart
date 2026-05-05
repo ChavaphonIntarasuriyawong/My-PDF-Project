@@ -129,6 +129,21 @@ class FirestoreDataSource {
     return _db.collection('books').doc(bookId).update({'title': title});
   }
 
+  /// Per-book PIN lock toggle (Wave 1).
+  /// `lockHash` should be a salted SHA-256-crypt string from
+  /// `BookLockHasher.hash()` when locking, or null when unlocking.
+  /// Both fields are whitelisted in firestore.rules `books` update rule.
+  Future<void> updateBookLock(
+    String bookId, {
+    required bool isLocked,
+    required String? lockHash,
+  }) {
+    return _db.collection('books').doc(bookId).update({
+      'isLocked': isLocked,
+      'lockHash': lockHash,
+    });
+  }
+
   Future<String?> deleteBook(String bookId) async {
     // Cascade-delete the book's notes so they don't orphan in Firestore.
     // Returns the deleted book's link (so callers can purge storage / cache).

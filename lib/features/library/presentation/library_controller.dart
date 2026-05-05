@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../data/book_lock_hasher.dart';
 import '../domain/book_model.dart';
 import '../domain/note_model.dart';
 import 'library_providers.dart';
@@ -240,6 +241,66 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
       state = AsyncValue.error(e, st);
       return false;
     }
+  }
+
+  // --- Per-book lock (Wave 2) ---
+  //
+  // PIN is hashed via `BookLockHasher` (salted SHA-256 crypt). Plaintext PIN
+  // is never persisted. Verify is sync (hash compare only, no Firestore).
+
+  /// Lock [bookId] with [pin]. Hashes the PIN, writes `isLocked: true` and
+  /// `lockHash` to Firestore, and clears any cached session unlock so the
+  /// next open prompts for the new PIN.
+  Future<bool> setBookLock(String bookId, String pin) async {
+    state = const AsyncValue.loading();
+    try {
+      final hash = BookLockHasher.hash(pin);
+      await _ref.read(firestoreDataSourceProvider)
+          .updateBookLock(bookId, isLocked: true, lockHash: hash);
+      // Newly locked book: clear any cached session unlock so next open prompts.
+      _ref.read(bookUnlockSessionProvider).lock(bookId);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  /// Remove the lock from [bookId] after verifying [currentPin]. Returns
+  /// false (without setting an error state) if the book has no current lock
+  /// or the PIN is wrong.
+  Future<bool> removeBookLock(String bookId, String currentPin) async {
+    state = const AsyncValue.loading();
+    try {
+      // Verify current PIN against the latest book doc before unlocking.
+      final book = _ref.read(bookByIdProvider(bookId)).valueOrNull;
+      if (book == null || book.lockHash == null) {
+        state = const AsyncValue.data(null);
+        return false;
+      }
+      if (!BookLockHasher.verify(currentPin, book.lockHash!)) {
+        state = const AsyncValue.data(null);
+        return false;
+      }
+      await _ref.read(firestoreDataSourceProvider)
+          .updateBookLock(bookId, isLocked: false, lockHash: null);
+      _ref.read(bookUnlockSessionProvider).lock(bookId);
+      state = const AsyncValue.data(null);
+      return true;
+    } catch (e, st) {
+      state = AsyncValue.error(e, st);
+      return false;
+    }
+  }
+
+  /// Verify [pin] against the stored hash for [bookId]. Sync — no Firestore
+  /// round-trip; reads the cached `bookByIdProvider` snapshot and runs a
+  /// SHA-crypt compare. Returns false for unknown books or unlocked books.
+  bool verifyBookLock(String bookId, String pin) {
+    final book = _ref.read(bookByIdProvider(bookId)).valueOrNull;
+    if (book == null || book.lockHash == null) return false;
+    return BookLockHasher.verify(pin, book.lockHash!);
   }
 }
 

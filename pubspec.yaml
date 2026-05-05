@@ -24,6 +24,9 @@ dependencies:
   firebase_crashlytics: ^4.3.5
   firebase_remote_config: ^5.4.0
 
+  # Biometric auth (Face ID / fingerprint) — Wave 2 enterprise gap closure
+  local_auth: ^2.3.0
+
   # Local cache
   hive: ^2.2.3
   hive_flutter: ^1.1.0
@@ -58,10 +61,19 @@ dependencies:
   # Modern web interop (replaces dart:html for Tesseract.js bridge)
   web: ^1.1.0
 
+  # Observability
+  logger: ^2.4.0
+
+  # Per-book PIN lock — bcrypt hashing (pure Dart, no native deps)
+  crypt: ^4.3.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # Wave 3 enterprise gap closure — integration test harness
+  integration_test:
+    sdk: flutter
 
 flutter:
   uses-material-design: true

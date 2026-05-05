@@ -40,7 +40,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     final success = await ref
         .read(authControllerProvider.notifier)
         .login(email: email, password: password);
-    if (success && mounted) context.go(AppRoutes.home);
+    if (!mounted) return;
+    if (success) {
+      if (mounted) context.go(AppRoutes.home);
+    }
   }
 
   @override
@@ -100,6 +103,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     controller: _passwordCtrl,
                     obscureText: _obscurePassword,
                     suffix: IconButton(
+                      tooltip: _obscurePassword
+                          ? 'Show password'
+                          : 'Hide password',
                       icon: Icon(
                         _obscurePassword
                             ? Icons.visibility_off_outlined
@@ -119,9 +125,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   ),
                   const SizedBox(height: 40),
                   Center(
-                    child: GestureDetector(
+                    child: Semantics(
+                      button: true,
+                      label: "Don't have an account? Register now",
+                      child: GestureDetector(
                       onTap: () => context.push(AppRoutes.register),
-                      child: RichText(
+                      child: ExcludeSemantics(child: RichText(
                         text: TextSpan(
                           text: "Don't have an account? ",
                           style: AppTypography.bodyMedium,
@@ -135,7 +144,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                             ),
                           ],
                         ),
-                      ),
+                      )),
+                    ),
                     ),
                   ),
                 ],

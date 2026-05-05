@@ -29,6 +29,7 @@ class _FakeDataSource implements FirestoreDataSource {
   @override Future<void> updateReadingProgress({required String bookId, required int currentPage, required int totalPages}) => throw UnimplementedError();
   @override Future<void> updateBookStatus(String b, String s) => throw UnimplementedError();
   @override Future<void> updateBookTitle(String b, String t) => throw UnimplementedError();
+  @override Future<void> updateBookLock(String b, {required bool isLocked, required String? lockHash}) => throw UnimplementedError();
   @override Future<void> moveBook(String b, String s) => throw UnimplementedError();
   @override Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
   @override Future<NoteModel> createNote({required String bookId, required String title, required String content}) => throw UnimplementedError();

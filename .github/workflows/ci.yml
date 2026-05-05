@@ -1,0 +1,104 @@
+# CI workflow for MyPDF
+#
+# Runs on every push (any branch) and on pull requests targeting `main`.
+# The `flutter-ci` job is the gating job: format, analyze, test+coverage.
+# The `build-android` and `build-web` jobs are best-effort smoke builds and
+# are marked `continue-on-error: true` so transient toolchain issues do not
+# block PRs while the workflow stabilises in early waves. Once green for a
+# few PRs, flip those to required.
+#
+# Flutter version pinned to 3.35.0 (Dart SDK ^3.10.7 in pubspec.yaml).
+
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main]
+
+jobs:
+  flutter-ci:
+    name: Flutter analyze + test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Verify formatting
+        # `dart format` is the canonical formatter; --set-exit-if-changed fails CI on diffs.
+        run: dart format --set-exit-if-changed lib/ test/
+
+      - name: Static analysis
+        run: flutter analyze --fatal-infos
+
+      - name: Run tests with coverage
+        run: flutter test --coverage --reporter expanded
+
+      - name: Upload coverage artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: lcov-coverage
+          path: coverage/lcov.info
+          if-no-files-found: warn
+
+  build-android:
+    name: Build Android (debug)
+    runs-on: ubuntu-latest
+    needs: flutter-ci
+    continue-on-error: true # smoke build; native toolchain may need tuning
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK (debug)
+        run: flutter build apk --debug
+
+  build-web:
+    name: Build Web (release)
+    runs-on: ubuntu-latest
+    needs: flutter-ci
+    continue-on-error: true # smoke build; CanvasKit fetch can be flaky on CI
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build web (release)
+        run: flutter build web --release

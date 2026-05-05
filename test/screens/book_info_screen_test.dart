@@ -25,6 +25,7 @@ class _FakeDataSource implements FirestoreDataSource {
 
   @override Future<void> updateBookStatus(String b, String s) async => updatedStatus = s;
   @override Future<void> updateBookTitle(String b, String t) async {}
+  @override Future<void> updateBookLock(String b, {required bool isLocked, required String? lockHash}) async {}
   @override Future<String?> deleteBook(String b) async => null;
 
   @override Future<BookshelfModel> createShelf({required String name, required String ownerId}) => throw UnimplementedError();

@@ -1,7 +1,8 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
-import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb;
+import '../../../core/logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_pdf_text/flutter_pdf_text.dart';
 import 'package:flutter_pdfview/flutter_pdfview.dart';
@@ -86,24 +87,24 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   }
 
   Future<void> _initTts() async {
-    debugPrint('[TTS] init start, web=$kIsWeb');
+    AppLogger.debug('TTS', 'init start, web=$kIsWeb');
     if (!kIsWeb) {
       try {
         final engines = await _tts.getEngines;
-        debugPrint('[TTS] engines available: $engines');
+        AppLogger.debug('TTS', 'engines available: $engines');
         final defaultEngine = await _tts.getDefaultEngine;
-        debugPrint('[TTS] default engine: $defaultEngine');
+        AppLogger.debug('TTS', 'default engine: $defaultEngine');
       } catch (e) {
-        debugPrint('[TTS] engine query failed: $e');
+        AppLogger.debug('TTS', 'engine query failed: $e');
       }
     }
     // setLanguage returns -1 (NOT_SUPPORTED) or -2 (MISSING_DATA) on devices
     // without English TTS pack — fall back to device default in that case.
     final langResult = await _tts.setLanguage('en-US');
-    debugPrint('[TTS] setLanguage(en-US) returned: $langResult');
+    AppLogger.debug('TTS', 'setLanguage(en-US) returned: $langResult');
     if (langResult is int && langResult < 0) {
       final langs = await _tts.getLanguages;
-      debugPrint('[TTS] available languages: $langs');
+      AppLogger.debug('TTS', 'available languages: $langs');
       final list = langs as List?;
       if (list != null && list.isNotEmpty) {
         // Prefer any English variant before random first locale.
@@ -112,7 +113,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           orElse: () => list.first,
         );
         final r = await _tts.setLanguage(en.toString());
-        debugPrint('[TTS] fallback setLanguage($en) returned: $r');
+        AppLogger.debug('TTS', 'fallback setLanguage($en) returned: $r');
       }
     }
 
@@ -159,7 +160,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       if (lower.contains('interrupt') ||
           lower.contains('cancel') ||
           lower.contains('not-allowed')) {
-        debugPrint('[TTS] benign error ignored: $msg');
+        AppLogger.debug('TTS', 'benign error ignored: $msg');
         return;
       }
       setState(() { _ttsActive = false; _ttsSpeaking = false; });
@@ -180,7 +181,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         }
         await Future.delayed(const Duration(milliseconds: 150));
       }
-      debugPrint('[TTS] web voices found: ${voices?.length ?? 0}');
+      AppLogger.debug('TTS', 'web voices found: ${voices?.length ?? 0}');
       if (voices == null) return;
       int score(Map v) {
         final name = (v['name'] as String? ?? '').toLowerCase();
@@ -210,7 +211,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           'locale': ranked.first['locale'].toString(),
         });
         _webVoiceSet = true;
-        debugPrint('[TTS] web voice set: ${ranked.first['name']}');
+        AppLogger.debug('TTS', 'web voice set: ${ranked.first['name']}');
       }
     } catch (_) {/* best-effort */}
   }
@@ -388,7 +389,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             pageIndex: pageIndex,
           )).future);
         } catch (e) {
-          debugPrint('[OCR] failed: $e');
+          AppLogger.error('OCR', 'failed', error: e);
           if (mounted) {
             setState(() {
               _ttsActive = false;
@@ -396,7 +397,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
               _ocrInProgress = false;
             });
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Could not extract text from this page. ($e)')),
+              SnackBar(content: Text(_friendlyOcrError(e))),
             );
           }
           return;
@@ -432,9 +433,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       }
       if (mounted) setState(() => _ttsSpeaking = true);
       // Diagnostic: extracted text length is a common failure mode (image-only PDFs).
-      debugPrint('[TTS] speaking ${pageText.length} chars, rate=$_speechRate pitch=$_pitch web=$kIsWeb');
+      AppLogger.debug('TTS', 'speaking ${pageText.length} chars, rate=$_speechRate pitch=$_pitch web=$kIsWeb');
       final result = await _tts.speak(pageText);
-      debugPrint('[TTS] speak() returned: $result (version=$v, current=$_speakVersion)');
+      AppLogger.debug('TTS', 'speak() returned: $result (version=$v, current=$_speakVersion)');
       // With awaitSpeakCompletion(true), result==0 also fires on legitimate
       // interruption (stop() before completion). Don't surface as error.
     } catch (e) {
@@ -452,6 +453,30 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   }
 
   /// Kicks off best-effort background pre-OCR for every other page in the
+  /// Maps OCR exception output to a short user-facing snackbar message.
+  /// Raw exception strings (`Bad state: Could not render page 5 ...`) confuse
+  /// users — translate to plain English while keeping the diagnostic detail
+  /// in the AppLogger.error call.
+  String _friendlyOcrError(Object e) {
+    final msg = e.toString().toLowerCase();
+    if (msg.contains('image bytes were null') ||
+        msg.contains('could not render page')) {
+      return 'Could not read this page. The PDF may be damaged or password-protected.';
+    }
+    if (msg.contains('traineddata') ||
+        msg.contains('language data') ||
+        msg.contains('tessdata')) {
+      return 'Text recognition is not available right now. Please try again later.';
+    }
+    if (msg.contains('timeout') || msg.contains('timed out')) {
+      return 'Reading this page is taking too long. Try a different page or try again.';
+    }
+    if (msg.contains('network') || msg.contains('socket')) {
+      return 'Network problem while reading. Check your connection and try again.';
+    }
+    return 'Could not read text from this page. Try another page or try again later.';
+  }
+
   /// book once the foreground (lazy) OCR has surfaced its first hit. Cached
   /// pages are skipped so the loop is idempotent — re-entering the book mid
   /// pre-OCR resumes where it left off.
@@ -498,7 +523,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
               // Per-page failure is non-fatal — we'll fall back to
               // foreground OCR (or the empty snackbar) if the user
               // navigates here.
-              debugPrint('[OCR] bg page $i failed: $e');
+              AppLogger.warn('OCR', 'bg page $i failed', error: e);
             }
           }
           if (v != _bgOcrVersion) return;
@@ -513,7 +538,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       } catch (e) {
         // Belt-and-suspenders: nothing here should escape, but if it does,
         // never let a background sweep crash the screen.
-        debugPrint('[OCR] bg sweep aborted: $e');
+        AppLogger.warn('OCR', 'bg sweep aborted', error: e);
       } finally {
         // Only clear progress if we're still the active sweep — otherwise a
         // later sweep will manage its own lifecycle.
@@ -797,12 +822,21 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                               horizontal: 16, vertical: 12),
                           child: Row(
                             children: [
-                              GestureDetector(
-                                onTap: () => context.canPop()
-                                    ? context.pop()
-                                    : context.go('/book/${widget.bookId}'),
-                                child: const Icon(Icons.arrow_back,
-                                    color: AppColors.primary, size: 20),
+                              Semantics(
+                                button: true,
+                                label: 'Back to book details',
+                                child: GestureDetector(
+                                  onTap: () => context.canPop()
+                                      ? context.pop()
+                                      : context.go('/book/${widget.bookId}'),
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                        minWidth: 48, minHeight: 48),
+                                    alignment: Alignment.center,
+                                    child: const Icon(Icons.arrow_back,
+                                        color: AppColors.primary, size: 20),
+                                  ),
+                                ),
                               ),
                               const SizedBox(width: 12),
                               Expanded(
@@ -813,21 +847,33 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                                 ),
                               ),
                               if (pdfAsync?.hasValue == true) ...[
-                                GestureDetector(
-                                  onTap: _showVoiceSettings,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 8),
-                                    child: Icon(
-                                      Icons.tune,
-                                      size: 18,
-                                      color: _ttsActive
-                                          ? AppColors.primary
-                                          : AppColors.textMuted,
+                                Semantics(
+                                  button: true,
+                                  label: 'Voice settings: speed and pitch',
+                                  child: GestureDetector(
+                                    onTap: _showVoiceSettings,
+                                    child: Container(
+                                      constraints: const BoxConstraints(
+                                          minWidth: 48, minHeight: 48),
+                                      alignment: Alignment.center,
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 8),
+                                      child: Icon(
+                                        Icons.tune,
+                                        size: 18,
+                                        color: _ttsActive
+                                            ? AppColors.primary
+                                            : AppColors.textMuted,
+                                      ),
                                     ),
                                   ),
                                 ),
-                                GestureDetector(
+                                Semantics(
+                                  button: true,
+                                  label: _ttsActive
+                                      ? 'Stop reading aloud'
+                                      : 'Start reading this page aloud',
+                                  child: GestureDetector(
                                   onTap: _toggleTts,
                                   child: AnimatedContainer(
                                     duration:
@@ -872,6 +918,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                                       ],
                                     ),
                                   ),
+                                ),
                                 ),
                               ],
                             ],

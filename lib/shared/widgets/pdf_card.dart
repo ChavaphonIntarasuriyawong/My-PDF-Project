@@ -19,7 +19,14 @@ class PdfCard extends ConsumerWidget {
         ? ref.watch(pdfThumbnailProvider(book.link))
         : const AsyncValue<Uint8List?>.data(null);
 
-    return GestureDetector(
+    final progressPct = book.totalPages > 0
+        ? ((book.currentPage / book.totalPages) * 100).clamp(0, 100).round()
+        : 0;
+    return Semantics(
+      button: true,
+      label:
+          'Book: ${book.title}${book.isLocked ? ' (locked)' : ''}${(book.author ?? '').isNotEmpty ? ', by ${book.author}' : ''}, $progressPct percent read, status ${book.status}',
+      child: GestureDetector(
       onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
@@ -79,6 +86,26 @@ class PdfCard extends ConsumerWidget {
                       ),
                     ),
                   ),
+                  // Lock badge (Wave 4) — only when this book has a PIN set.
+                  // Mirrors the PDF badge's tile-on-cover style but pinned to
+                  // the top-left so the two badges never overlap.
+                  if (book.isLocked)
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: Container(
+                          padding: const EdgeInsets.all(3),
+                          color: AppColors.surface,
+                          child: const Icon(
+                            Icons.lock,
+                            size: 12,
+                            color: AppColors.textPrimary,
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
@@ -154,6 +181,7 @@ class PdfCard extends ConsumerWidget {
           ],
         ),
       ),
+    ),
     );
   }
 }

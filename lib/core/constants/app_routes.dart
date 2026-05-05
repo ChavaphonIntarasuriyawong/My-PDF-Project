@@ -9,6 +9,7 @@ class AppRoutes {
   static const String bookInfo     = '/book/:id';
   static const String reading      = '/book/:id/reading';
   static const String note         = '/book/:id/note';
+  static const String bookLock     = '/book/:id/lock';
   static const String profile      = '/profile';
   static const String editProfile  = '/profile/edit';
 }

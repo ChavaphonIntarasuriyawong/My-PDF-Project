@@ -67,3 +67,34 @@ When a row fails, file an issue with:
 - Expected vs actual.
 - Logs: `flutter logs` for mobile, DevTools console for web.
 - Severity per the legend above.
+
+## Known test gaps (Wave 4 automated coverage)
+
+Tests intentionally NOT automated, with reason:
+
+- **`ReadingScreen` widget pump with OCR fallback.** The screen constructs
+  `FlutterTts()` in `initState` and immediately calls `_initTts`, which fires
+  the `flutter_tts` MethodChannel. Mocking that, plus `flutter_pdfview` (mobile
+  native view) and `pdfx` (web rendering), would require ~5 platform-channel
+  fakes for one signal. Coverage of the OCR provider behaviour and kill-switch
+  contract has been moved to a logic-level test at
+  `test/screens/reading_screen_ocr_test.dart` instead. `_ocrInProgress` UI is
+  smoke-tested manually via row 2 (progress strip appears).
+- **`_maybeStartBackgroundOcr` cancellation on dispose.** Verified manually
+  via row 6 (the chip disappears within one page-time of book-switch).
+  Automated coverage would need a fake `WidgetsBinding`, a Riverpod
+  `ProviderContainer` pretending to be the screen's lifecycle, and pause/cancel
+  hooks on `Future<void>.delayed(Duration.zero)`. Net signal vs cost too low.
+- **Real OCR engines** (`MobileOcrDataSource`, `WebOcrDataSource`). Both
+  require the platform binary (Tesseract4Android JNI on Android, Tesseract.js
+  worker + WASM on web). Manual rows 2, 5, 9, 10, 11, 12 cover end-to-end.
+- **Bundle-size regression.** Manual row 13 — automating `--analyze-size`
+  in CI is a separate piece of infra work.
+
+## Pre-existing test failure (not OCR)
+
+- `test/golden/profile_screen_golden_test.dart` raises a
+  `MissingPluginException(local_auth.isDeviceSupported)`. Comes from the
+  per-book PIN feature's biometric path, not OCR. Hand to flutter_engineer
+  for a separate fix (mock `local_auth` channel or guard in
+  `_refreshBiometric`).

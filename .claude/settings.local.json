@@ -41,7 +41,16 @@
       "Bash(dir test *)",
       "Bash(findstr /v \"\\\\.dart_tool\")",
       "Bash(Select-String -Pattern \"Some tests failed|All tests passed|loading.*\\\\[E\\\\]|^FAILED|^00:.*-\\\\d+\")",
-      "Bash(Select-Object -Last 30)"
+      "Bash(Select-Object -Last 30)",
+      "Bash(cd /d \"C:\\\\Users\\\\pun\\\\Desktop\\\\My-PDF-Project\")",
+      "Bash(findstr /r /n \"Hive.openBox\\\\|Hive.box\" lib\\\\**\\\\*.dart main.dart)",
+      "Bash(findstr /i crypt)",
+      "Bash(dir *)",
+      "Bash(powershell *)",
+      "Bash(git stash *)",
+      "Bash(Select-String -Pattern \"FAILED|Failed|Error|fail|^00:\" -Context 0,2)",
+      "Bash(Select-Object -Last 60)",
+      "Bash(grep -rn \"MethodChannel\" \"C:\\\\\\\\Users\\\\\\\\pun\\\\\\\\Desktop\\\\\\\\My-PDF-Project\\\\\\\\.dart_tool\\\\\\\\pub-cache\")"
     ]
   },
   "enabledPlugins": {}

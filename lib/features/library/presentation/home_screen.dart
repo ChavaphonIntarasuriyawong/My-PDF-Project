@@ -117,13 +117,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
               child: Row(
                 children: [
-                  GestureDetector(
-                    behavior: HitTestBehavior.opaque,
-                    onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      child: const Icon(Icons.menu,
-                          color: AppColors.primary, size: 20),
+                  Semantics(
+                    button: true,
+                    label: 'Open navigation menu',
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                      child: Container(
+                        constraints: const BoxConstraints(
+                            minWidth: 48, minHeight: 48),
+                        padding: const EdgeInsets.all(8),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.menu,
+                            color: AppColors.primary, size: 20),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -176,7 +183,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                           context.push('/shelf/${s.id}'),
                                     )),
                                 const SizedBox(height: 16),
-                                GestureDetector(
+                                Semantics(
+                                  button: true,
+                                  label: 'Create new shelf',
+                                  child: GestureDetector(
                                   onTap: _showNewShelfModal,
                                   child: Container(
                                     width: double.infinity,
@@ -201,6 +211,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                       ],
                                     ),
                                   ),
+                                ),
                                 ),
                               ],
                             ),
@@ -325,12 +336,19 @@ class _AppDrawer extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: onClose,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      child: const Icon(Icons.close,
-                          size: 20, color: AppColors.textSecondary),
+                  Semantics(
+                    button: true,
+                    label: 'Close navigation menu',
+                    child: GestureDetector(
+                      onTap: onClose,
+                      child: Container(
+                        constraints: const BoxConstraints(
+                            minWidth: 48, minHeight: 48),
+                        padding: const EdgeInsets.all(6),
+                        alignment: Alignment.center,
+                        child: const Icon(Icons.close,
+                            size: 20, color: AppColors.textSecondary),
+                      ),
                     ),
                   ),
                 ],
@@ -564,26 +582,30 @@ class _ShelfRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-          border:
-              selected ? Border.all(color: AppColors.primary, width: 1.5) : null,
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.folder_rounded,
-                size: 20, color: AppColors.primary),
-            const SizedBox(width: 12),
-            Expanded(child: Text(name, style: AppTypography.labelLarge)),
-            Text('$count', style: AppTypography.bodySmall),
-          ],
+    return Semantics(
+      button: true,
+      label: 'Shelf: $name, $count books',
+      child: GestureDetector(
+        onTap: onTap,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border:
+                selected ? Border.all(color: AppColors.primary, width: 1.5) : null,
+          ),
+          child: Row(
+            children: [
+              const Icon(Icons.folder_rounded,
+                  size: 20, color: AppColors.primary),
+              const SizedBox(width: 12),
+              Expanded(child: Text(name, style: AppTypography.labelLarge)),
+              Text('$count', style: AppTypography.bodySmall),
+            ],
+          ),
         ),
       ),
     );

@@ -56,6 +56,9 @@ class _FakeDataSource implements FirestoreDataSource {
   Future<void> updateBookTitle(String bookId, String title) async => _maybeThrow();
 
   @override
+  Future<void> updateBookLock(String bookId, {required bool isLocked, required String? lockHash}) async => _maybeThrow();
+
+  @override
   Future<NoteModel> createNote({
     required String bookId,
     required String title,

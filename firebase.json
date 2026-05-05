@@ -1,1 +1,40 @@
-{"flutter":{"platforms":{"android":{"default":{"projectId":"readtrack-8262c","appId":"1:537882167636:android:1187bdfa1cebd97fd9a0c1","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"readtrack-8262c","configurations":{"android":"1:537882167636:android:1187bdfa1cebd97fd9a0c1","web":"1:537882167636:web:23ce5ff441692495d9a0c1"}}}}},"hosting":{"public":"build/web","ignore":["firebase.json","**/.*","**/node_modules/**"],"rewrites":[{"source":"**","destination":"/index.html"}]}}
+{
+  "flutter": {
+    "platforms": {
+      "android": {
+        "default": {
+          "projectId": "readtrack-8262c",
+          "appId": "1:537882167636:android:1187bdfa1cebd97fd9a0c1",
+          "fileOutput": "android/app/google-services.json"
+        }
+      },
+      "dart": {
+        "lib/firebase_options.dart": {
+          "projectId": "readtrack-8262c",
+          "configurations": {
+            "android": "1:537882167636:android:1187bdfa1cebd97fd9a0c1",
+            "web": "1:537882167636:web:23ce5ff441692495d9a0c1"
+          }
+        }
+      }
+    }
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "hosting": {
+    "public": "build/web",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

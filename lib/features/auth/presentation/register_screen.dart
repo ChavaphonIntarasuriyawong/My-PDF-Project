@@ -83,6 +83,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               child: Row(
                 children: [
                   IconButton(
+                    tooltip: 'Back',
                     onPressed: () => context.canPop()
                         ? context.pop()
                         : context.go(AppRoutes.login),
@@ -164,6 +165,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             controller: _passwordCtrl,
                             obscureText: _obscurePassword,
                             suffix: IconButton(
+                              tooltip: _obscurePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
                               icon: Icon(
                                 _obscurePassword
                                     ? Icons.visibility_off_outlined
@@ -182,6 +186,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             controller: _confirmCtrl,
                             obscureText: _obscureConfirm,
                             suffix: IconButton(
+                              tooltip: _obscureConfirm
+                                  ? 'Show password'
+                                  : 'Hide password',
                               icon: Icon(
                                 _obscureConfirm
                                     ? Icons.visibility_off_outlined
@@ -204,11 +211,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 40),
-                    GestureDetector(
+                    Semantics(
+                      button: true,
+                      label: 'Already have an account? Sign In',
+                      child: GestureDetector(
                       onTap: () => context.canPop()
                           ? context.pop()
                           : context.go(AppRoutes.login),
-                      child: RichText(
+                      child: ExcludeSemantics(child: RichText(
                         text: TextSpan(
                           text: 'Already have an account? ',
                           style: AppTypography.bodyMedium.copyWith(color: const Color(0xFF506872)),
@@ -222,7 +232,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             ),
                           ],
                         ),
-                      ),
+                      )),
+                    ),
                     ),
                   ],
                 ),

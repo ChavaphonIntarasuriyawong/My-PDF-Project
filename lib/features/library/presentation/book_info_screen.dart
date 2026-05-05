@@ -14,6 +14,7 @@ import '../domain/bookshelf_model.dart';
 import '../domain/note_model.dart';
 import 'library_controller.dart';
 import 'library_providers.dart';
+import 'widgets/lock_setup_sheet.dart';
 
 /// Book Info screen — Figma node 25:741 ("Full PDF Reader & Notes View").
 ///
@@ -265,6 +266,28 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
     );
   }
 
+  void _showLockSetupSheet(BookModel book) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      barrierColor: Colors.black.withValues(alpha: 0.4),
+      builder: (sheetCtx) => LockSetupSheet(
+        bookId: book.id,
+        currentlyLocked: book.isLocked,
+        // Bottom sheets cannot reliably surface their own SnackBars (the
+        // ScaffoldMessenger they look up is the sheet's local one). Bubble
+        // errors back up so the host scaffold's messenger handles them.
+        onError: (msg) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg)),
+          );
+        },
+      ),
+    );
+  }
+
   Future<void> _showOptionsMenu(BuildContext context, WidgetRef ref,
       BookModel book, List<BookshelfModel> shelves, Offset anchor) async {
     final selected = await showMenu<String>(
@@ -384,8 +407,17 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
                   // PDF cover card + inline read pencil. Constrained to ≤768px
                   // wide per Figma so wide web viewports stay tidy.
                   Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 40),
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     child: _PdfDisplayArea(book: book),
+                  ),
+
+                  // ── Privacy — per-book PIN lock entry point ──────────────
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                    child: _PrivacyTile(
+                      isLocked: book.isLocked,
+                      onTap: () => _showLockSetupSheet(book),
+                    ),
                   ),
 
                   // ── Annotated Insights — rounded-top muted sheet ─────────
@@ -923,6 +955,78 @@ class _ShelfPick extends StatelessWidget {
             if (selected)
               const Icon(Icons.check, size: 18, color: AppColors.primary),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Privacy tile — single settings-row that toggles between "Lock this book"
+// and "Manage lock" based on the book's lock state. Matches the visual
+// language of other tiles on this screen (white surface, primary icon,
+// title + subtitle, trailing chevron).
+// ──────────────────────────────────────────────────────────────────────────
+
+class _PrivacyTile extends StatelessWidget {
+  final bool isLocked;
+  final VoidCallback onTap;
+
+  const _PrivacyTile({required this.isLocked, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = isLocked ? 'Manage lock' : 'Lock this book';
+    final subtitle =
+        isLocked ? 'Change or remove PIN' : 'Require a PIN to open';
+    final icon = isLocked ? Icons.lock : Icons.lock_outline;
+    return Semantics(
+      button: true,
+      label: '$title. $subtitle',
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: onTap,
+          child: Container(
+            constraints: const BoxConstraints(minHeight: 64),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderHairline),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: AppColors.iconBlueTint,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  alignment: Alignment.center,
+                  child: Icon(icon, color: AppColors.primary, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, style: AppTypography.labelLarge),
+                      const SizedBox(height: 2),
+                      Text(subtitle, style: AppTypography.bodySmall),
+                    ],
+                  ),
+                ),
+                const Icon(
+                  Icons.chevron_right,
+                  color: AppColors.textMuted,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );

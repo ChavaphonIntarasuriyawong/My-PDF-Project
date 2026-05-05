@@ -15,6 +15,13 @@ class BookModel {
   // the reader skip the text-extraction probe and route straight to OCR.
   // Defaults to false for backward compat with books written before this field.
   final bool needsOcr;
+  // Per-book PIN lock (Wave 1). When true, opening the book requires PIN
+  // entry against `lockHash` before the reader is allowed to mount.
+  // `lockHash` is a salted SHA-256-crypt string (modular crypt format) — the
+  // raw PIN is NEVER stored. Defaults preserve backward compat for books
+  // written before this field existed.
+  final bool isLocked;
+  final String? lockHash;
 
   const BookModel({
     required this.id,
@@ -30,6 +37,8 @@ class BookModel {
     this.author,
     this.year,
     this.needsOcr = false,
+    this.isLocked = false,
+    this.lockHash,
   });
 
   BookModel copyWith({
@@ -44,6 +53,8 @@ class BookModel {
     String? author,
     int? year,
     bool? needsOcr,
+    bool? isLocked,
+    String? lockHash,
   }) {
     return BookModel(
       id: id,
@@ -59,6 +70,8 @@ class BookModel {
       author: author ?? this.author,
       year: year ?? this.year,
       needsOcr: needsOcr ?? this.needsOcr,
+      isLocked: isLocked ?? this.isLocked,
+      lockHash: lockHash ?? this.lockHash,
     );
   }
 
@@ -75,11 +88,15 @@ class BookModel {
     'author': author,
     'year': year,
     'needsOcr': needsOcr,
+    'isLocked': isLocked,
+    'lockHash': lockHash,
   };
 
   factory BookModel.fromMap(String id, Map<String, dynamic> map) {
     final total = (map['totalPages'] as num?)?.toInt() ?? 0;
     final current = (map['currentPage'] as num?)?.toInt() ?? 0;
+    final rawNeedsOcr = map['needsOcr'];
+    final rawIsLocked = map['isLocked'];
     return BookModel(
       id: id,
       title: map['title'] ?? '',
@@ -93,7 +110,9 @@ class BookModel {
       lastReadAt: map['lastReadAt'] != null ? DateTime.tryParse(map['lastReadAt']) : null,
       author: map['author'] as String?,
       year: (map['year'] as num?)?.toInt(),
-      needsOcr: map['needsOcr'] as bool? ?? false,
+      needsOcr: rawNeedsOcr is bool ? rawNeedsOcr : false,
+      isLocked: rawIsLocked is bool ? rawIsLocked : false,
+      lockHash: map['lockHash'] as String?,
     );
   }
 }
