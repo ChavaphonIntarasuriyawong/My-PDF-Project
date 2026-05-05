@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// is `setDefaults`).
 const Map<String, Object> kRemoteConfigDefaults = <String, Object>{
   'karaoke_tts_enabled': true,
+  'ocr_fallback_enabled': true,
 };
 
 /// Synchronous read of the karaoke kill-switch.
@@ -27,6 +28,22 @@ final karaokeEnabledProvider = Provider<bool>((ref) {
     debugPrint('[remote_config] read failed: $e — defaulting to true');
     // Fail-open for the dogfooding window. Flip the default in
     // [kRemoteConfigDefaults] + console if we ever need fail-closed.
+    return true;
+  }
+});
+
+/// Synchronous read of the OCR fallback kill-switch.
+///
+/// When `true`, the reader's empty-text branch falls through to OCR via
+/// `ocrPageTextProvider`. When `false`, original "scanned PDF?" snackbar
+/// is shown. Watches the same refresh trigger so console flips take effect
+/// without an app restart.
+final ocrFallbackEnabledProvider = Provider<bool>((ref) {
+  ref.watch(remoteConfigRefreshProvider);
+  try {
+    return FirebaseRemoteConfig.instance.getBool('ocr_fallback_enabled');
+  } catch (e) {
+    debugPrint('[remote_config] read failed: $e — defaulting to true');
     return true;
   }
 });

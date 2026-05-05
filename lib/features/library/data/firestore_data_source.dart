@@ -96,6 +96,7 @@ class FirestoreDataSource {
       ownerId: book.ownerId,
       author: book.author,
       year: book.year,
+      needsOcr: book.needsOcr,
     );
     await doc.set(newBook.toMap());
     return newBook;

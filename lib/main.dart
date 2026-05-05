@@ -49,6 +49,7 @@ void main() async {
       final remoteConfig = FirebaseRemoteConfig.instance;
       await remoteConfig.setDefaults(const {
         'karaoke_tts_enabled': true,
+        'ocr_fallback_enabled': true,
       });
       await remoteConfig.setConfigSettings(RemoteConfigSettings(
         fetchTimeout: const Duration(seconds: 10),

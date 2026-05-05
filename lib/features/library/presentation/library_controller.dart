@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -94,6 +94,14 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
           await _ref.read(firestoreDataSourceProvider).deleteBook(bookId);
       // Drop from local recents so the home rail doesn't show a dead pointer.
       await _ref.read(recentBooksServiceProvider).remove(bookId);
+      // Best-effort OCR cache cleanup. Never blocks delete — book + notes
+      // are already gone from Firestore by this point and a stale Hive entry
+      // is harmless beyond a few KB of disk.
+      try {
+        await _ref.read(ocrCacheServiceProvider).purgeBook(bookId);
+      } catch (e) {
+        debugPrint('OCR cache purge failed for $bookId: $e');
+      }
       // Best-effort storage + cache cleanup. Failures here are non-fatal —
       // book + notes are already removed from Firestore at this point.
       if (link != null && link.isNotEmpty) {

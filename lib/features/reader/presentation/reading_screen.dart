@@ -226,6 +226,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   // stale async work checks version before proceeding.
   int _speakVersion = 0;
 
+  // OCR fallback ephemeral UI state.
+  // ignore: unused_field
+  bool _ocrInProgress = false;
+  bool _ocrSessionNoticeShown = false;
+
   // Programmatic-stop quiet window. Some engines (web Chrome, Android in
   // certain release builds) fire `cancel` AND/OR `error("interrupted")` on
   // a delay AFTER our own _tts.stop() returns — sometimes after we've
@@ -820,18 +825,74 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         return;
       }
       if (pageText.trim().isEmpty) {
-        if (mounted) {
-          setState(() {
-            _ttsActive = false;
-            _ttsSpeaking = false;
-          });
+        // OCR fallback for scanned PDFs (kill-switch via Remote Config).
+        final ocrEnabled = ref.read(ocrFallbackEnabledProvider);
+        if (!ocrEnabled) {
+          if (mounted) {
+            setState(() {
+              _ttsActive = false;
+              _ttsSpeaking = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('No readable text on this page (scanned PDF?)'),
+              ),
+            );
+          }
+          return;
+        }
+        if (!_ocrSessionNoticeShown && mounted) {
+          _ocrSessionNoticeShown = true;
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('No readable text on this page (scanned PDF?)'),
+              content: Text(
+                'Using OCR for scanned PDF — first page may take a few seconds.',
+              ),
             ),
           );
         }
-        return;
+        if (mounted) setState(() => _ocrInProgress = true);
+        String ocrText = '';
+        try {
+          ocrText = await ref.read(ocrPageTextProvider((
+            bookId: widget.bookId,
+            url: pdfPath,
+            pageIndex: pageIndex,
+          )).future);
+        } catch (e) {
+          debugPrint('[OCR] failed: $e');
+          if (mounted) {
+            setState(() {
+              _ttsActive = false;
+              _ttsSpeaking = false;
+              _ocrInProgress = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Could not extract text from this page.'),
+              ),
+            );
+          }
+          return;
+        } finally {
+          if (mounted) setState(() => _ocrInProgress = false);
+        }
+        if (v != _speakVersion) return;
+        if (ocrText.trim().isEmpty) {
+          if (mounted) {
+            setState(() {
+              _ttsActive = false;
+              _ttsSpeaking = false;
+            });
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Could not extract any text from this page.'),
+              ),
+            );
+          }
+          return;
+        }
+        pageText = ocrText;
       }
       // Music-app resume: if a previous stop captured a position on text
       // that matches this page's cleaned output, pick up from there instead

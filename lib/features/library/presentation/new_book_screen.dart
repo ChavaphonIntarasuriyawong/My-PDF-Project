@@ -203,18 +203,26 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
 
   /// Run the bitmap probe on already-fetched bytes. On extraction error
   /// (encrypted/corrupt) log + skip the warning so upload isn't blocked.
-  /// Returns true to proceed, false to abort.
-  Future<bool> _checkTextLayerOrConfirm(Uint8List bytes) async {
+  ///
+  /// Returns a record with:
+  /// - `proceed`: false if the user cancelled the bitmap warning, true otherwise.
+  /// - `isBitmap`: true only when probe succeeded AND text layer was empty;
+  ///   used to persist `needsOcr` on the book doc so the reader can route
+  ///   straight to OCR. Probe errors (encrypted/corrupt) yield `false` here
+  ///   so we don't falsely flag books we couldn't measure.
+  Future<({bool proceed, bool isBitmap})> _checkTextLayerOrConfirm(
+      Uint8List bytes) async {
     bool isBitmap;
     try {
       isBitmap = _isBitmapOnlyPdf(bytes);
     } catch (e) {
       debugPrint('[BitmapProbe] error: $e');
-      return true;
+      return (proceed: true, isBitmap: false);
     }
-    if (!isBitmap) return true;
-    if (!mounted) return false;
-    return _confirmBitmapPdfUpload();
+    if (!isBitmap) return (proceed: true, isBitmap: false);
+    if (!mounted) return (proceed: false, isBitmap: true);
+    final confirmed = await _confirmBitmapPdfUpload();
+    return (proceed: confirmed, isBitmap: true);
   }
 
   Future<void> _createFromUrl() async {
@@ -235,15 +243,18 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
       // On probe fetch failure (proxy timeout, 404, server down) we log and
       // proceed without warning — never block import on probe failure.
       final metadata = await _validateAndExtractMetadata(url);
+      // Captured outside the try so we can persist it on the book doc even
+      // when the probe path encounters a non-fatal fetch error below.
+      bool needsOcr = false;
       try {
         final probeResp = await fetchPdfBytes(url);
-        final shouldContinue =
-            await _checkTextLayerOrConfirm(probeResp.bodyBytes);
-        if (!shouldContinue) {
+        final probe = await _checkTextLayerOrConfirm(probeResp.bodyBytes);
+        if (!probe.proceed) {
           if (!mounted) return;
           setState(() => _loadingUrl = false);
           return;
         }
+        needsOcr = probe.isBitmap;
         // Reuse the bytes we already pulled to seed the on-device PDF cache.
         // Without this, the very first "Read" tap races pdfPathProvider's
         // own download and PDFView opens before the file lands on disk →
@@ -264,6 +275,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         ownerId: uid,
         author: metadata.author,
         year: metadata.year,
+        needsOcr: needsOcr,
       );
       final created =
           await ref.read(libraryControllerProvider.notifier).createBook(book);
@@ -304,12 +316,13 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
       // Probe text layer before paying for the Supabase upload. Bytes are
       // available pre-upload on both mobile + web in this path.
       final probeBytes = await _readPickedBytes(_pickedFile!);
-      final shouldContinue = await _checkTextLayerOrConfirm(probeBytes);
-      if (!shouldContinue) {
+      final probe = await _checkTextLayerOrConfirm(probeBytes);
+      if (!probe.proceed) {
         if (!mounted) return;
         setState(() => _loadingFile = false);
         return;
       }
+      final needsOcr = probe.isBitmap;
       final saved = await _uploadPdf(_pickedFile!, uid);
       // Seed the on-device PDF cache with the bytes we already uploaded.
       // Same rationale as the link-import path: avoids the FileNotFound race
@@ -330,6 +343,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
           ownerId: uid,
           author: saved.metadata.author,
           year: saved.metadata.year,
+          needsOcr: needsOcr,
         );
         created = await ref.read(libraryControllerProvider.notifier).createBook(book);
       } catch (_) {

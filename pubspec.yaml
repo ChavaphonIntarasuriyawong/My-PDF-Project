@@ -55,6 +55,12 @@ dependencies:
   # Fun: confetti bursts (book finish + streak milestone).
   confetti: ^0.7.0
 
+  # OCR (mobile only — fallback for scanned PDFs)
+  tesseract_ocr: ^0.5.0
+
+  # Modern web interop (replaces dart:html for Tesseract.js bridge)
+  web: ^1.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
@@ -62,3 +68,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - assets/tessdata_config.json
+    - assets/tessdata/

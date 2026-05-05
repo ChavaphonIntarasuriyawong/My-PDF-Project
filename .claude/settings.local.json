@@ -54,7 +54,8 @@
       "Bash(Remove-Item -Path \"C:\\\\Users\\\\pun\\\\Desktop\\\\My-PDF-Project\\\\my_pdf_project\\\\lib\\\\features\\\\reader\\\\presentation\\\\providers\\\\book_accent_provider.dart\" -Force)",
       "Bash(Remove-Item -Path \"C:\\\\Users\\\\pun\\\\Desktop\\\\My-PDF-Project\\\\my_pdf_project\\\\lib\\\\features\\\\reader\\\\presentation\\\\providers\" -Force -Recurse)",
       "Bash(git status *)",
-      "Bash(xargs grep *)"
+      "Bash(xargs grep *)",
+      "Bash(git ls-tree *)"
     ]
   },
   "enabledPlugins": {}
