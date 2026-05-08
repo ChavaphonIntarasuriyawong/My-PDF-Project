@@ -242,15 +242,64 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ),
                           ),
                           const SizedBox(height: 32),
-                          Text('All PDF', style: AppTypography.titleMedium),
+                          Text(
+                            'Recently Read',
+                            style: AppTypography.titleMedium,
+                          ),
                           const SizedBox(height: 16),
                         ],
                       ),
                     ),
                   ),
+                  // Recently Read horizontal rail (top-5 by lastReadAt).
+                  // Hidden when empty so the home screen stays minimal.
+                  if (allBooks.isLoading)
+                    const SliverToBoxAdapter(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 24),
+                        child: _ShimmerList(count: 1),
+                      ),
+                    )
+                  else if (recentReadingsTop5.isEmpty)
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Text(
+                          'No recent reading yet',
+                          style: AppTypography.bodyMedium,
+                        ),
+                      ),
+                    )
+                  else
+                    SliverToBoxAdapter(
+                      child: SizedBox(
+                        height: 320,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          itemCount: recentReadingsTop5.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 16),
+                          itemBuilder: (ctx, i) => SizedBox(
+                            width: 220,
+                            child: PdfCard(
+                              book: recentReadingsTop5[i],
+                              onTap: () => context.push(
+                                '/book/${recentReadingsTop5[i].id}',
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
+                    sliver: SliverToBoxAdapter(
+                      child: Text('All PDF', style: AppTypography.titleMedium),
+                    ),
+                  ),
                   if (allBooks.isLoading)
                     const SliverToBoxAdapter(child: _ShimmerList(count: 2))
-                  else if (recentReadingsTop5.isEmpty)
+                  else if (books.isEmpty)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -275,14 +324,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             child: SizedBox(
                               height: 548,
                               child: PdfCard(
-                                book: recentReadingsTop5[i],
-                                onTap: () => context.push(
-                                  '/book/${recentReadingsTop5[i].id}',
-                                ),
+                                book: books[i],
+                                onTap: () =>
+                                    context.push('/book/${books[i].id}'),
                               ),
                             ),
                           ),
-                          childCount: recentReadingsTop5.length,
+                          childCount: books.length,
                         ),
                       ),
                     ),
