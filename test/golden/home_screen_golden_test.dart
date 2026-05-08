@@ -16,7 +16,9 @@ import 'package:my_pdf/features/library/presentation/library_providers.dart';
 const _user = UserModel(uid: 'u1', name: 'Alice', email: 'a@b.com');
 
 void main() {
-  testWidgets('HomeScreen — empty state golden', (tester) async {
+  testWidgets('HomeScreen — empty state golden', tags: 'golden', (
+    tester,
+  ) async {
     // 430×932 (iPhone 14 Pro Max logical) — wider than 412 to avoid a
     // pre-existing 2.2 px overflow in AppBottomNavBar when rendered at the
     // narrower 412 phone-frame width. Bug repros at 412 — see notes in

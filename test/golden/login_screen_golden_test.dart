@@ -46,7 +46,9 @@ class _StubRepo implements AuthRepository {
 }
 
 void main() {
-  testWidgets('LoginScreen — logged out golden', (tester) async {
+  testWidgets('LoginScreen — logged out golden', tags: 'golden', (
+    tester,
+  ) async {
     tester.view.physicalSize = const Size(412 * 2, 896 * 2);
     tester.view.devicePixelRatio = 2.0;
     addTearDown(tester.view.resetPhysicalSize);
