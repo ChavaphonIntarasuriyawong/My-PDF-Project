@@ -29,7 +29,7 @@ Widget _harness() => MaterialApp(
 );
 
 void main() {
-  testWidgets('StatusBadge — all states', (tester) async {
+  testWidgets('StatusBadge — all states', tags: 'golden', (tester) async {
     await tester.pumpWidget(_harness());
     await expectLater(
       find.byType(Column),

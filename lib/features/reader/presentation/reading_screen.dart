@@ -5,10 +5,7 @@ import 'dart:ui';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/logging/app_logger.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_pdf_text/flutter_pdf_text.dart';
-import 'package:flutter_pdfview/flutter_pdfview.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
@@ -19,6 +16,9 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../library/presentation/library_controller.dart';
 import '../../library/presentation/library_providers.dart';
+import '../data/pdf_text_extractor.dart';
+import '../data/tts_engine.dart';
+import '../widgets/mobile_pdf_reader.dart';
 import 'controllers/karaoke_controller.dart';
 import 'widgets/karaoke_text_pane.dart';
 
@@ -34,14 +34,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   int _currentPage = 0;
   int _totalPages = 0;
 
-  PDFViewController? _pdfController;
+  MobilePdfReaderController? _pdfController;
   bool _jumpedToSavedPage = false;
 
-  final FlutterTts _tts = FlutterTts();
+  final TtsEngine _tts = createTtsEngine();
   bool _ttsActive = false;
   bool _ttsSpeaking = false;
   bool _isDisposed = false; // gates TTS handlers from firing post-dispose
-  PDFDoc? _pdfDoc; // cached so we don't reload on every page (mobile only)
+  PdfTextExtractor?
+  _pdfDoc; // cached so we don't reload on every page (mobile only)
   Uint8List?
   _webPdfBytes; // cached fetched bytes on web for Syncfusion text extractor
   String? _webPdfBytesKey; // book.link the cached _webPdfBytes belong to
@@ -410,12 +411,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           }
           return;
         }
-        _pdfDoc ??= await PDFDoc.fromPath(pdfPath);
+        _pdfDoc ??= await openPdfTextExtractor(pdfPath);
         if (v != _speakVersion) return;
         final docLen = _pdfDoc!.length;
         if (docLen == 0) return;
         final pageNum = (pageIndex + 1).clamp(1, docLen);
-        pageText = await _pdfDoc!.pageAt(pageNum).text;
+        pageText = await _pdfDoc!.pageText(pageNum);
       }
 
       if (v != _speakVersion) return;
@@ -1138,15 +1139,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                           onPagesAndPageChanged: (page, total) =>
                               _onPageChanged(page, total),
                         )
-                      : PDFView(
+                      : buildMobilePdfReader(
                           key: ValueKey(path),
                           filePath: path,
-                          enableSwipe: true,
-                          swipeHorizontal: false,
-                          autoSpacing: false,
-                          pageFling: false,
-                          pageSnap: false,
-                          fitPolicy: FitPolicy.WIDTH,
                           onRender: (pages) {
                             if (pages != null) {
                               setState(() => _totalPages = pages);
@@ -1176,7 +1171,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                               );
                             }
                           },
-                          onViewCreated: (controller) {
+                          onControllerReady: (controller) {
                             _pdfController = controller;
                           },
                           onPageChanged: _onPageChanged,

@@ -25,7 +25,7 @@ Widget _harness(Widget child) => MaterialApp(
 
 void main() {
   group('GradientButton goldens', () {
-    testWidgets('idle', (tester) async {
+    testWidgets('idle', tags: 'golden', (tester) async {
       await tester.pumpWidget(
         _harness(GradientButton(label: 'Sign In', onPressed: () {})),
       );
@@ -35,7 +35,7 @@ void main() {
       );
     });
 
-    testWidgets('loading', (tester) async {
+    testWidgets('loading', tags: 'golden', (tester) async {
       await tester.pumpWidget(
         _harness(
           GradientButton(label: 'Sign In', loading: true, onPressed: () {}),
@@ -47,7 +47,7 @@ void main() {
       );
     });
 
-    testWidgets('disabled', (tester) async {
+    testWidgets('disabled', tags: 'golden', (tester) async {
       await tester.pumpWidget(
         _harness(const GradientButton(label: 'Sign In', onPressed: null)),
       );

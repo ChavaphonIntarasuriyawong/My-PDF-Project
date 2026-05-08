@@ -1,0 +1,12 @@
+tags:
+  golden:
+    description: >-
+      Pixel-diff tests against PNGs in test/golden/goldens/. Excluded in CI
+      because font rasterisation differs between Linux runners (where the
+      goldens were generated for) and developer machines (Windows). Run
+      locally with `flutter test test/golden/` and regenerate with
+      `flutter test --update-goldens test/golden/`.
+  ocr-pipeline:
+    description: >-
+      OCR fallback pipeline tests. Currently skipped pending a conditional
+      datasource split (see test suite for details).

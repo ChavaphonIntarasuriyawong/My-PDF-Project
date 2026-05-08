@@ -1,22 +1,22 @@
 # CD workflow for MyPDF web -> Firebase Hosting
 #
-# Trigger: every push to `main`. Pull requests deploy to a temporary preview
-# channel keyed by PR number (auto-expires after 7 days).
+# Builds the Flutter web release and deploys it. Two paths:
+#   - push to main      -> live channel (production URL)
+#   - pull_request main -> auto-expiring preview channel (URL posted as
+#                          PR comment by FirebaseExtended/action-hosting-deploy)
 #
-# Required GitHub repository secret (Settings -> Secrets and variables -> Actions):
+# Required GitHub repository secret (Settings -> Secrets and variables ->
+# Actions -> New repository secret):
 #   FIREBASE_SERVICE_ACCOUNT
-#     Service account JSON for the `readtrack-8262c` Firebase project.
+#     Service account JSON for Firebase project `readtrack-8262c`.
 #     Obtain via Firebase Console -> Project Settings -> Service Accounts ->
-#     Generate new private key. Paste the entire JSON file contents as the
-#     secret value (single-line or multi-line both work).
+#     Generate new private key. Paste entire JSON contents as the secret value.
 #
-# Flutter version pinned to 3.35.0 to match `.github/workflows/ci.yml`.
+# Flutter pinned to 3.38.7 (matches local + CI).
 #
-# Note on OCR assets:
-# `web/ocr/` ships with .gitkeep only (Tesseract.js binaries are NOT committed).
-# The deployed build will run, but OCR will degrade silently on prod web until
-# those binaries are added (see README "One-time setup: OCR engine assets").
-# This is a known, deliberately-deferred limitation for the demo scope.
+# Note: web/ocr/ Tesseract.js binaries are NOT committed (.gitkeep only).
+# The deployed build will run, but OCR will silent-fail on prod web until
+# those binaries are added (see web/ocr/README.md). Tracked as an open R1.
 
 name: CD - Web (Firebase Hosting)
 
@@ -26,6 +26,14 @@ on:
   pull_request:
     branches: [main]
 
+# action-hosting-deploy needs to post a check run + PR comment with the
+# preview URL, so GITHUB_TOKEN must be granted those scopes explicitly
+# (repo default is read-only on this org).
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   deploy-web:
     name: Build + Deploy Web
@@ -33,11 +41,15 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Use PR head SHA on PRs (skip merge commit). Pushes fall back to
+          # github.sha. Keeps build inputs identical to what's on the branch.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.0'
+          flutter-version: '3.38.7'
           channel: stable
           cache: true
 

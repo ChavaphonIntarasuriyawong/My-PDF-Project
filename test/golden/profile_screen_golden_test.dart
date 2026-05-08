@@ -14,7 +14,9 @@ import 'package:my_pdf/features/profile/presentation/profile_screen.dart';
 const _user = UserModel(uid: 'u1', name: 'Alice', email: 'alice@test.com');
 
 void main() {
-  testWidgets('ProfileScreen — populated golden', (tester) async {
+  testWidgets('ProfileScreen — populated golden', tags: 'golden', (
+    tester,
+  ) async {
     // 430×932 — see home_screen_golden_test.dart for rationale (avoids a
     // 2.2 px AppBottomNavBar overflow at 412 width).
     tester.view.physicalSize = const Size(430 * 2, 932 * 2);
