@@ -101,4 +101,6 @@ jobs:
         run: flutter pub get
 
       - name: Build web (release)
-        run: flutter build web --release
+        # --no-wasm-dry-run: dart2wasm dry-run crashes on Linux runners and
+        # cascades into dart2js failure. We don't ship wasm.
+        run: flutter build web --release --no-wasm-dry-run

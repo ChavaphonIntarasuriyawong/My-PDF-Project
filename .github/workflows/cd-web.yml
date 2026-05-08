@@ -45,7 +45,11 @@ jobs:
         run: flutter pub get
 
       - name: Build web (release)
-        run: flutter build web --release
+        # --no-wasm-dry-run: dart2wasm dry-run crashes on Linux runners (bug
+        # with org-dartlang-untranslatable-uri URI parsing) and corrupts
+        # state used by dart2js, causing spurious "Couldn't resolve package"
+        # errors. We don't ship a wasm build, so the dry-run is pure noise.
+        run: flutter build web --release --no-wasm-dry-run
 
       - name: Deploy to Firebase Hosting (live)
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
