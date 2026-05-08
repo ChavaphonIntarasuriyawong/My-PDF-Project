@@ -6,7 +6,6 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import '../../../core/logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_tts/flutter_tts.dart';
 import 'package:go_router/go_router.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
@@ -18,6 +17,7 @@ import '../../../core/theme/app_typography.dart';
 import '../../library/presentation/library_controller.dart';
 import '../../library/presentation/library_providers.dart';
 import '../data/pdf_text_extractor.dart';
+import '../data/tts_engine.dart';
 import '../widgets/mobile_pdf_reader.dart';
 import 'controllers/karaoke_controller.dart';
 import 'widgets/karaoke_text_pane.dart';
@@ -37,7 +37,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   MobilePdfReaderController? _pdfController;
   bool _jumpedToSavedPage = false;
 
-  final FlutterTts _tts = FlutterTts();
+  final TtsEngine _tts = createTtsEngine();
   bool _ttsActive = false;
   bool _ttsSpeaking = false;
   bool _isDisposed = false; // gates TTS handlers from firing post-dispose
