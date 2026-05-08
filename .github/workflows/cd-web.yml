@@ -26,6 +26,14 @@ on:
   pull_request:
     branches: [main]
 
+# action-hosting-deploy needs to post a check run + PR comment with the
+# preview URL, so GITHUB_TOKEN must be granted those scopes explicitly
+# (repo default is read-only on this org).
+permissions:
+  contents: read
+  checks: write
+  pull-requests: write
+
 jobs:
   deploy-web:
     name: Build + Deploy Web
