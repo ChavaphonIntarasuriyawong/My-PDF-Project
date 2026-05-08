@@ -16,12 +16,24 @@ class FirestoreDataSource {
         .collection('bookshelves')
         .where('ownerId', isEqualTo: ownerId)
         .snapshots()
-        .map((s) => s.docs.map((d) => BookshelfModel.fromMap(d.id, d.data())).toList());
+        .map(
+          (s) => s.docs
+              .map((d) => BookshelfModel.fromMap(d.id, d.data()))
+              .toList(),
+        );
   }
 
-  Future<BookshelfModel> createShelf({required String name, required String ownerId}) async {
+  Future<BookshelfModel> createShelf({
+    required String name,
+    required String ownerId,
+  }) async {
     final doc = _db.collection('bookshelves').doc();
-    final shelf = BookshelfModel(id: doc.id, name: name, ownerId: ownerId, createdAt: DateTime.now());
+    final shelf = BookshelfModel(
+      id: doc.id,
+      name: name,
+      ownerId: ownerId,
+      createdAt: DateTime.now(),
+    );
     await doc.set(shelf.toMap());
     return shelf;
   }
@@ -67,7 +79,9 @@ class FirestoreDataSource {
         .collection('books')
         .where('ownerId', isEqualTo: ownerId)
         .snapshots()
-        .map((s) => s.docs.map((d) => BookModel.fromMap(d.id, d.data())).toList());
+        .map(
+          (s) => s.docs.map((d) => BookModel.fromMap(d.id, d.data())).toList(),
+        );
   }
 
   Stream<List<BookModel>> watchBooksByShelf({
@@ -79,7 +93,9 @@ class FirestoreDataSource {
         .where('ownerId', isEqualTo: ownerId)
         .where('shelfId', isEqualTo: shelfId)
         .snapshots()
-        .map((s) => s.docs.map((d) => BookModel.fromMap(d.id, d.data())).toList());
+        .map(
+          (s) => s.docs.map((d) => BookModel.fromMap(d.id, d.data())).toList(),
+        );
   }
 
   Future<BookModel> createBook(BookModel book) async {
@@ -96,6 +112,7 @@ class FirestoreDataSource {
       ownerId: book.ownerId,
       author: book.author,
       year: book.year,
+      needsOcr: book.needsOcr,
     );
     await doc.set(newBook.toMap());
     return newBook;
@@ -126,6 +143,21 @@ class FirestoreDataSource {
 
   Future<void> updateBookTitle(String bookId, String title) {
     return _db.collection('books').doc(bookId).update({'title': title});
+  }
+
+  /// Per-book PIN lock toggle (Wave 1).
+  /// `lockHash` should be a salted SHA-256-crypt string from
+  /// `BookLockHasher.hash()` when locking, or null when unlocking.
+  /// Both fields are whitelisted in firestore.rules `books` update rule.
+  Future<void> updateBookLock(
+    String bookId, {
+    required bool isLocked,
+    required String? lockHash,
+  }) {
+    return _db.collection('books').doc(bookId).update({
+      'isLocked': isLocked,
+      'lockHash': lockHash,
+    });
   }
 
   Future<String?> deleteBook(String bookId) async {
@@ -172,8 +204,11 @@ class FirestoreDataSource {
         .collection('notes')
         .where('bookId', isEqualTo: bookId)
         .snapshots()
-        .map((s) => s.docs.map((d) => NoteModel.fromMap(d.id, d.data())).toList()
-          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt)));
+        .map(
+          (s) =>
+              s.docs.map((d) => NoteModel.fromMap(d.id, d.data())).toList()
+                ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt)),
+        );
   }
 
   Future<NoteModel?> getNoteById(String noteId) async {
@@ -199,7 +234,11 @@ class FirestoreDataSource {
     return note;
   }
 
-  Future<void> updateNote(String noteId, {required String title, required String content}) {
+  Future<void> updateNote(
+    String noteId, {
+    required String title,
+    required String content,
+  }) {
     return _db.collection('notes').doc(noteId).update({
       'title': title,
       'content': content,
@@ -217,7 +256,9 @@ class FirestoreDataSource {
     if (noteIds.isEmpty) return;
     const chunkSize = 500;
     for (var i = 0; i < noteIds.length; i += chunkSize) {
-      final end = (i + chunkSize > noteIds.length) ? noteIds.length : i + chunkSize;
+      final end = (i + chunkSize > noteIds.length)
+          ? noteIds.length
+          : i + chunkSize;
       final batch = _db.batch();
       for (final id in noteIds.sublist(i, end)) {
         batch.delete(_db.collection('notes').doc(id));
@@ -232,7 +273,9 @@ class FirestoreDataSource {
     // Firestore whereIn caps at 30 entries — chunk and combine via stream merge.
     final chunks = <List<String>>[];
     for (var i = 0; i < bookIds.length; i += 30) {
-      chunks.add(bookIds.sublist(i, i + 30 > bookIds.length ? bookIds.length : i + 30));
+      chunks.add(
+        bookIds.sublist(i, i + 30 > bookIds.length ? bookIds.length : i + 30),
+      );
     }
 
     final counts = List<int>.filled(chunks.length, 0);
@@ -246,9 +289,9 @@ class FirestoreDataSource {
           .where('bookId', whereIn: chunks[i])
           .snapshots()
           .listen((s) {
-        counts[idx] = s.docs.length;
-        controller.add(counts.fold<int>(0, (a, b) => a + b));
-      });
+            counts[idx] = s.docs.length;
+            controller.add(counts.fold<int>(0, (a, b) => a + b));
+          });
       subs.add(sub);
     }
 

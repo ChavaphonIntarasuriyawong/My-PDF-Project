@@ -37,7 +37,13 @@ class AppBottomNavBar extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: NavTab.values
-                    .map((tab) => _NavItem(tab: tab, active: resolvedActive, onTap: onTap))
+                    .map(
+                      (tab) => _NavItem(
+                        tab: tab,
+                        active: resolvedActive,
+                        onTap: onTap,
+                      ),
+                    )
                     .toList(),
               ),
             ),
@@ -55,11 +61,15 @@ class _NavItem extends StatelessWidget {
 
   static const _meta = {
     NavTab.library: (icon: FontAwesomeIcons.bookOpenReader, label: 'Library'),
-    NavTab.create:  (icon: Icons.add,                   label: 'Create'),
-    NavTab.profile: (icon: Icons.person_outline,        label: 'Profile'),
+    NavTab.create: (icon: Icons.add, label: 'Create'),
+    NavTab.profile: (icon: Icons.person_outline, label: 'Profile'),
   };
 
-  const _NavItem({required this.tab, required this.active, required this.onTap});
+  const _NavItem({
+    required this.tab,
+    required this.active,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {

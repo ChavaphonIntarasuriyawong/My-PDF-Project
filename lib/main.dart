@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'core/config/feature_flags.dart';
 import 'core/constants/app_router.dart';
 import 'core/local/recent_books_service.dart';
 import 'core/theme/app_colors.dart';
@@ -14,40 +15,60 @@ import 'firebase_options.dart';
 
 // this works
 void main() async {
-  await runZonedGuarded(() async {
-    WidgetsFlutterBinding.ensureInitialized();
+  await runZonedGuarded(
+    () async {
+      WidgetsFlutterBinding.ensureInitialized();
 
-    await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+      await Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      );
 
-    await Hive.initFlutter();
-    await Hive.openBox(RecentBooksService.boxName);
+      // Remote Config: kill switches + feature flags. Never throws — logs and
+      // falls through to defaults on offline / fetch errors.
+      final featureFlags = FeatureFlags();
+      await featureFlags.initialize();
 
-    // Crashlytics is not supported on web.
-    if (!kIsWeb) {
-      await FirebaseCrashlytics.instance
-          .setCrashlyticsCollectionEnabled(!kDebugMode);
-      FlutterError.onError = (details) {
-        FlutterError.presentError(details);
-        FirebaseCrashlytics.instance.recordFlutterFatalError(details);
-      };
-      PlatformDispatcher.instance.onError = (error, stack) {
+      await Hive.initFlutter();
+      await Hive.openBox(RecentBooksService.boxName);
+
+      // Crashlytics is not supported on web.
+      if (!kIsWeb) {
+        await FirebaseCrashlytics.instance.setCrashlyticsCollectionEnabled(
+          !kDebugMode,
+        );
+        FlutterError.onError = (details) {
+          FlutterError.presentError(details);
+          FirebaseCrashlytics.instance.recordFlutterFatalError(details);
+        };
+        PlatformDispatcher.instance.onError = (error, stack) {
+          FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
+          return true;
+        };
+      }
+
+      await Supabase.initialize(
+        url: 'https://wtjwmwisitohlzyinoaf.supabase.co',
+        anonKey: 'sb_publishable_WY9c8ogY4iVKHU7sFT5slw_oUoQFAl8',
+      );
+      runApp(
+        ProviderScope(
+          overrides: [
+            // Inject the already-initialized singleton so every `ref.read` reuses
+            // the same Remote Config instance — see featureFlagsProvider.
+            featureFlagsProvider.overrideWithValue(featureFlags),
+          ],
+          child: const MyPdfApp(),
+        ),
+      );
+    },
+    (error, stack) {
+      if (!kIsWeb) {
         FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-        return true;
-      };
-    }
-
-    await Supabase.initialize(
-      url: 'https://wtjwmwisitohlzyinoaf.supabase.co',
-      anonKey: 'sb_publishable_WY9c8ogY4iVKHU7sFT5slw_oUoQFAl8',
-    );
-    runApp(const ProviderScope(child: MyPdfApp()));
-  }, (error, stack) {
-    if (!kIsWeb) {
-      FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-    } else {
-      debugPrint('Uncaught error: $error\n$stack');
-    }
-  });
+      } else {
+        debugPrint('Uncaught error: $error\n$stack');
+      }
+    },
+  );
 }
 
 class MyPdfApp extends ConsumerWidget {

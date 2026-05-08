@@ -44,17 +44,15 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       return;
     }
     if (password != confirm) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Passwords do not match')));
       return;
     }
 
-    final success = await ref.read(authControllerProvider.notifier).register(
-      name: name,
-      email: email,
-      password: password,
-    );
+    final success = await ref
+        .read(authControllerProvider.notifier)
+        .register(name: name, email: email, password: password);
     if (success && mounted) context.go(AppRoutes.home);
   }
 
@@ -65,9 +63,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
     ref.listen(authControllerProvider, (_, state) {
       if (state.status == AuthStatus.error && state.errorMessage != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(state.errorMessage!)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(state.errorMessage!)));
         ref.read(authControllerProvider.notifier).clearError();
       }
     });
@@ -83,10 +81,14 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               child: Row(
                 children: [
                   IconButton(
+                    tooltip: 'Back',
                     onPressed: () => context.canPop()
                         ? context.pop()
                         : context.go(AppRoutes.login),
-                    icon: const Icon(Icons.arrow_back, color: AppColors.primary),
+                    icon: const Icon(
+                      Icons.arrow_back,
+                      color: AppColors.primary,
+                    ),
                   ),
                   const SizedBox(width: 8),
                   Text('Create Account', style: AppTypography.titleLarge),
@@ -95,7 +97,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
             Expanded(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 24,
+                ),
                 child: Column(
                   children: [
                     // Hero section
@@ -115,7 +120,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                               ),
                             ],
                           ),
-                          child: const Icon(Icons.menu_book_rounded, color: Colors.white, size: 28),
+                          child: const Icon(
+                            Icons.menu_book_rounded,
+                            color: Colors.white,
+                            size: 28,
+                          ),
                         ),
                         const SizedBox(height: 24),
                         Text(
@@ -128,7 +137,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                         const SizedBox(height: 8),
                         Text(
                           'Every great insight begins with a single page.\nCurate your knowledge with us.',
-                          style: AppTypography.bodyMedium.copyWith(color: const Color(0xFF506872)),
+                          style: AppTypography.bodyMedium.copyWith(
+                            color: const Color(0xFF506872),
+                          ),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -164,6 +175,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             controller: _passwordCtrl,
                             obscureText: _obscurePassword,
                             suffix: IconButton(
+                              tooltip: _obscurePassword
+                                  ? 'Show password'
+                                  : 'Hide password',
                               icon: Icon(
                                 _obscurePassword
                                     ? Icons.visibility_off_outlined
@@ -171,8 +185,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 color: AppColors.textMuted,
                                 size: 20,
                               ),
-                              onPressed: () =>
-                                  setState(() => _obscurePassword = !_obscurePassword),
+                              onPressed: () => setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 20),
@@ -182,6 +197,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             controller: _confirmCtrl,
                             obscureText: _obscureConfirm,
                             suffix: IconButton(
+                              tooltip: _obscureConfirm
+                                  ? 'Show password'
+                                  : 'Hide password',
                               icon: Icon(
                                 _obscureConfirm
                                     ? Icons.visibility_off_outlined
@@ -189,8 +207,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                                 color: AppColors.textMuted,
                                 size: 20,
                               ),
-                              onPressed: () =>
-                                  setState(() => _obscureConfirm = !_obscureConfirm),
+                              onPressed: () => setState(
+                                () => _obscureConfirm = !_obscureConfirm,
+                              ),
                             ),
                           ),
                           const SizedBox(height: 24),
@@ -204,23 +223,31 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                       ),
                     ),
                     const SizedBox(height: 40),
-                    GestureDetector(
-                      onTap: () => context.canPop()
-                          ? context.pop()
-                          : context.go(AppRoutes.login),
-                      child: RichText(
-                        text: TextSpan(
-                          text: 'Already have an account? ',
-                          style: AppTypography.bodyMedium.copyWith(color: const Color(0xFF506872)),
-                          children: [
-                            TextSpan(
-                              text: 'Sign In',
+                    Semantics(
+                      button: true,
+                      label: 'Already have an account? Sign In',
+                      child: GestureDetector(
+                        onTap: () => context.canPop()
+                            ? context.pop()
+                            : context.go(AppRoutes.login),
+                        child: ExcludeSemantics(
+                          child: RichText(
+                            text: TextSpan(
+                              text: 'Already have an account? ',
                               style: AppTypography.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
+                                color: const Color(0xFF506872),
                               ),
+                              children: [
+                                TextSpan(
+                                  text: 'Sign In',
+                                  style: AppTypography.bodyMedium.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
                     ),

@@ -46,12 +46,24 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               child: Row(
                 children: [
-                  GestureDetector(
-                    onTap: () => _scaffoldKey.currentState?.openDrawer(),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      child: const Icon(Icons.menu,
-                          color: AppColors.primary, size: 20),
+                  Semantics(
+                    button: true,
+                    label: 'Open navigation menu',
+                    child: GestureDetector(
+                      onTap: () => _scaffoldKey.currentState?.openDrawer(),
+                      child: Container(
+                        constraints: const BoxConstraints(
+                          minWidth: 48,
+                          minHeight: 48,
+                        ),
+                        padding: const EdgeInsets.all(8),
+                        alignment: Alignment.center,
+                        child: const Icon(
+                          Icons.menu,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
+                      ),
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -110,7 +122,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     const SizedBox(height: 32),
 
                     // ── Account Settings ─────────────────────────────
-                    const Text('ACCOUNT SETTINGS', style: AppTypography.sectionMeta),
+                    const Text(
+                      'ACCOUNT SETTINGS',
+                      style: AppTypography.sectionMeta,
+                    ),
                     const SizedBox(height: 12),
                     Container(
                       decoration: BoxDecoration(
@@ -219,47 +234,54 @@ class _SettingsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: AppColors.surface,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onTap,
+    return Semantics(
+      button: true,
+      label: label,
+      child: Material(
+        color: AppColors.surface,
         borderRadius: BorderRadius.circular(8),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: iconBg,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Icon(
-                  icon,
-                  size: 22,
-                  color: labelColor == AppColors.error
-                      ? AppColors.error
-                      : AppColors.primary,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                    color: labelColor,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: iconBg,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Icon(
+                    icon,
+                    size: 22,
+                    color: labelColor == AppColors.error
+                        ? AppColors.error
+                        : AppColors.primary,
                   ),
                 ),
-              ),
-              if (labelColor == AppColors.textPrimary)
-                const Icon(Icons.chevron_right,
-                    size: 20, color: AppColors.textSecondary),
-            ],
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                      color: labelColor,
+                    ),
+                  ),
+                ),
+                if (labelColor == AppColors.textPrimary)
+                  const Icon(
+                    Icons.chevron_right,
+                    size: 20,
+                    color: AppColors.textSecondary,
+                  ),
+              ],
+            ),
           ),
         ),
       ),

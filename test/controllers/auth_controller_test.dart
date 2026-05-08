@@ -12,12 +12,17 @@ class _FakeRepo implements AuthRepository {
   Either<Failure, UserModel>? registerResult;
 
   @override
-  Future<Either<Failure, UserModel>> login({required String email, required String password}) async =>
-      loginResult!;
+  Future<Either<Failure, UserModel>> login({
+    required String email,
+    required String password,
+  }) async => loginResult!;
 
   @override
-  Future<Either<Failure, UserModel>> register({required String name, required String email, required String password}) async =>
-      registerResult!;
+  Future<Either<Failure, UserModel>> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async => registerResult!;
 
   @override
   Future<Either<Failure, void>> logout() async => const Right(null);
@@ -56,10 +61,9 @@ void main() {
       const user = UserModel(uid: 'u1', name: 'Alice', email: 'a@b.com');
       repo.loginResult = const Right(user);
 
-      final result = await container.read(authControllerProvider.notifier).login(
-        email: 'a@b.com',
-        password: 'pass',
-      );
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .login(email: 'a@b.com', password: 'pass');
 
       expect(result, isTrue);
       final state = container.read(authControllerProvider);
@@ -70,10 +74,9 @@ void main() {
     test('login failure sets status=error with message', () async {
       repo.loginResult = const Left(AuthFailure('Wrong password'));
 
-      final result = await container.read(authControllerProvider.notifier).login(
-        email: 'a@b.com',
-        password: 'wrong',
-      );
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .login(email: 'a@b.com', password: 'wrong');
 
       expect(result, isFalse);
       final state = container.read(authControllerProvider);
@@ -85,11 +88,9 @@ void main() {
       const user = UserModel(uid: 'u2', name: 'Bob', email: 'b@b.com');
       repo.registerResult = const Right(user);
 
-      final result = await container.read(authControllerProvider.notifier).register(
-        name: 'Bob',
-        email: 'b@b.com',
-        password: 'pass',
-      );
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .register(name: 'Bob', email: 'b@b.com', password: 'pass');
 
       expect(result, isTrue);
       expect(container.read(authControllerProvider).status, AuthStatus.success);
@@ -98,11 +99,9 @@ void main() {
     test('register failure sets status=error', () async {
       repo.registerResult = const Left(AuthFailure('Email already in use'));
 
-      final result = await container.read(authControllerProvider.notifier).register(
-        name: 'Bob',
-        email: 'b@b.com',
-        password: 'pass',
-      );
+      final result = await container
+          .read(authControllerProvider.notifier)
+          .register(name: 'Bob', email: 'b@b.com', password: 'pass');
 
       expect(result, isFalse);
       final state = container.read(authControllerProvider);
@@ -113,7 +112,9 @@ void main() {
     test('logout resets state to idle', () async {
       const user = UserModel(uid: 'u1', name: 'Alice', email: 'a@b.com');
       repo.loginResult = const Right(user);
-      await container.read(authControllerProvider.notifier).login(email: 'a@b.com', password: 'p');
+      await container
+          .read(authControllerProvider.notifier)
+          .login(email: 'a@b.com', password: 'p');
 
       await container.read(authControllerProvider.notifier).logout();
 
@@ -124,7 +125,9 @@ void main() {
 
     test('clearError resets status to idle', () async {
       repo.loginResult = const Left(AuthFailure('Bad creds'));
-      await container.read(authControllerProvider.notifier).login(email: 'x', password: 'y');
+      await container
+          .read(authControllerProvider.notifier)
+          .login(email: 'x', password: 'y');
       expect(container.read(authControllerProvider).status, AuthStatus.error);
 
       container.read(authControllerProvider.notifier).clearError();

@@ -15,7 +15,10 @@ class AuthRepositoryImpl implements AuthRepository {
   /// email is registered (account-existence oracle / email enumeration).
   /// On register, keeping `email-already-in-use` distinct is intentional —
   /// the user is claiming the email; we should tell them it's taken.
-  static String _friendlyError(FirebaseAuthException e, {bool forLogin = false}) {
+  static String _friendlyError(
+    FirebaseAuthException e, {
+    bool forLogin = false,
+  }) {
     switch (e.code) {
       case 'user-not-found':
       case 'wrong-password':
@@ -53,7 +56,9 @@ class AuthRepositoryImpl implements AuthRepository {
     } on FirebaseAuthException catch (e) {
       return Left(AuthFailure(_friendlyError(e, forLogin: true)));
     } catch (_) {
-      return const Left(ServerFailure('Something went wrong. Please try again.'));
+      return const Left(
+        ServerFailure('Something went wrong. Please try again.'),
+      );
     }
   }
 
@@ -64,12 +69,18 @@ class AuthRepositoryImpl implements AuthRepository {
     required String password,
   }) async {
     try {
-      final user = await _dataSource.register(name: name, email: email, password: password);
+      final user = await _dataSource.register(
+        name: name,
+        email: email,
+        password: password,
+      );
       return Right(user);
     } on FirebaseAuthException catch (e) {
       return Left(AuthFailure(_friendlyError(e)));
     } catch (_) {
-      return const Left(ServerFailure('Something went wrong. Please try again.'));
+      return const Left(
+        ServerFailure('Something went wrong. Please try again.'),
+      );
     }
   }
 

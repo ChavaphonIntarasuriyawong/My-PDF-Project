@@ -14,12 +14,17 @@ class _FakeRepo implements AuthRepository {
   Either<Failure, UserModel>? registerResult;
 
   @override
-  Future<Either<Failure, UserModel>> login({required String email, required String password}) async =>
-      throw UnimplementedError();
+  Future<Either<Failure, UserModel>> login({
+    required String email,
+    required String password,
+  }) async => throw UnimplementedError();
 
   @override
-  Future<Either<Failure, UserModel>> register({required String name, required String email, required String password}) async =>
-      registerResult ?? const Left(AuthFailure('No result'));
+  Future<Either<Failure, UserModel>> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async => registerResult ?? const Left(AuthFailure('No result'));
 
   @override
   Future<Either<Failure, void>> logout() async => const Right(null);
@@ -32,10 +37,15 @@ class _FakeRepo implements AuthRepository {
 }
 
 Widget _buildScreen(_FakeRepo repo) {
-  final router = GoRouter(routes: [
-    GoRoute(path: '/', builder: (_, _) => const RegisterScreen()),
-    GoRoute(path: '/home', builder: (_, _) => const Scaffold(body: Text('Home'))),
-  ]);
+  final router = GoRouter(
+    routes: [
+      GoRoute(path: '/', builder: (_, _) => const RegisterScreen()),
+      GoRoute(
+        path: '/home',
+        builder: (_, _) => const Scaffold(body: Text('Home')),
+      ),
+    ],
+  );
   return ProviderScope(
     overrides: [authRepositoryProvider.overrideWithValue(repo)],
     child: MaterialApp.router(routerConfig: router),
@@ -44,7 +54,9 @@ Widget _buildScreen(_FakeRepo repo) {
 
 void main() {
   group('RegisterScreen (5.2)', () {
-    testWidgets('renders username, email, password fields and sign up button', (tester) async {
+    testWidgets('renders username, email, password fields and sign up button', (
+      tester,
+    ) async {
       await tester.pumpWidget(_buildScreen(_FakeRepo()));
       expect(find.text('USERNAME'), findsOneWidget);
       expect(find.text('EMAIL'), findsOneWidget);
@@ -60,7 +72,9 @@ void main() {
     testWidgets('does not submit with empty fields', (tester) async {
       final repo = _FakeRepo();
       await tester.pumpWidget(_buildScreen(repo));
-      await tester.ensureVisible(find.widgetWithText(GradientButton, 'Sign Up'));
+      await tester.ensureVisible(
+        find.widgetWithText(GradientButton, 'Sign Up'),
+      );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(GradientButton, 'Sign Up'));
       await tester.pump();
@@ -68,13 +82,16 @@ void main() {
     });
 
     testWidgets('shows error snackbar on failure', (tester) async {
-      final repo = _FakeRepo()..registerResult = const Left(AuthFailure('Email taken'));
+      final repo = _FakeRepo()
+        ..registerResult = const Left(AuthFailure('Email taken'));
       await tester.pumpWidget(_buildScreen(repo));
       await tester.enterText(find.byType(TextField).at(0), 'Alice');
       await tester.enterText(find.byType(TextField).at(1), 'alice@test.com');
       await tester.enterText(find.byType(TextField).at(2), 'password123');
       await tester.enterText(find.byType(TextField).at(3), 'password123');
-      await tester.ensureVisible(find.widgetWithText(GradientButton, 'Sign Up'));
+      await tester.ensureVisible(
+        find.widgetWithText(GradientButton, 'Sign Up'),
+      );
       await tester.tap(find.widgetWithText(GradientButton, 'Sign Up'));
       await tester.pumpAndSettle();
       expect(find.text('Email taken'), findsOneWidget);
@@ -90,7 +107,10 @@ void main() {
 
     testWidgets('Sign In link is visible', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeRepo()));
-      expect(find.textContaining('Sign In', findRichText: true), findsOneWidget);
+      expect(
+        find.textContaining('Sign In', findRichText: true),
+        findsOneWidget,
+      );
     });
   });
 }

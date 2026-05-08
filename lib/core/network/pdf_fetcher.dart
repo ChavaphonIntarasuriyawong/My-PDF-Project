@@ -28,8 +28,9 @@ Future<http.Response> fetchPdfBytes(String url) async {
   }
   if (kCorsProxyBase.isEmpty) {
     throw Exception(
-        'External PDF links can\'t be read on web yet (CORS proxy not configured). '
-        'Upload the file instead, or open the book on the mobile app.');
+      'External PDF links can\'t be read on web yet (CORS proxy not configured). '
+      'Upload the file instead, or open the book on the mobile app.',
+    );
   }
   final proxyUrl = '$kCorsProxyBase?url=${Uri.encodeQueryComponent(url)}';
   final resp = await http

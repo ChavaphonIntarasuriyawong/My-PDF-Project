@@ -26,9 +26,7 @@ Future<void> showNoteEditSheet(
     backgroundColor: Colors.transparent,
     barrierColor: Colors.black.withValues(alpha: 0.4),
     builder: (ctx) => Padding(
-      padding: EdgeInsets.only(
-        bottom: MediaQuery.of(ctx).viewInsets.bottom,
-      ),
+      padding: EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
       child: FractionallySizedBox(
         heightFactor: 0.96,
         child: NoteEditSheet(bookId: bookId, noteId: noteId),
@@ -81,15 +79,16 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
     var title = _titleCtrl.text.trim();
     final content = _ctrl.text.trim();
     if (content.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Note cannot be empty.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Note cannot be empty.')));
       return;
     }
     // Auto-name new untitled notes as "Note (N)" — N = highest existing
     // numbered index + 1, so deletes don't cause clashes.
     if (_isNew && title.isEmpty) {
-      final existing = ref.read(notesByBookProvider(widget.bookId)).valueOrNull ?? [];
+      final existing =
+          ref.read(notesByBookProvider(widget.bookId)).valueOrNull ?? [];
       final pattern = RegExp(r'^Note \((\d+)\)$');
       var maxN = 0;
       for (final n in existing) {
@@ -106,23 +105,30 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
     bool ok;
     if (_isNew) {
       final created = await ctrl.createNote(
-          bookId: widget.bookId, title: title, content: content);
+        bookId: widget.bookId,
+        title: title,
+        content: content,
+      );
       ok = created != null;
     } else {
-      ok = await ctrl.updateNote(widget.noteId!, title: title, content: content);
+      ok = await ctrl.updateNote(
+        widget.noteId!,
+        title: title,
+        content: content,
+      );
     }
     if (!mounted) return;
     setState(() => _saving = false);
     if (ok) {
       if (!_isNew) ref.invalidate(noteByIdProvider(widget.noteId!));
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Note saved')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Note saved')));
       Navigator.of(context).pop();
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Could not save note')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Could not save note')));
     }
   }
 
@@ -240,8 +246,7 @@ class _NoteEditTopBar extends StatelessWidget {
               borderRadius: BorderRadius.circular(12),
               child: const Padding(
                 padding: EdgeInsets.all(8),
-                child: Icon(Icons.close,
-                    color: AppColors.primary, size: 14),
+                child: Icon(Icons.close, color: AppColors.primary, size: 14),
               ),
             ),
           ),
@@ -280,10 +285,7 @@ class _PdfPreviewSection extends StatelessWidget {
   final AsyncValue<Uint8List?> thumbAsync;
   final double progress;
 
-  const _PdfPreviewSection({
-    required this.thumbAsync,
-    required this.progress,
-  });
+  const _PdfPreviewSection({required this.thumbAsync, required this.progress});
 
   @override
   Widget build(BuildContext context) {
@@ -292,9 +294,7 @@ class _PdfPreviewSection extends StatelessWidget {
       child: Stack(
         children: [
           // Section bg.
-          Positioned.fill(
-            child: Container(color: AppColors.surfaceMuted),
-          ),
+          Positioned.fill(child: Container(color: AppColors.surfaceMuted)),
           // Inner white card with the faded preview, inset 24.
           Positioned(
             left: 24,
@@ -338,8 +338,11 @@ class _PdfPreviewSection extends StatelessWidget {
                         error: (e, s) =>
                             Container(color: AppColors.surfaceMuted),
                         data: (bytes) => bytes != null
-                            ? Image.memory(bytes,
-                                fit: BoxFit.cover, width: double.infinity)
+                            ? Image.memory(
+                                bytes,
+                                fit: BoxFit.cover,
+                                width: double.infinity,
+                              )
                             : Container(color: AppColors.surfaceMuted),
                       ),
                     ),
@@ -372,8 +375,7 @@ class _PdfPreviewSection extends StatelessWidget {
               child: LinearProgressIndicator(
                 value: progress,
                 backgroundColor: AppColors.progressTrack,
-                valueColor:
-                    const AlwaysStoppedAnimation(AppColors.primary),
+                valueColor: const AlwaysStoppedAnimation(AppColors.primary),
                 minHeight: 4,
               ),
             ),

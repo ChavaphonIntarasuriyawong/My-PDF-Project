@@ -19,139 +19,171 @@ class PdfCard extends ConsumerWidget {
         ? ref.watch(pdfThumbnailProvider(book.link))
         : const AsyncValue<Uint8List?>.data(null);
 
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        decoration: BoxDecoration(
-          color: AppColors.surface,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Cover image
-            Expanded(
-              child: Stack(
-                children: [
-                  Container(
-                    width: double.infinity,
-                    decoration: const BoxDecoration(
-                      color: AppColors.surfaceMuted,
-                      borderRadius:
-                          BorderRadius.vertical(top: Radius.circular(8)),
-                    ),
-                    child: ClipRRect(
-                      borderRadius:
-                          const BorderRadius.vertical(top: Radius.circular(8)),
-                      child: thumbAsync.when(
-                        loading: () => const _CoverPlaceholder(showSpinner: true),
-                        error: (e, s) => const _CoverPlaceholder(),
-                        data: (bytes) => bytes != null
-                            ? Image.memory(
-                                bytes,
-                                fit: BoxFit.cover,
-                                width: double.infinity,
-                                errorBuilder: (ctx, e, s) =>
-                                    const _CoverPlaceholder(),
-                              )
-                            : const _CoverPlaceholder(),
+    final progressPct = book.totalPages > 0
+        ? ((book.currentPage / book.totalPages) * 100).clamp(0, 100).round()
+        : 0;
+    return Semantics(
+      button: true,
+      label:
+          'Book: ${book.title}${book.isLocked ? ' (locked)' : ''}${(book.author ?? '').isNotEmpty ? ', by ${book.author}' : ''}, $progressPct percent read, status ${book.status}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Cover image
+              Expanded(
+                child: Stack(
+                  children: [
+                    Container(
+                      width: double.infinity,
+                      decoration: const BoxDecoration(
+                        color: AppColors.surfaceMuted,
+                        borderRadius: BorderRadius.vertical(
+                          top: Radius.circular(8),
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: const BorderRadius.vertical(
+                          top: Radius.circular(8),
+                        ),
+                        child: thumbAsync.when(
+                          loading: () =>
+                              const _CoverPlaceholder(showSpinner: true),
+                          error: (e, s) => const _CoverPlaceholder(),
+                          data: (bytes) => bytes != null
+                              ? Image.memory(
+                                  bytes,
+                                  fit: BoxFit.cover,
+                                  width: double.infinity,
+                                  errorBuilder: (ctx, e, s) =>
+                                      const _CoverPlaceholder(),
+                                )
+                              : const _CoverPlaceholder(),
+                        ),
                       ),
                     ),
-                  ),
-                  // PDF badge
-                  Positioned(
-                    top: 12,
-                    right: 12,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(2),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 8, vertical: 3),
-                        color: const Color(0xB3E1E3E4),
-                        child: Text(
-                          'PDF',
-                          style: AppTypography.captionBold.copyWith(
-                            color: AppColors.textPrimary,
-                            fontSize: 9.6,
-                            letterSpacing: -0.48,
+                    // PDF badge
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 3,
+                          ),
+                          color: const Color(0xB3E1E3E4),
+                          child: Text(
+                            'PDF',
+                            style: AppTypography.captionBold.copyWith(
+                              color: AppColors.textPrimary,
+                              fontSize: 9.6,
+                              letterSpacing: -0.48,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                ],
+                    // Lock badge (Wave 4) — only when this book has a PIN set.
+                    // Mirrors the PDF badge's tile-on-cover style but pinned to
+                    // the top-left so the two badges never overlap.
+                    if (book.isLocked)
+                      Positioned(
+                        top: 12,
+                        left: 12,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(2),
+                          child: Container(
+                            padding: const EdgeInsets.all(3),
+                            color: AppColors.surface,
+                            child: const Icon(
+                              Icons.lock,
+                              size: 12,
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            // Info section
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
-              child: Text(
-                book.title,
-                style: AppTypography.titleMedium,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-            if (book.author != null || book.year != null)
+              // Info section
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: Text(
-                  [
-                    if (book.author != null) book.author,
-                    if (book.year != null) '${book.year}',
-                  ].join(' • '),
-                  style: AppTypography.bodySmall
-                      .copyWith(color: AppColors.textSecondary),
-                  maxLines: 1,
+                  book.title,
+                  style: AppTypography.titleMedium,
+                  maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
-              child: Row(
-                children: [
-                  const Spacer(),
-                  StatusBadge(book.status),
-                ],
-              ),
-            ),
-            // Progress
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        'PAGE ${book.currentPage} OF ${book.totalPages}'
-                            .toUpperCase(),
-                        style: AppTypography.captionRegular,
-                      ),
-                      Text(
-                        '${book.progress.toStringAsFixed(0)}%',
-                        style: AppTypography.captionBold,
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: LinearProgressIndicator(
-                      value: book.totalPages > 0
-                          ? book.currentPage / book.totalPages
-                          : 0,
-                      backgroundColor: AppColors.progressTrack,
-                      valueColor:
-                          const AlwaysStoppedAnimation(AppColors.primary),
-                      minHeight: 4,
+              if (book.author != null || book.year != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  child: Text(
+                    [
+                      if (book.author != null) book.author,
+                      if (book.year != null) '${book.year}',
+                    ].join(' • '),
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
                     ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                ],
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 16),
+                child: Row(
+                  children: [const Spacer(), StatusBadge(book.status)],
+                ),
               ),
-            ),
-          ],
+              // Progress
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'PAGE ${book.currentPage} OF ${book.totalPages}'
+                              .toUpperCase(),
+                          style: AppTypography.captionRegular,
+                        ),
+                        Text(
+                          '${book.progress.toStringAsFixed(0)}%',
+                          style: AppTypography.captionBold,
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: LinearProgressIndicator(
+                        value: book.totalPages > 0
+                            ? book.currentPage / book.totalPages
+                            : 0,
+                        backgroundColor: AppColors.progressTrack,
+                        valueColor: const AlwaysStoppedAnimation(
+                          AppColors.primary,
+                        ),
+                        minHeight: 4,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -27,23 +27,22 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Name cannot be empty.')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Name cannot be empty.')));
       return;
     }
     setState(() => _saving = true);
     final uid = ref.read(authStateProvider).valueOrNull?.uid ?? '';
     try {
-      await ref.read(firestoreDataSourceProvider).updateUserProfile(
-            uid,
-            name: name,
-          );
+      await ref
+          .read(firestoreDataSourceProvider)
+          .updateUserProfile(uid, name: name);
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Profile updated')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Profile updated')));
         if (context.canPop()) {
           context.pop();
         } else {
@@ -53,8 +52,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
     } catch (e) {
       if (mounted) {
         setState(() => _saving = false);
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Update failed: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Update failed: $e')));
       }
     }
   }
@@ -92,8 +92,11 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                         : context.go('/profile'),
                     child: Container(
                       padding: const EdgeInsets.all(8),
-                      child: const Icon(Icons.arrow_back,
-                          color: AppColors.primary, size: 18),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.primary,
+                        size: 18,
+                      ),
                     ),
                   ),
                   const Spacer(),
@@ -112,13 +115,17 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     onTap: _saving ? null : _save,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 16, vertical: 8),
+                        horizontal: 16,
+                        vertical: 8,
+                      ),
                       child: _saving
                           ? const SizedBox(
                               width: 18,
                               height: 18,
                               child: CircularProgressIndicator(
-                                  strokeWidth: 2, color: AppColors.primary),
+                                strokeWidth: 2,
+                                color: AppColors.primary,
+                              ),
                             )
                           : const Text(
                               'Save',
@@ -158,7 +165,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                           enabledBorder: InputBorder.none,
                           focusedBorder: InputBorder.none,
                           contentPadding: EdgeInsets.symmetric(
-                              vertical: 12, horizontal: 16),
+                            vertical: 12,
+                            horizontal: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -170,7 +179,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                     _ProfileInputBox(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            vertical: 16, horizontal: 16),
+                          vertical: 16,
+                          horizontal: 16,
+                        ),
                         child: Row(
                           children: [
                             Expanded(
@@ -179,8 +190,9 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
                                 style: TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 16,
-                                  color: AppColors.textMuted
-                                      .withValues(alpha: 0.5),
+                                  color: AppColors.textMuted.withValues(
+                                    alpha: 0.5,
+                                  ),
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),

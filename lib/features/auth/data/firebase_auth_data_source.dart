@@ -8,8 +8,14 @@ class FirebaseAuthDataSource {
 
   FirebaseAuthDataSource(this._auth, this._firestore);
 
-  Future<UserModel> login({required String email, required String password}) async {
-    final cred = await _auth.signInWithEmailAndPassword(email: email, password: password);
+  Future<UserModel> login({
+    required String email,
+    required String password,
+  }) async {
+    final cred = await _auth.signInWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
     return _fetchUser(cred.user!.uid);
   }
 
@@ -18,9 +24,20 @@ class FirebaseAuthDataSource {
     required String email,
     required String password,
   }) async {
-    final cred = await _auth.createUserWithEmailAndPassword(email: email, password: password);
-    final user = UserModel(uid: cred.user!.uid, name: name, email: email);
-    await _firestore.collection('users').doc(user.uid).set(user.toMap());
+    final cred = await _auth.createUserWithEmailAndPassword(
+      email: email,
+      password: password,
+    );
+    final user = UserModel(
+      uid: cred.user!.uid,
+      name: name,
+      email: email,
+      role: 'user',
+    );
+    await _firestore.collection('users').doc(user.uid).set({
+      ...user.toMap(),
+      'createdAt': FieldValue.serverTimestamp(),
+    });
     return user;
   }
 
@@ -36,7 +53,11 @@ class FirebaseAuthDataSource {
   UserModel? get currentUser {
     final user = _auth.currentUser;
     if (user == null) return null;
-    return UserModel(uid: user.uid, name: user.displayName ?? '', email: user.email ?? '');
+    return UserModel(
+      uid: user.uid,
+      name: user.displayName ?? '',
+      email: user.email ?? '',
+    );
   }
 
   Future<UserModel> _fetchUser(String uid) async {
@@ -54,10 +75,6 @@ class FirebaseAuthDataSource {
         email: authUser?.email ?? '',
       );
     }
-    return UserModel(
-      uid: uid,
-      name: data['name'] ?? '',
-      email: data['email'] ?? '',
-    );
+    return UserModel.fromMap(uid, data);
   }
 }

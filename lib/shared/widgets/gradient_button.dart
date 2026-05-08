@@ -26,7 +26,9 @@ class GradientButton extends StatelessWidget {
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: onPressed == null
-              ? const LinearGradient(colors: [Color(0xFF8AABB3), Color(0xFF8AABB3)])
+              ? const LinearGradient(
+                  colors: [Color(0xFF8AABB3), Color(0xFF8AABB3)],
+                )
               : AppColors.primaryGradient,
           borderRadius: BorderRadius.circular(borderRadius),
           boxShadow: onPressed == null
@@ -49,28 +51,37 @@ class GradientButton extends StatelessWidget {
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.transparent,
             shadowColor: Colors.transparent,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(borderRadius)),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(borderRadius),
+            ),
           ),
           child: loading
               ? const SizedBox(
                   width: 22,
                   height: 22,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
                 )
               : (icon != null
-                  ? Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(icon, color: Colors.white, size: 18),
-                        const SizedBox(width: 8),
-                        Text(label,
-                            style: AppTypography.labelButton
-                                .copyWith(height: 1.0)),
-                      ],
-                    )
-                  : Text(label,
-                      style: AppTypography.labelButton
-                          .copyWith(height: 1.0))),
+                    ? Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon, color: Colors.white, size: 18),
+                          const SizedBox(width: 8),
+                          Text(
+                            label,
+                            style: AppTypography.labelButton.copyWith(
+                              height: 1.0,
+                            ),
+                          ),
+                        ],
+                      )
+                    : Text(
+                        label,
+                        style: AppTypography.labelButton.copyWith(height: 1.0),
+                      )),
         ),
       ),
     );

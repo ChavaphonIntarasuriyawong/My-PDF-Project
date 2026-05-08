@@ -24,11 +24,20 @@ void main() {
         'ownerId': 'u1',
         'createdAt': 'not-a-date',
       });
-      expect(shelf.createdAt.isAfter(before) || shelf.createdAt.isAtSameMomentAs(before), isTrue);
+      expect(
+        shelf.createdAt.isAfter(before) ||
+            shelf.createdAt.isAtSameMomentAs(before),
+        isTrue,
+      );
     });
 
     test('toMap serializes correctly', () {
-      final shelf = BookshelfModel(id: 's1', name: 'Sci-Fi', ownerId: 'u2', createdAt: dt);
+      final shelf = BookshelfModel(
+        id: 's1',
+        name: 'Sci-Fi',
+        ownerId: 'u2',
+        createdAt: dt,
+      );
       final map = shelf.toMap();
       expect(map['name'], 'Sci-Fi');
       expect(map['ownerId'], 'u2');

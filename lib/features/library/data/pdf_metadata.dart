@@ -19,7 +19,9 @@ PdfMetadata extractPdfMetadata(Uint8List bytes) {
     final year = info.creationDate.year;
     doc.dispose();
     // PDF default creationDate is 2001-01-01 when unset — treat that as missing.
-    final reasonableYear = (year < 1970 || year > DateTime.now().year + 1) ? null : year;
+    final reasonableYear = (year < 1970 || year > DateTime.now().year + 1)
+        ? null
+        : year;
     return PdfMetadata(author: author, year: reasonableYear);
   } catch (_) {
     return const PdfMetadata();

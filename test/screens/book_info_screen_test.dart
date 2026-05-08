@@ -10,59 +10,129 @@ import 'package:my_pdf/features/library/presentation/book_info_screen.dart';
 import 'package:my_pdf/features/library/presentation/library_providers.dart';
 
 const _book = BookModel(
-  id: 'b1', title: 'Cosmos', link: 'https://pdf.url',
-  totalPages: 200, currentPage: 100, progress: 50,
-  status: 'reading', shelfId: 's1', ownerId: 'u1',
+  id: 'b1',
+  title: 'Cosmos',
+  link: 'https://pdf.url',
+  totalPages: 200,
+  currentPage: 100,
+  progress: 50,
+  status: 'reading',
+  shelfId: 's1',
+  ownerId: 'u1',
 );
 
 final _note1 = NoteModel(
-  id: 'n1', bookId: 'b1', title: 'Title 1',
-  content: 'Note one', updatedAt: DateTime(2025, 1, 1),
+  id: 'n1',
+  bookId: 'b1',
+  title: 'Title 1',
+  content: 'Note one',
+  updatedAt: DateTime(2025, 1, 1),
 );
 
 class _FakeDataSource implements FirestoreDataSource {
   String? updatedStatus;
 
-  @override Future<void> updateBookStatus(String b, String s) async => updatedStatus = s;
-  @override Future<void> updateBookTitle(String b, String t) async {}
-  @override Future<String?> deleteBook(String b) async => null;
+  @override
+  Future<void> updateBookStatus(String b, String s) async => updatedStatus = s;
+  @override
+  Future<void> updateBookTitle(String b, String t) async {}
+  @override
+  Future<void> updateBookLock(
+    String b, {
+    required bool isLocked,
+    required String? lockHash,
+  }) async {}
+  @override
+  Future<String?> deleteBook(String b) async => null;
 
-  @override Future<BookshelfModel> createShelf({required String name, required String ownerId}) => throw UnimplementedError();
-  @override Future<void> updateShelfName(String s, String n) => throw UnimplementedError();
-  @override Future<void> deleteShelf(String s) => throw UnimplementedError();
-  @override Future<BookModel> createBook(BookModel b) => throw UnimplementedError();
-  @override Future<void> updateReadingProgress({required String bookId, required int currentPage, required int totalPages}) => throw UnimplementedError();
-  @override Future<void> moveBook(String b, String s) => throw UnimplementedError();
-  @override Future<void> updateUserProfile(String uid, {String? name}) => throw UnimplementedError();
+  @override
+  Future<BookshelfModel> createShelf({
+    required String name,
+    required String ownerId,
+  }) => throw UnimplementedError();
+  @override
+  Future<void> updateShelfName(String s, String n) =>
+      throw UnimplementedError();
+  @override
+  Future<void> deleteShelf(String s) => throw UnimplementedError();
+  @override
+  Future<BookModel> createBook(BookModel b) => throw UnimplementedError();
+  @override
+  Future<void> updateReadingProgress({
+    required String bookId,
+    required int currentPage,
+    required int totalPages,
+  }) => throw UnimplementedError();
+  @override
+  Future<void> moveBook(String b, String s) => throw UnimplementedError();
+  @override
+  Future<void> updateUserProfile(String uid, {String? name}) =>
+      throw UnimplementedError();
 
   @override
   Stream<int> watchUserNotesCount(List<String> bookIds) => Stream.value(0);
-  @override Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
-  @override Future<NoteModel> createNote({required String bookId, required String title, required String content}) => throw UnimplementedError();
-  @override Future<void> updateNote(String noteId, {required String title, required String content}) => throw UnimplementedError();
-  @override Future<void> deleteNote(String noteId) => throw UnimplementedError();
-  @override Future<void> deleteNotes(List<String> noteIds) async {}
-  @override Stream<List<NoteModel>> watchNotesByBookId(String bookId) => Stream.value(const []);
-  @override Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
-  @override Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();
-  @override Stream<List<BookModel>> watchBooksByShelf({required String shelfId, required String ownerId}) => const Stream.empty();
-  @override Stream<BookModel?> watchBook(String b) => Stream.value(_book);
+  @override
+  Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
+  @override
+  Future<NoteModel> createNote({
+    required String bookId,
+    required String title,
+    required String content,
+  }) => throw UnimplementedError();
+  @override
+  Future<void> updateNote(
+    String noteId, {
+    required String title,
+    required String content,
+  }) => throw UnimplementedError();
+  @override
+  Future<void> deleteNote(String noteId) => throw UnimplementedError();
+  @override
+  Future<void> deleteNotes(List<String> noteIds) async {}
+  @override
+  Stream<List<NoteModel>> watchNotesByBookId(String bookId) =>
+      Stream.value(const []);
+  @override
+  Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
+  @override
+  Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();
+  @override
+  Stream<List<BookModel>> watchBooksByShelf({
+    required String shelfId,
+    required String ownerId,
+  }) => const Stream.empty();
+  @override
+  Stream<BookModel?> watchBook(String b) => Stream.value(_book);
 }
 
-Widget _buildScreen({
-  List<NoteModel> notes = const [],
-}) {
+Widget _buildScreen({List<NoteModel> notes = const []}) {
   final router = GoRouter(
     routes: [
       GoRoute(
         path: '/book/:id',
-        builder: (_, state) => BookInfoScreen(bookId: state.pathParameters['id']!),
+        builder: (_, state) =>
+            BookInfoScreen(bookId: state.pathParameters['id']!),
       ),
-      GoRoute(path: '/home', builder: (_, _) => const Scaffold(body: Text('Home'))),
-      GoRoute(path: '/book/new', builder: (_, _) => const Scaffold(body: Text('New Book'))),
-      GoRoute(path: '/profile', builder: (_, _) => const Scaffold(body: Text('Profile'))),
-      GoRoute(path: '/book/:id/reading', builder: (_, _) => const Scaffold(body: Text('Reading'))),
-      GoRoute(path: '/book/:id/note', builder: (_, _) => const Scaffold(body: Text('Notes'))),
+      GoRoute(
+        path: '/home',
+        builder: (_, _) => const Scaffold(body: Text('Home')),
+      ),
+      GoRoute(
+        path: '/book/new',
+        builder: (_, _) => const Scaffold(body: Text('New Book')),
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (_, _) => const Scaffold(body: Text('Profile')),
+      ),
+      GoRoute(
+        path: '/book/:id/reading',
+        builder: (_, _) => const Scaffold(body: Text('Reading')),
+      ),
+      GoRoute(
+        path: '/book/:id/note',
+        builder: (_, _) => const Scaffold(body: Text('Notes')),
+      ),
     ],
     initialLocation: '/book/b1',
   );
@@ -101,8 +171,9 @@ void main() {
       expect(find.text('Cosmos'), findsAtLeastNWidgets(1));
     });
 
-    testWidgets('inline pencil read button navigates to reading screen',
-        (tester) async {
+    testWidgets('inline pencil read button navigates to reading screen', (
+      tester,
+    ) async {
       await _setPhoneViewport(tester);
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
@@ -144,34 +215,41 @@ void main() {
     });
 
     testWidgets(
-        'enters selection mode on long-press and shows Cancel + Delete buttons',
-        (tester) async {
-      await _setPhoneViewport(tester);
-      await tester.pumpWidget(_buildScreen(notes: [_note1]));
-      // Pump a few frames so the notes stream resolves.
-      for (var i = 0; i < 5; i++) {
-        await tester.pump(const Duration(milliseconds: 100));
-      }
+      'enters selection mode on long-press and shows Cancel + Delete buttons',
+      (tester) async {
+        await _setPhoneViewport(tester);
+        await tester.pumpWidget(_buildScreen(notes: [_note1]));
+        // Pump a few frames so the notes stream resolves.
+        for (var i = 0; i < 5; i++) {
+          await tester.pump(const Duration(milliseconds: 100));
+        }
 
-      // Note card preview uses the title. Confirm it rendered before
-      // attempting the long-press.
-      final noteCard = find.text('Title 1');
-      expect(noteCard, findsOneWidget);
+        // Note card preview uses the title. Confirm it rendered before
+        // attempting the long-press.
+        final noteCard = find.text('Title 1');
+        expect(noteCard, findsOneWidget);
 
-      await tester.longPress(noteCard);
-      await tester.pump();
+        await tester.longPress(noteCard);
+        await tester.pump();
 
-      // Selection top bar swap: the 3-dot icon disappears, Cancel + Delete
-      // text buttons appear in its place.
-      expect(find.byIcon(Icons.more_vert), findsNothing);
-      expect(
-        find.descendant(of: find.byType(TextButton), matching: find.text('Cancel')),
-        findsOneWidget,
-      );
-      expect(
-        find.descendant(of: find.byType(TextButton), matching: find.text('Delete')),
-        findsOneWidget,
-      );
-    });
+        // Selection top bar swap: the 3-dot icon disappears, Cancel + Delete
+        // text buttons appear in its place.
+        expect(find.byIcon(Icons.more_vert), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(TextButton),
+            matching: find.text('Cancel'),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.descendant(
+            of: find.byType(TextButton),
+            matching: find.text('Delete'),
+          ),
+          findsOneWidget,
+        );
+      },
+    );
   });
 }

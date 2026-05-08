@@ -23,8 +23,9 @@ class AuthState {
   }) {
     return AuthState(
       status: status ?? this.status,
-      errorMessage:
-          identical(errorMessage, _sentinel) ? this.errorMessage : errorMessage as String?,
+      errorMessage: identical(errorMessage, _sentinel)
+          ? this.errorMessage
+          : errorMessage as String?,
       user: user ?? this.user,
     );
   }
@@ -39,10 +40,15 @@ class AuthController extends StateNotifier<AuthState> {
 
   Future<bool> login({required String email, required String password}) async {
     state = state.copyWith(status: AuthStatus.loading);
-    final result = await _ref.read(authRepositoryProvider).login(email: email, password: password);
+    final result = await _ref
+        .read(authRepositoryProvider)
+        .login(email: email, password: password);
     return result.fold(
       (failure) {
-        state = AuthState(status: AuthStatus.error, errorMessage: failure.message);
+        state = AuthState(
+          status: AuthStatus.error,
+          errorMessage: failure.message,
+        );
         return false;
       },
       (user) {
@@ -58,14 +64,15 @@ class AuthController extends StateNotifier<AuthState> {
     required String password,
   }) async {
     state = state.copyWith(status: AuthStatus.loading);
-    final result = await _ref.read(authRepositoryProvider).register(
-      name: name,
-      email: email,
-      password: password,
-    );
+    final result = await _ref
+        .read(authRepositoryProvider)
+        .register(name: name, email: email, password: password);
     return result.fold(
       (failure) {
-        state = AuthState(status: AuthStatus.error, errorMessage: failure.message);
+        state = AuthState(
+          status: AuthStatus.error,
+          errorMessage: failure.message,
+        );
         return false;
       },
       (user) {
@@ -81,13 +88,17 @@ class AuthController extends StateNotifier<AuthState> {
     // the previous user's "Recently Opened" rail.
     try {
       await _ref.read(recentBooksServiceProvider).clear();
-    } catch (_) { /* best-effort */ }
+    } catch (_) {
+      /* best-effort */
+    }
     state = const AuthState();
   }
 
   void clearError() => state = state.copyWith(status: AuthStatus.idle);
 }
 
-final authControllerProvider = StateNotifierProvider<AuthController, AuthState>((ref) {
-  return AuthController(ref);
-});
+final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
+  (ref) {
+    return AuthController(ref);
+  },
+);
