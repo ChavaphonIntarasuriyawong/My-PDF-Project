@@ -10,7 +10,7 @@
 #     Generate new private key. Paste the entire JSON file contents as the
 #     secret value (single-line or multi-line both work).
 #
-# Flutter version pinned to 3.35.0 to match `.github/workflows/ci.yml`.
+# Flutter version pinned to 3.38.7 to match `.github/workflows/ci.yml`.
 #
 # Note on OCR assets:
 # `web/ocr/` ships with .gitkeep only (Tesseract.js binaries are NOT committed).
@@ -37,7 +37,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.0'
+          flutter-version: '3.38.7'
           channel: stable
           cache: true
 

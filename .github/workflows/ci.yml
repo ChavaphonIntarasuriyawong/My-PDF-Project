@@ -7,7 +7,7 @@
 # block PRs while the workflow stabilises in early waves. Once green for a
 # few PRs, flip those to required.
 #
-# Flutter version pinned to 3.35.0 (Dart SDK ^3.10.7 in pubspec.yaml).
+# Flutter version pinned to 3.38.7 (Dart SDK ^3.10.7 in pubspec.yaml).
 
 name: CI
 
@@ -28,7 +28,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.0'
+          flutter-version: '3.38.7'
           channel: stable
           cache: true
 
@@ -71,7 +71,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.0'
+          flutter-version: '3.38.7'
           channel: stable
           cache: true
 
@@ -93,7 +93,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.35.0'
+          flutter-version: '3.38.7'
           channel: stable
           cache: true
 
