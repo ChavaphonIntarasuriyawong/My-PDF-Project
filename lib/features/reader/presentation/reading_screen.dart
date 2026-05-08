@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui';
@@ -18,6 +19,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../library/presentation/library_controller.dart';
 import '../../library/presentation/library_providers.dart';
+import 'controllers/karaoke_controller.dart';
+import 'widgets/karaoke_text_pane.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
   final String bookId;
@@ -39,7 +42,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   bool _ttsSpeaking = false;
   bool _isDisposed = false; // gates TTS handlers from firing post-dispose
   PDFDoc? _pdfDoc; // cached so we don't reload on every page (mobile only)
-  Uint8List? _webPdfBytes; // cached fetched bytes on web for Syncfusion text extractor
+  Uint8List?
+  _webPdfBytes; // cached fetched bytes on web for Syncfusion text extractor
   String? _webPdfBytesKey; // book.link the cached _webPdfBytes belong to
   final WebPdfReaderController _webController = WebPdfReaderController();
 
@@ -76,6 +80,18 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   // Bumped on dispose / book switch / fresh foreground OCR trigger so any
   // in-flight loop iteration bails on its next check.
   int _bgOcrVersion = 0;
+
+  // ----- Karaoke captions -----
+  // Word-boundary detection: if no progress event lands within 2 s of speak()
+  // we flip to sentence-by-sentence mode and drive highlights from the queue
+  // below. Web SpeechSynthesis often skips boundary events for a given voice.
+  Timer? _karaokeProgressDetectTimer;
+  bool _karaokeProgressEverFired = false;
+  // Sentence-mode queue. When non-empty the completion handler advances by
+  // calling [_speakNextSentence] instead of jumping pages — sentence speak
+  // intentionally swallows the page-advance until the queue empties.
+  List<_KaraokeSentence>? _karaokeSentences;
+  int _karaokeSentenceIndex = 0;
 
   @override
   void initState() {
@@ -131,7 +147,23 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     // means our completion handler runs after the future resolves, removing a
     // race where natural completion arrived before `_ttsSpeaking = true` was
     // visible to the handler.
-    try { await _tts.awaitSpeakCompletion(true); } catch (_) {}
+    try {
+      await _tts.awaitSpeakCompletion(true);
+    } catch (_) {}
+    // Karaoke word-boundary events. The handler signature is
+    // (text, start, end, word) — `start`/`end` are char offsets into the
+    // utterance we passed to speak(). When we speak the entire page in one
+    // call (happy path), these offsets index `pageText` directly so we can
+    // forward them straight to the controller.
+    _tts.setProgressHandler((text, start, end, word) {
+      if (_isDisposed || !mounted) return;
+      _karaokeProgressEverFired = true;
+      _karaokeProgressDetectTimer?.cancel();
+      _karaokeProgressDetectTimer = null;
+      ref
+          .read(karaokeControllerProvider.notifier)
+          .onProgress(text, start, end, word);
+    });
     _tts.setCompletionHandler(() {
       if (_isDisposed || !mounted) return;
       // Re-entrancy guard: only advance if we were actually speaking. On some
@@ -144,12 +176,22 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       final wasSpeaking = _ttsSpeaking;
       setState(() => _ttsSpeaking = false);
       if (!wasSpeaking) return;
+      // Sentence-mode: a per-sentence speak() just finished. Advance to the
+      // next sentence in the queue — page advance only when the queue empties.
+      if (_karaokeSentences != null && _karaokeSentences!.isNotEmpty) {
+        if (_speakNextSentence()) return;
+      }
+      // Karaoke page boundary: page-level speak finished, clear active span.
+      ref.read(karaokeControllerProvider.notifier).onTtsStop();
       // If the user hasn't pressed Stop, automatically continue to the next page.
       if (_ttsActive) _advanceToNextPageForTts();
     });
     _tts.setCancelHandler(() {
       if (_isDisposed || !mounted) return;
       setState(() => _ttsSpeaking = false);
+      // User-initiated stop. Clear the karaoke active span — page text stays
+      // in the pane so the user can still scroll-read the last page.
+      ref.read(karaokeControllerProvider.notifier).onTtsStop();
     });
     _tts.setErrorHandler((msg) {
       if (_isDisposed || !mounted) return;
@@ -163,10 +205,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         AppLogger.debug('TTS', 'benign error ignored: $msg');
         return;
       }
-      setState(() { _ttsActive = false; _ttsSpeaking = false; });
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('TTS engine error: $msg')),
-      );
+      setState(() {
+        _ttsActive = false;
+        _ttsSpeaking = false;
+      });
+      ref.read(karaokeControllerProvider.notifier).onTtsStop();
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('TTS engine error: $msg')));
     });
   }
 
@@ -197,12 +243,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         if (name.contains('google us english')) return 55;
         if (name.contains('female')) return 50;
         if (name.contains('google') && name.contains('english')) return 30;
-        if (name.contains('david') || name.contains('mark') ||
-            name.contains('guy')  || name.contains('alex')) {
+        if (name.contains('david') ||
+            name.contains('mark') ||
+            name.contains('guy') ||
+            name.contains('alex')) {
           return 5;
         }
         return 10;
       }
+
       final ranked = voices.cast<Map>().toList()
         ..sort((a, b) => score(b).compareTo(score(a)));
       if (ranked.isNotEmpty && score(ranked.first) > 0) {
@@ -213,7 +262,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         _webVoiceSet = true;
         AppLogger.debug('TTS', 'web voice set: ${ranked.first['name']}');
       }
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
   }
 
   @override
@@ -226,7 +277,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     _tts.setCompletionHandler(() {});
     _tts.setCancelHandler(() {});
     _tts.setErrorHandler((_) {});
+    _tts.setProgressHandler((_, a, b, c) {});
     _tts.stop();
+    // Karaoke teardown: cancel the detect timer and drop the sentence queue
+    // so any pending Future doesn't fire setState on a dead state.
+    _karaokeProgressDetectTimer?.cancel();
+    _karaokeProgressDetectTimer = null;
+    _karaokeSentences = null;
     // Cancel any in-flight background OCR sweep. Bumping the version makes
     // the loop's next iteration check bail; the loop's own `finally` would
     // normally clear the progress provider, but it only does so if it owns
@@ -237,7 +294,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
         ref.read(bookOcrProgressProvider.notifier).state = null;
-      } catch (_) {/* container disposed before frame — best effort */}
+      } catch (_) {
+        /* container disposed before frame — best effort */
+      }
     });
     // Release native PDF text-extractor handle on Android — leak otherwise.
     _pdfDoc = null;
@@ -298,9 +357,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     if (pdfPath == null) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF still loading, try again in a moment.')),
+          const SnackBar(
+            content: Text('PDF still loading, try again in a moment.'),
+          ),
         );
-        setState(() { _ttsActive = false; _ttsSpeaking = false; });
+        setState(() {
+          _ttsActive = false;
+          _ttsSpeaking = false;
+        });
       }
       return;
     }
@@ -332,9 +396,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         if (!await pdfFile.exists() || await pdfFile.length() < 100) {
           _pdfDoc = null;
           if (mounted) {
-            setState(() { _ttsActive = false; _ttsSpeaking = false; });
+            setState(() {
+              _ttsActive = false;
+              _ttsSpeaking = false;
+            });
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('PDF file not accessible. Reopen the book and try again.')),
+              const SnackBar(
+                content: Text(
+                  'PDF file not accessible. Reopen the book and try again.',
+                ),
+              ),
             );
           }
           return;
@@ -360,9 +431,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         final flags = ref.read(featureFlagsProvider);
         if (!flags.ocrFallbackEnabled) {
           if (mounted) {
-            setState(() { _ttsActive = false; _ttsSpeaking = false; });
+            setState(() {
+              _ttsActive = false;
+              _ttsSpeaking = false;
+            });
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('No readable text on this page (scanned PDF?)')),
+              const SnackBar(
+                content: Text('No readable text on this page (scanned PDF?)'),
+              ),
             );
           }
           return;
@@ -375,19 +451,23 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         if (!_ocrSessionNoticeShown) {
           _ocrSessionNoticeShown = true;
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text(
-              'Using OCR for scanned PDF — first page may take a few seconds.',
-            )),
+            const SnackBar(
+              content: Text(
+                'Using OCR for scanned PDF — first page may take a few seconds.',
+              ),
+            ),
           );
         }
         setState(() => _ocrInProgress = true);
         String ocrText;
         try {
-          ocrText = await ref.read(ocrPageTextProvider((
-            bookId: widget.bookId,
-            url: pdfPath,
-            pageIndex: pageIndex,
-          )).future);
+          ocrText = await ref.read(
+            ocrPageTextProvider((
+              bookId: widget.bookId,
+              url: pdfPath,
+              pageIndex: pageIndex,
+            )).future,
+          );
         } catch (e) {
           AppLogger.error('OCR', 'failed', error: e);
           if (mounted) {
@@ -396,9 +476,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
               _ttsSpeaking = false;
               _ocrInProgress = false;
             });
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(_friendlyOcrError(e))),
-            );
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(_friendlyOcrError(e))));
           }
           return;
         } finally {
@@ -410,9 +490,14 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         if (v != _speakVersion) return;
         if (ocrText.trim().isEmpty) {
           if (mounted) {
-            setState(() { _ttsActive = false; _ttsSpeaking = false; });
+            setState(() {
+              _ttsActive = false;
+              _ttsSpeaking = false;
+            });
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Could not extract any text from this page.')),
+              const SnackBar(
+                content: Text('Could not extract any text from this page.'),
+              ),
             );
           }
           return;
@@ -431,23 +516,77 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       if (kIsWeb && !_webVoiceSet) {
         await _trySetWebVoice();
       }
+      // Karaoke: prime the pane with the page text BEFORE we kick off speak()
+      // so the user sees the prose render even on slow first-tick engines.
+      // baseOffset = 0: full-page speak, progress offsets index pageText
+      // directly. _seekTtsTo() sets a non-zero baseOffset for slice speaks.
+      ref
+          .read(karaokeControllerProvider.notifier)
+          .onTtsStart(pageText, baseOffset: 0);
+      // Decide path: if a previous speak already failed to emit progress
+      // events, we're in fallback mode for this page — drive sentence-by-
+      // sentence instead. Otherwise speak the whole page and arm a 2 s timer
+      // that promotes us to fallback if no progress event ever lands.
+      final karaokeState = ref.read(karaokeControllerProvider);
+      if (karaokeState.fallbackSentenceMode) {
+        // Sentence queue path. _speakNextSentence handles speak() itself.
+        _karaokeSentences = _splitForKaraoke(pageText);
+        _karaokeSentenceIndex = 0;
+        if (mounted) setState(() => _ttsSpeaking = true);
+        if (!_speakNextSentence()) {
+          // Empty queue (no sentences extracted). Bail and let the user retry.
+          _karaokeSentences = null;
+          if (mounted) {
+            setState(() {
+              _ttsActive = false;
+              _ttsSpeaking = false;
+            });
+          }
+        }
+        return;
+      }
+      // Word-progress path: arm fallback detection + speak whole page.
+      _karaokeProgressEverFired = false;
+      _karaokeProgressDetectTimer?.cancel();
+      _karaokeProgressDetectTimer = Timer(const Duration(seconds: 2), () {
+        if (_isDisposed || !mounted) return;
+        if (_karaokeProgressEverFired) return;
+        if (v != _speakVersion) return;
+        // No progress events landed — promote to sentence mode for the next
+        // page. We don't restart the current page mid-speak (jarring); the
+        // *next* page will use sentence path automatically.
+        AppLogger.debug(
+          'TTS',
+          'no progress events after 2s, switching to sentence fallback',
+        );
+        ref.read(karaokeControllerProvider.notifier).enableFallbackMode();
+      });
       if (mounted) setState(() => _ttsSpeaking = true);
       // Diagnostic: extracted text length is a common failure mode (image-only PDFs).
-      AppLogger.debug('TTS', 'speaking ${pageText.length} chars, rate=$_speechRate pitch=$_pitch web=$kIsWeb');
+      AppLogger.debug(
+        'TTS',
+        'speaking ${pageText.length} chars, rate=$_speechRate pitch=$_pitch web=$kIsWeb',
+      );
       final result = await _tts.speak(pageText);
-      AppLogger.debug('TTS', 'speak() returned: $result (version=$v, current=$_speakVersion)');
+      AppLogger.debug(
+        'TTS',
+        'speak() returned: $result (version=$v, current=$_speakVersion)',
+      );
       // With awaitSpeakCompletion(true), result==0 also fires on legitimate
       // interruption (stop() before completion). Don't surface as error.
     } catch (e) {
       _pdfDoc = null;
       if (mounted) {
-        setState(() { _ttsActive = false; _ttsSpeaking = false; });
+        setState(() {
+          _ttsActive = false;
+          _ttsSpeaking = false;
+        });
         final msg = e.toString().contains('INVALID_PATH')
             ? 'Could not read PDF text. The file may be encrypted or scanned.'
             : 'TTS error: $e';
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(msg)),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(msg)));
       }
     }
   }
@@ -514,11 +653,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           final cached = ref.read(ocrCacheServiceProvider).get(bookId, i);
           if (cached == null) {
             try {
-              await ref.read(ocrPageTextProvider((
-                bookId: bookId,
-                url: pdfPath,
-                pageIndex: i,
-              )).future);
+              await ref.read(
+                ocrPageTextProvider((
+                  bookId: bookId,
+                  url: pdfPath,
+                  pageIndex: i,
+                )).future,
+              );
             } catch (e) {
               // Per-page failure is non-fatal — we'll fall back to
               // foreground OCR (or the empty snackbar) if the user
@@ -528,8 +669,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           }
           if (v != _bgOcrVersion) return;
           done += 1;
-          ref.read(bookOcrProgressProvider.notifier).state =
-              (done: done, total: total);
+          ref.read(bookOcrProgressProvider.notifier).state = (
+            done: done,
+            total: total,
+          );
           // Yield back to the event loop so UI repaints, scroll & tap
           // gestures stay responsive, and the cancellation flag has a
           // chance to flip.
@@ -578,6 +721,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         _ttsSpeaking = false;
       });
       _speakVersion++; // invalidate any in-flight _speakCurrentPage
+      // Drop the karaoke sentence queue + detect timer so a stop in the
+      // middle of fallback mode doesn't leave a stale Future to flip flags.
+      _karaokeProgressDetectTimer?.cancel();
+      _karaokeProgressDetectTimer = null;
+      _karaokeSentences = null;
+      ref.read(karaokeControllerProvider.notifier).onTtsStop();
       await _tts.stop();
     } else {
       setState(() => _ttsActive = true);
@@ -587,22 +736,23 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       // previous page (off-by-one) at the very first Read tap.
       int displayedPage;
       if (kIsWeb) {
-        displayedPage = _webController.currentPage ??
+        displayedPage =
+            _webController.currentPage ??
             (_currentPage > 0
                 ? _currentPage
                 : ref
-                        .read(bookByIdProvider(widget.bookId))
-                        .valueOrNull
-                        ?.currentPage ??
-                    1);
+                          .read(bookByIdProvider(widget.bookId))
+                          .valueOrNull
+                          ?.currentPage ??
+                      1);
       } else {
         displayedPage = _currentPage > 0
             ? _currentPage
             : (ref
-                    .read(bookByIdProvider(widget.bookId))
-                    .valueOrNull
-                    ?.currentPage ??
-                1);
+                      .read(bookByIdProvider(widget.bookId))
+                      .valueOrNull
+                      ?.currentPage ??
+                  1);
       }
       _speakCurrentPage((displayedPage - 1).clamp(0, 999999));
     }
@@ -636,7 +786,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                 const SizedBox(height: 8),
                 Text(
                   'Changes apply when you release the slider.',
-                  style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                  style: AppTypography.bodySmall.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
                 const SizedBox(height: 20),
                 Row(
@@ -645,7 +797,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                     const Spacer(),
                     Text(
                       '${(rate * 100).round()}%',
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -668,7 +822,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                     const Spacer(),
                     Text(
                       pitch.toStringAsFixed(1),
-                      style: AppTypography.bodySmall.copyWith(color: AppColors.textSecondary),
+                      style: AppTypography.bodySmall.copyWith(
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ],
                 ),
@@ -693,6 +849,225 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     );
   }
 
+  /// Splits a page's text into sentence spans for the fallback karaoke path.
+  /// Each entry knows its char offsets back into [pageText] so the controller
+  /// can highlight the matching span in the karaoke pane.
+  List<_KaraokeSentence> _splitForKaraoke(String pageText) {
+    final out = <_KaraokeSentence>[];
+    // Pattern: end-of-sentence punctuation followed by whitespace. We KEEP
+    // the punctuation with the preceding sentence by splitting *after* it.
+    // RegExp.allMatches gives us the boundary positions; we walk between
+    // them to slice the text.
+    final boundary = RegExp(r'(?<=[.!?])\s+');
+    int cursor = 0;
+    for (final m in boundary.allMatches(pageText)) {
+      final end = m.start;
+      if (end > cursor) {
+        final slice = pageText.substring(cursor, end);
+        if (slice.trim().isNotEmpty) {
+          out.add(_KaraokeSentence(start: cursor, end: end, text: slice));
+        }
+      }
+      cursor = m.end;
+    }
+    // Tail (no trailing punctuation, or last sentence).
+    if (cursor < pageText.length) {
+      final slice = pageText.substring(cursor);
+      if (slice.trim().isNotEmpty) {
+        out.add(
+          _KaraokeSentence(start: cursor, end: pageText.length, text: slice),
+        );
+      }
+    }
+    return out;
+  }
+
+  /// Advances the sentence queue: pulls the next entry, emits a sentence-tick
+  /// to the karaoke controller, and fires a single speak() for that sentence.
+  /// Returns false if the queue is empty (caller should advance the page).
+  bool _speakNextSentence() {
+    final list = _karaokeSentences;
+    if (list == null || list.isEmpty) return false;
+    if (_karaokeSentenceIndex >= list.length) {
+      _karaokeSentences = null;
+      _karaokeSentenceIndex = 0;
+      // Page finished — clear active span and let caller advance.
+      ref.read(karaokeControllerProvider.notifier).onTtsStop();
+      if (_ttsActive) _advanceToNextPageForTts();
+      return true; // we handled the completion side-effect
+    }
+    final s = list[_karaokeSentenceIndex];
+    _karaokeSentenceIndex++;
+    ref.read(karaokeControllerProvider.notifier).onSentenceTick(s.start, s.end);
+    if (mounted) setState(() => _ttsSpeaking = true);
+    // Fire and forget. setCompletionHandler advances when this finishes.
+    unawaited(_tts.speak(s.text));
+    return true;
+  }
+
+  /// Click-to-seek: scrub TTS to the word at [wordStart] (a char offset
+  /// within the current page's `KaraokeState.fullText`). Called from the
+  /// karaoke pane's `_TappableWord.onTap`.
+  ///
+  /// Behavior:
+  ///   - If currently speaking, stop and restart from [wordStart].
+  ///   - If idle, start speaking from [wordStart] (auto-activates TTS).
+  ///   - In word-progress mode: speak `fullText.substring(wordStart)` and
+  ///     tell the controller `baseOffset = wordStart` so progress offsets
+  ///     re-anchor to the original full-text coord space.
+  ///   - In sentence-fallback mode: find the sentence containing
+  ///     [wordStart], point the queue at it, kick off the next sentence.
+  Future<void> _seekTtsTo(int wordStart) async {
+    final state = ref.read(karaokeControllerProvider);
+    final fullText = state.fullText;
+    if (fullText.isEmpty) return;
+    if (wordStart < 0 || wordStart >= fullText.length) return;
+
+    final v = ++_speakVersion;
+    // Cancel the detect timer — even if it hadn't fired yet, the new speak
+    // re-arms its own (only when needed).
+    _karaokeProgressDetectTimer?.cancel();
+    _karaokeProgressDetectTimer = null;
+
+    final wasSpeakingBeforeStop = _ttsSpeaking;
+    if (mounted && _ttsSpeaking) {
+      setState(() => _ttsSpeaking = false);
+    } else {
+      _ttsSpeaking = false;
+    }
+    await _tts.stop();
+    if (v != _speakVersion) return;
+    // Web cancel is async — same workaround as _speakCurrentPage.
+    if (kIsWeb && wasSpeakingBeforeStop) {
+      await Future.delayed(const Duration(milliseconds: 120));
+      if (v != _speakVersion) return;
+    }
+
+    if (state.fallbackSentenceMode) {
+      // Sentence path: find which sentence contains the tapped word.
+      final sentences = _karaokeSentences;
+      if (sentences == null || sentences.isEmpty) return;
+      int matchIndex = sentences.length - 1; // fall through to last
+      for (int i = 0; i < sentences.length; i++) {
+        final s = sentences[i];
+        if (s.start <= wordStart && wordStart < s.end) {
+          matchIndex = i;
+          break;
+        }
+      }
+      _karaokeSentenceIndex = matchIndex;
+      // Mirror _speakCurrentPage: flip flags + re-pump the controller's
+      // speaking state so the empty-state doesn't briefly flash.
+      ref
+          .read(karaokeControllerProvider.notifier)
+          .onTtsStart(fullText, baseOffset: 0);
+      ref.read(karaokeControllerProvider.notifier).enableFallbackMode();
+      if (mounted) {
+        setState(() {
+          _ttsActive = true;
+          _ttsSpeaking = true;
+        });
+      } else {
+        _ttsActive = true;
+        _ttsSpeaking = true;
+      }
+      // _speakNextSentence pulls list[_karaokeSentenceIndex] then ++s the
+      // index, which is exactly what we want.
+      _speakNextSentence();
+      return;
+    }
+
+    // Word-progress path: slice the page text from the tapped word and let
+    // the engine emit boundary events relative to the slice. baseOffset
+    // shifts those offsets back to full-text coords inside the controller.
+    final slice = fullText.substring(wordStart);
+    if (slice.trim().isEmpty) return;
+    ref
+        .read(karaokeControllerProvider.notifier)
+        .onTtsStart(fullText, baseOffset: wordStart);
+    if (mounted) {
+      setState(() {
+        _ttsActive = true;
+        _ttsSpeaking = true;
+      });
+    } else {
+      _ttsActive = true;
+      _ttsSpeaking = true;
+    }
+    // Only re-arm the 2 s detect timer if we've never confirmed progress
+    // events for this engine. Once they've fired once, we trust them — no
+    // need to chase fallback mode again on a seek.
+    if (!_karaokeProgressEverFired) {
+      _karaokeProgressDetectTimer = Timer(const Duration(seconds: 2), () {
+        if (_isDisposed || !mounted) return;
+        if (_karaokeProgressEverFired) return;
+        if (v != _speakVersion) return;
+        ref.read(karaokeControllerProvider.notifier).enableFallbackMode();
+      });
+    }
+    AppLogger.debug(
+      'TTS',
+      'seek: speaking ${slice.length} chars from offset $wordStart',
+    );
+    unawaited(_tts.speak(slice));
+  }
+
+  /// Slider hook for the karaoke pane speed slider. Updates state, applies
+  /// the engine rate, and re-speaks from the current word so the change is
+  /// audible mid-utterance (most engines don't honor setSpeechRate live).
+  void _setSpeechRate(double next) {
+    final clamped = next.clamp(0.5, 2.0);
+    if (mounted) {
+      setState(() => _speechRate = clamped);
+    } else {
+      _speechRate = clamped;
+    }
+    _tts.setSpeechRate(_speechRate);
+    if (!_ttsActive || !_ttsSpeaking) return;
+    final s = ref.read(karaokeControllerProvider);
+    if (s.fullText.isEmpty) return;
+    if (s.fallbackSentenceMode) {
+      // Sentence-mode: simplest correct path is a full restart of the
+      // current page so the new rate applies on the next sentence.
+      final page = _currentPage > 0 ? _currentPage - 1 : 0;
+      _speakCurrentPage(page);
+      return;
+    }
+    // Word-mode: seek back to the currently-highlighted word so the new
+    // rate kicks in mid-page without losing position.
+    if (s.currentStart >= 0 && s.currentStart < s.fullText.length) {
+      _seekTtsTo(s.currentStart);
+    } else {
+      final page = _currentPage > 0 ? _currentPage - 1 : 0;
+      _speakCurrentPage(page);
+    }
+  }
+
+  /// Karaoke pane mounted as a direct Stack child so Positioned works.
+  /// Sliding-up panel rooted to the bottom of the reader area. Pane height
+  /// is ~42% of the reader, clamped to a sensible band so the top bar stays
+  /// reachable on short screens (landscape).
+  Widget _buildKaraokePane(BuildContext context, {required bool isVisible}) {
+    final mq = MediaQuery.of(context);
+    final paneHeight = (mq.size.height * 0.42).clamp(220.0, 520.0);
+    return AnimatedPositioned(
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      left: 0,
+      right: 0,
+      bottom: isVisible ? 0 : -paneHeight,
+      height: paneHeight,
+      child: IgnorePointer(
+        ignoring: !isVisible,
+        child: KaraokeTextPane(
+          onWordTap: _seekTtsTo,
+          currentSpeed: _speechRate,
+          onSpeedChange: _setSpeechRate,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final bookAsync = ref.watch(bookByIdProvider(widget.bookId));
@@ -705,14 +1080,17 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) context.go('/home');
       });
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
-    final pdfAsync = book != null ? ref.watch(pdfPathProvider(book.link)) : null;
+    final pdfAsync = book != null
+        ? ref.watch(pdfPathProvider(book.link))
+        : null;
 
     final progress = _totalPages > 0 ? _currentPage / _totalPages : 0.0;
+
+    // Karaoke state drives the toolbar toggle icon and the slide-up pane.
+    final karaokeState = ref.watch(karaokeControllerProvider);
 
     return Scaffold(
       backgroundColor: const Color(0xFFD8DADB),
@@ -723,19 +1101,24 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           if (pdfAsync != null)
             Positioned.fill(
               child: pdfAsync.when(
-                loading: () =>
-                    const Center(child: CircularProgressIndicator()),
+                loading: () => const Center(child: CircularProgressIndicator()),
                 error: (e, _) => Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const Icon(Icons.error, size: 48, color: AppColors.error),
                       const SizedBox(height: 16),
-                      Text('Failed to load PDF', style: AppTypography.bodyMedium),
+                      Text(
+                        'Failed to load PDF',
+                        style: AppTypography.bodyMedium,
+                      ),
                       const SizedBox(height: 8),
-                      Text('$e',
-                          style: AppTypography.bodySmall
-                              .copyWith(color: AppColors.textSecondary)),
+                      Text(
+                        '$e',
+                        style: AppTypography.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -747,55 +1130,57 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                     top: MediaQuery.of(context).padding.top + 56,
                   ),
                   child: kIsWeb
-                    ? _WebPdfReader(
-                        key: ValueKey(path),
-                        url: path,
-                        initialPage: book?.currentPage ?? 0,
-                        controller: _webController,
-                        onPagesAndPageChanged: (page, total) =>
-                            _onPageChanged(page, total),
-                      )
-                    : PDFView(
-                  key: ValueKey(path),
-                  filePath: path,
-                  enableSwipe: true,
-                  swipeHorizontal: false,
-                  autoSpacing: false,
-                  pageFling: false,
-                  pageSnap: false,
-                  fitPolicy: FitPolicy.WIDTH,
-                  onRender: (pages) {
-                    if (pages != null) setState(() => _totalPages = pages);
-                    if (!_jumpedToSavedPage) {
-                      _jumpedToSavedPage = true;
-                      final savedPage = book?.currentPage ?? 0;
-                      if (savedPage > 1 && _pdfController != null) {
-                        _pdfController!.setPage(savedPage - 1);
-                      }
-                      if (savedPage > 0 && _currentPage == 0) {
-                        setState(() => _currentPage = savedPage);
-                      }
-                    }
-                  },
-                  onError: (e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('PDF render error: $e')),
-                      );
-                    }
-                  },
-                  onPageError: (page, e) {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Page $page error: $e')),
-                      );
-                    }
-                  },
-                  onViewCreated: (controller) {
-                    _pdfController = controller;
-                  },
-                  onPageChanged: _onPageChanged,
-                ),
+                      ? _WebPdfReader(
+                          key: ValueKey(path),
+                          url: path,
+                          initialPage: book?.currentPage ?? 0,
+                          controller: _webController,
+                          onPagesAndPageChanged: (page, total) =>
+                              _onPageChanged(page, total),
+                        )
+                      : PDFView(
+                          key: ValueKey(path),
+                          filePath: path,
+                          enableSwipe: true,
+                          swipeHorizontal: false,
+                          autoSpacing: false,
+                          pageFling: false,
+                          pageSnap: false,
+                          fitPolicy: FitPolicy.WIDTH,
+                          onRender: (pages) {
+                            if (pages != null) {
+                              setState(() => _totalPages = pages);
+                            }
+                            if (!_jumpedToSavedPage) {
+                              _jumpedToSavedPage = true;
+                              final savedPage = book?.currentPage ?? 0;
+                              if (savedPage > 1 && _pdfController != null) {
+                                _pdfController!.setPage(savedPage - 1);
+                              }
+                              if (savedPage > 0 && _currentPage == 0) {
+                                setState(() => _currentPage = savedPage);
+                              }
+                            }
+                          },
+                          onError: (e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('PDF render error: $e')),
+                              );
+                            }
+                          },
+                          onPageError: (page, e) {
+                            if (mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(content: Text('Page $page error: $e')),
+                              );
+                            }
+                          },
+                          onViewCreated: (controller) {
+                            _pdfController = controller;
+                          },
+                          onPageChanged: _onPageChanged,
+                        ),
                 ),
               ),
             )
@@ -819,7 +1204,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                       children: [
                         Padding(
                           padding: const EdgeInsets.symmetric(
-                              horizontal: 16, vertical: 12),
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                           child: Row(
                             children: [
                               Semantics(
@@ -831,10 +1218,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                                       : context.go('/book/${widget.bookId}'),
                                   child: Container(
                                     constraints: const BoxConstraints(
-                                        minWidth: 48, minHeight: 48),
+                                      minWidth: 48,
+                                      minHeight: 48,
+                                    ),
                                     alignment: Alignment.center,
-                                    child: const Icon(Icons.arrow_back,
-                                        color: AppColors.primary, size: 20),
+                                    child: const Icon(
+                                      Icons.arrow_back,
+                                      color: AppColors.primary,
+                                      size: 20,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -854,10 +1246,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                                     onTap: _showVoiceSettings,
                                     child: Container(
                                       constraints: const BoxConstraints(
-                                          minWidth: 48, minHeight: 48),
+                                        minWidth: 48,
+                                        minHeight: 48,
+                                      ),
                                       alignment: Alignment.center,
                                       padding: const EdgeInsets.symmetric(
-                                          horizontal: 8),
+                                        horizontal: 8,
+                                      ),
                                       child: Icon(
                                         Icons.tune,
                                         size: 18,
@@ -870,55 +1265,89 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                                 ),
                                 Semantics(
                                   button: true,
-                                  label: _ttsActive
-                                      ? 'Stop reading aloud'
-                                      : 'Start reading this page aloud',
+                                  label: karaokeState.isVisible
+                                      ? 'Hide karaoke captions'
+                                      : 'Show karaoke captions',
                                   child: GestureDetector(
-                                  onTap: _toggleTts,
-                                  child: AnimatedContainer(
-                                    duration:
-                                        const Duration(milliseconds: 200),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: _ttsActive
-                                          ? AppColors.primary
-                                          : Colors.transparent,
-                                      borderRadius:
-                                          BorderRadius.circular(20),
-                                      border: Border.all(
-                                        color: _ttsActive
+                                    onTap: () => ref
+                                        .read(
+                                          karaokeControllerProvider.notifier,
+                                        )
+                                        .toggleVisible(),
+                                    child: Container(
+                                      constraints: const BoxConstraints(
+                                        minWidth: 48,
+                                        minHeight: 48,
+                                      ),
+                                      alignment: Alignment.center,
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 8,
+                                      ),
+                                      child: Icon(
+                                        karaokeState.isVisible
+                                            ? Icons.subtitles
+                                            : Icons.subtitles_outlined,
+                                        size: 18,
+                                        color: karaokeState.isVisible
                                             ? AppColors.primary
                                             : AppColors.textMuted,
                                       ),
                                     ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          _ttsSpeaking
-                                              ? Icons.volume_up
-                                              : Icons.volume_up_outlined,
-                                          size: 16,
+                                  ),
+                                ),
+                                Semantics(
+                                  button: true,
+                                  label: _ttsActive
+                                      ? 'Stop reading aloud'
+                                      : 'Start reading this page aloud',
+                                  child: GestureDetector(
+                                    onTap: _toggleTts,
+                                    child: AnimatedContainer(
+                                      duration: const Duration(
+                                        milliseconds: 200,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 10,
+                                        vertical: 6,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: _ttsActive
+                                            ? AppColors.primary
+                                            : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(20),
+                                        border: Border.all(
                                           color: _ttsActive
-                                              ? Colors.white
+                                              ? AppColors.primary
                                               : AppColors.textMuted,
                                         ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          _ttsActive ? 'Stop' : 'Read',
-                                          style:
-                                              AppTypography.bodySmall.copyWith(
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Icon(
+                                            _ttsSpeaking
+                                                ? Icons.volume_up
+                                                : Icons.volume_up_outlined,
+                                            size: 16,
                                             color: _ttsActive
                                                 ? Colors.white
                                                 : AppColors.textMuted,
-                                            fontWeight: FontWeight.w600,
                                           ),
-                                        ),
-                                      ],
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            _ttsActive ? 'Stop' : 'Read',
+                                            style: AppTypography.bodySmall
+                                                .copyWith(
+                                                  color: _ttsActive
+                                                      ? Colors.white
+                                                      : AppColors.textMuted,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
                                 ),
                               ],
                             ],
@@ -927,8 +1356,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                         LinearProgressIndicator(
                           value: progress.clamp(0.0, 1.0),
                           backgroundColor: AppColors.progressTrack,
-                          valueColor:
-                              const AlwaysStoppedAnimation(AppColors.primary),
+                          valueColor: const AlwaysStoppedAnimation(
+                            AppColors.primary,
+                          ),
                           minHeight: 2,
                         ),
                         // OCR foreground progress strip — only present while
@@ -938,13 +1368,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                         if (_ocrInProgress) ...[
                           const LinearProgressIndicator(
                             backgroundColor: AppColors.progressTrack,
-                            valueColor:
-                                AlwaysStoppedAnimation(AppColors.primary),
+                            valueColor: AlwaysStoppedAnimation(
+                              AppColors.primary,
+                            ),
                             minHeight: 2,
                           ),
                           Padding(
                             padding: const EdgeInsets.symmetric(
-                                horizontal: 16, vertical: 4),
+                              horizontal: 16,
+                              vertical: 4,
+                            ),
                             child: Row(
                               children: [
                                 Icon(
@@ -985,13 +1418,13 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                     filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 13, vertical: 5),
+                        horizontal: 13,
+                        vertical: 5,
+                      ),
                       decoration: BoxDecoration(
                         color: const Color(0xCCF8FAFB),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: const Color(0x33BFC8CC),
-                        ),
+                        border: Border.all(color: const Color(0x33BFC8CC)),
                       ),
                       child: Text(
                         'Page $_currentPage of $_totalPages',
@@ -1007,10 +1440,30 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                 ),
               ),
             ),
+
+          // Karaoke captions pane: slide-up from the bottom edge. Animates
+          // off when the user collapses it; off-screen sits at -paneHeight
+          // so the pane doesn't intercept taps while hidden. Height ~42%
+          // gives enough room for ~10 lines on a 412×896 phone frame.
+          _buildKaraokePane(context, isVisible: karaokeState.isVisible),
         ],
       ),
     );
   }
+}
+
+/// A sentence span carved out of the page text for the fallback karaoke
+/// path. `start`/`end` are char offsets back into the original page text so
+/// the controller can highlight the matching span in the karaoke pane.
+class _KaraokeSentence {
+  final int start;
+  final int end;
+  final String text;
+  const _KaraokeSentence({
+    required this.start,
+    required this.end,
+    required this.text,
+  });
 }
 
 class WebPdfReaderController {
@@ -1119,7 +1572,10 @@ class _WebPdfReaderState extends State<_WebPdfReader> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text('Failed to load PDF: $_error', textAlign: TextAlign.center),
+          child: Text(
+            'Failed to load PDF: $_error',
+            textAlign: TextAlign.center,
+          ),
         ),
       );
     }
@@ -1131,12 +1587,13 @@ class _WebPdfReaderState extends State<_WebPdfReader> {
         const verticalPadding = 8.0;
         _itemHeight = constraints.maxWidth / _aspectRatio + verticalPadding * 2;
 
-        if (!_jumpedToInitialPage && widget.initialPage > 1 && _totalPages > 0) {
+        if (!_jumpedToInitialPage &&
+            widget.initialPage > 1 &&
+            _totalPages > 0) {
           _jumpedToInitialPage = true;
           WidgetsBinding.instance.addPostFrameCallback((_) {
             if (_scrollController.hasClients) {
-              _scrollController
-                  .jumpTo(_itemHeight * (widget.initialPage - 1));
+              _scrollController.jumpTo(_itemHeight * (widget.initialPage - 1));
             }
           });
         }
@@ -1155,10 +1612,8 @@ class _WebPdfReaderState extends State<_WebPdfReader> {
             controller: _scrollController,
             itemCount: _totalPages,
             itemExtent: _itemHeight,
-            itemBuilder: (ctx, i) => _PdfPageImage(
-              document: _document!,
-              pageNumber: i + 1,
-            ),
+            itemBuilder: (ctx, i) =>
+                _PdfPageImage(document: _document!, pageNumber: i + 1),
           ),
         );
       },
@@ -1210,8 +1665,8 @@ class _PdfPageImageState extends State<_PdfPageImage> {
       child: _bytes != null
           ? Image.memory(_bytes!, fit: BoxFit.contain)
           : _failed
-              ? const Center(child: Icon(Icons.broken_image, color: Colors.grey))
-              : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+          ? const Center(child: Icon(Icons.broken_image, color: Colors.grey))
+          : const Center(child: CircularProgressIndicator(strokeWidth: 2)),
     );
   }
 }

@@ -129,23 +129,25 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       button: true,
                       label: "Don't have an account? Register now",
                       child: GestureDetector(
-                      onTap: () => context.push(AppRoutes.register),
-                      child: ExcludeSemantics(child: RichText(
-                        text: TextSpan(
-                          text: "Don't have an account? ",
-                          style: AppTypography.bodyMedium,
-                          children: [
-                            TextSpan(
-                              text: 'Register now',
-                              style: AppTypography.bodyMedium.copyWith(
-                                fontWeight: FontWeight.w700,
-                                color: AppColors.primary,
-                              ),
+                        onTap: () => context.push(AppRoutes.register),
+                        child: ExcludeSemantics(
+                          child: RichText(
+                            text: TextSpan(
+                              text: "Don't have an account? ",
+                              style: AppTypography.bodyMedium,
+                              children: [
+                                TextSpan(
+                                  text: 'Register now',
+                                  style: AppTypography.bodyMedium.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
-                      )),
-                    ),
+                      ),
                     ),
                   ),
                 ],

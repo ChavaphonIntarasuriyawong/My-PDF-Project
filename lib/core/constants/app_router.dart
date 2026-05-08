@@ -26,7 +26,8 @@ final routerProvider = Provider<GoRouter>((ref) {
       if (authState.isLoading) return null;
 
       final isLoggedIn = authState.valueOrNull != null;
-      final isAuthRoute = state.matchedLocation == AppRoutes.login ||
+      final isAuthRoute =
+          state.matchedLocation == AppRoutes.login ||
           state.matchedLocation == AppRoutes.register;
 
       if (!isLoggedIn && !isAuthRoute) return AppRoutes.login;
@@ -38,7 +39,9 @@ final routerProvider = Provider<GoRouter>((ref) {
       // (`valueOrNull`) — if the book stream hasn't emitted yet we let the
       // route mount and the screen's own AsyncValue handles the loading UI.
       final loc = state.matchedLocation;
-      final lockGated = RegExp(r'^/book/([^/]+)/(reading|note)$').firstMatch(loc);
+      final lockGated = RegExp(
+        r'^/book/([^/]+)/(reading|note)$',
+      ).firstMatch(loc);
       if (lockGated != null) {
         final bookId = lockGated.group(1)!;
         final book = ref.read(bookByIdProvider(bookId)).valueOrNull;
@@ -51,12 +54,22 @@ final routerProvider = Provider<GoRouter>((ref) {
       return null;
     },
     routes: [
-      GoRoute(path: AppRoutes.login, builder: (ctx, state) => const LoginScreen()),
-      GoRoute(path: AppRoutes.register, builder: (ctx, state) => const RegisterScreen()),
-      GoRoute(path: AppRoutes.home, builder: (ctx, state) => const HomeScreen()),
+      GoRoute(
+        path: AppRoutes.login,
+        builder: (ctx, state) => const LoginScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.register,
+        builder: (ctx, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.home,
+        builder: (ctx, state) => const HomeScreen(),
+      ),
       GoRoute(
         path: AppRoutes.shelf,
-        builder: (ctx, state) => ShelfContentScreen(shelfId: state.pathParameters['id']!),
+        builder: (ctx, state) =>
+            ShelfContentScreen(shelfId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: AppRoutes.newBook,
@@ -64,26 +77,36 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(
         path: AppRoutes.bookInfo,
-        builder: (ctx, state) => BookInfoScreen(bookId: state.pathParameters['id']!),
+        builder: (ctx, state) =>
+            BookInfoScreen(bookId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: AppRoutes.reading,
-        builder: (ctx, state) => ReadingScreen(bookId: state.pathParameters['id']!),
+        builder: (ctx, state) =>
+            ReadingScreen(bookId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: AppRoutes.note,
-        builder: (ctx, state) => NoteScreen(bookId: state.pathParameters['id']!),
+        builder: (ctx, state) =>
+            NoteScreen(bookId: state.pathParameters['id']!),
       ),
       GoRoute(
         path: AppRoutes.bookLock,
         builder: (ctx, state) => BookLockScreen(
           bookId: state.pathParameters['id']!,
-          redirectTo: state.uri.queryParameters['redirect'] ??
+          redirectTo:
+              state.uri.queryParameters['redirect'] ??
               '/book/${state.pathParameters['id']!}/reading',
         ),
       ),
-      GoRoute(path: AppRoutes.profile, builder: (ctx, state) => const ProfileScreen()),
-      GoRoute(path: AppRoutes.editProfile, builder: (ctx, state) => const EditProfileScreen()),
+      GoRoute(
+        path: AppRoutes.profile,
+        builder: (ctx, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.editProfile,
+        builder: (ctx, state) => const EditProfileScreen(),
+      ),
     ],
   );
 });

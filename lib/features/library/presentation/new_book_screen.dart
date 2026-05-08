@@ -96,8 +96,10 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     return source.readAsBytes();
   }
 
-  Future<({String link, String supabasePath, PdfMetadata metadata, Uint8List bytes})> _uploadPdf(
-      PlatformFile file, String uid) async {
+  Future<
+    ({String link, String supabasePath, PdfMetadata metadata, Uint8List bytes})
+  >
+  _uploadPdf(PlatformFile file, String uid) async {
     final bytes = await _readPickedBytes(file);
     if (bytes.isEmpty) {
       throw Exception('Picked file is empty.');
@@ -107,10 +109,13 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     // millisecond (rapid retry on fast hardware). `upsert: false` would
     // otherwise throw on the second.
     final rand = Random().nextInt(0xFFFFFF).toRadixString(36);
-    final supabasePath = '$uid/${DateTime.now().millisecondsSinceEpoch}_$rand.pdf';
+    final supabasePath =
+        '$uid/${DateTime.now().millisecondsSinceEpoch}_$rand.pdf';
     final supabase = Supabase.instance.client;
     try {
-      await supabase.storage.from('pdfs').uploadBinary(
+      await supabase.storage
+          .from('pdfs')
+          .uploadBinary(
             supabasePath,
             bytes,
             fileOptions: const FileOptions(
@@ -121,9 +126,13 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     } on StorageException catch (e) {
       throw Exception('Storage error: ${e.message}');
     }
-    final publicUrl =
-        supabase.storage.from('pdfs').getPublicUrl(supabasePath);
-    return (link: publicUrl, supabasePath: supabasePath, metadata: metadata, bytes: bytes);
+    final publicUrl = supabase.storage.from('pdfs').getPublicUrl(supabasePath);
+    return (
+      link: publicUrl,
+      supabasePath: supabasePath,
+      metadata: metadata,
+      bytes: bytes,
+    );
   }
 
   /// Pre-flight duplicate-title check so we don't pay for a Supabase upload
@@ -139,7 +148,9 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
 
   Future<PdfMetadata> _validateAndExtractMetadata(String url) async {
     final uri = Uri.tryParse(url);
-    if (uri == null || !uri.hasScheme || !(uri.scheme == 'http' || uri.scheme == 'https')) {
+    if (uri == null ||
+        !uri.hasScheme ||
+        !(uri.scheme == 'http' || uri.scheme == 'https')) {
       throw Exception('Invalid URL scheme.');
     }
     // Browsers block cross-origin GET on most PDF hosts (CORS). Skip the probe
@@ -148,8 +159,12 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
     if (kIsWeb) {
       return const PdfMetadata();
     }
-    final resp = await http.get(uri).timeout(const Duration(seconds: 30),
-        onTimeout: () => throw Exception('Link unreachable.'));
+    final resp = await http
+        .get(uri)
+        .timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw Exception('Link unreachable.'),
+        );
     if (resp.statusCode < 200 || resp.statusCode >= 400) {
       throw Exception('Link returned ${resp.statusCode}.');
     }
@@ -171,8 +186,10 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
       final sample = pageCount > 3 ? 3 : pageCount;
       if (sample <= 0) return false;
       final extractor = PdfTextExtractor(doc);
-      final text =
-          extractor.extractText(startPageIndex: 0, endPageIndex: sample - 1);
+      final text = extractor.extractText(
+        startPageIndex: 0,
+        endPageIndex: sample - 1,
+      );
       // Threshold of 5 chars handles PDFs with tiny incidental vector text.
       return text.trim().length < 5;
     } finally {
@@ -211,7 +228,8 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
   ///   straight to OCR. Probe errors (encrypted/corrupt) yield `false` here
   ///   so we don't falsely flag books we couldn't measure.
   Future<({bool proceed, bool isBitmap})> _checkTextLayerOrConfirm(
-      Uint8List bytes) async {
+    Uint8List bytes,
+  ) async {
     bool isBitmap;
     try {
       isBitmap = _isBitmapOnlyPdf(bytes);
@@ -277,8 +295,9 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         year: metadata.year,
         needsOcr: needsOcr,
       );
-      final created =
-          await ref.read(libraryControllerProvider.notifier).createBook(book);
+      final created = await ref
+          .read(libraryControllerProvider.notifier)
+          .createBook(book);
       if (!mounted) return;
       setState(() => _loadingUrl = false);
       if (created != null) {
@@ -345,7 +364,9 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
           year: saved.metadata.year,
           needsOcr: needsOcr,
         );
-        created = await ref.read(libraryControllerProvider.notifier).createBook(book);
+        created = await ref
+            .read(libraryControllerProvider.notifier)
+            .createBook(book);
       } catch (_) {
         rethrow;
       }
@@ -353,10 +374,12 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
         // createBook returned null — controller wrote a Failure to its state.
         // Treat as failure: clean up the orphan Supabase blob before bailing.
         try {
-          await Supabase.instance.client.storage
-              .from('pdfs')
-              .remove([saved.supabasePath]);
-        } catch (_) { /* best-effort */ }
+          await Supabase.instance.client.storage.from('pdfs').remove([
+            saved.supabasePath,
+          ]);
+        } catch (_) {
+          /* best-effort */
+        }
         if (!mounted) return;
         setState(() => _loadingFile = false);
         final err = ref.read(libraryControllerProvider).error;
@@ -377,8 +400,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(msg)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
   @override
@@ -415,19 +437,24 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                       onTap: () => _scaffoldKey.currentState?.openDrawer(),
                       child: Container(
                         padding: const EdgeInsets.all(8),
-                        child: const Icon(Icons.menu,
-                            color: AppColors.primary, size: 20),
+                        child: const Icon(
+                          Icons.menu,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 8),
-                    const Text('MYPDF',
-                        style: TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w700,
-                          fontSize: 18,
-                          letterSpacing: -0.9,
-                          color: AppColors.primary,
-                        )),
+                    const Text(
+                      'MYPDF',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w700,
+                        fontSize: 18,
+                        letterSpacing: -0.9,
+                        color: AppColors.primary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -458,8 +485,10 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
               const SizedBox(height: 12),
               Text(
                 'Transform raw data into meaningful intelligence. Connect your documents directly to your library.',
-                style:
-                    AppTypography.bodyLarge.copyWith(fontSize: 20, height: 1.6),
+                style: AppTypography.bodyLarge.copyWith(
+                  fontSize: 20,
+                  height: 1.6,
+                ),
               ),
               const SizedBox(height: 32),
 
@@ -480,8 +509,11 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                         children: [
                           const Padding(
                             padding: EdgeInsets.symmetric(horizontal: 16),
-                            child: Icon(Icons.link,
-                                color: AppColors.primary, size: 18),
+                            child: Icon(
+                              Icons.link,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
                           ),
                           Expanded(
                             child: TextField(
@@ -497,14 +529,17 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                                 hintStyle: TextStyle(
                                   fontFamily: 'Inter',
                                   fontSize: 18,
-                                  color: AppColors.textMuted
-                                      .withValues(alpha: 0.5),
+                                  color: AppColors.textMuted.withValues(
+                                    alpha: 0.5,
+                                  ),
                                 ),
                                 border: InputBorder.none,
                                 enabledBorder: InputBorder.none,
                                 focusedBorder: InputBorder.none,
                                 contentPadding: const EdgeInsets.symmetric(
-                                    vertical: 18, horizontal: 0),
+                                  vertical: 18,
+                                  horizontal: 0,
+                                ),
                               ),
                             ),
                           ),
@@ -512,7 +547,8 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                       ),
                     ),
                     const _FieldHelper(
-                        'Paste a direct public PDF URL here to add it to your library.'),
+                      'Paste a direct public PDF URL here to add it to your library.',
+                    ),
                     const SizedBox(height: 20),
                     _ShelfDropdown(
                       shelves: shelves,
@@ -520,7 +556,8 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                       onChanged: (v) => setState(() => _urlShelfId = v),
                     ),
                     const _FieldHelper(
-                        'Choose a shelf to store your PDF file link.'),
+                      'Choose a shelf to store your PDF file link.',
+                    ),
                     if (_urlImportError) ...[
                       const SizedBox(height: 16),
                       Container(
@@ -532,8 +569,11 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                         ),
                         child: Row(
                           children: [
-                            const Icon(Icons.error,
-                                color: AppColors.error, size: 18),
+                            const Icon(
+                              Icons.error,
+                              color: AppColors.error,
+                              size: 18,
+                            ),
                             const SizedBox(width: 10),
                             Expanded(
                               child: Text(
@@ -569,11 +609,16 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                     _InputContainer(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 16, vertical: 14),
+                          horizontal: 16,
+                          vertical: 14,
+                        ),
                         child: Row(
                           children: [
-                            const Icon(Icons.picture_as_pdf_outlined,
-                                color: AppColors.primary, size: 20),
+                            const Icon(
+                              Icons.picture_as_pdf_outlined,
+                              color: AppColors.primary,
+                              size: 20,
+                            ),
                             const SizedBox(width: 12),
                             Expanded(
                               child: Text(
@@ -583,8 +628,9 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                                   fontSize: 18,
                                   color: _pickedFile != null
                                       ? AppColors.textPrimary
-                                      : AppColors.textMuted
-                                          .withValues(alpha: 0.5),
+                                      : AppColors.textMuted.withValues(
+                                          alpha: 0.5,
+                                        ),
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -592,17 +638,21 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                             if (_pickedFile != null) ...[
                               const SizedBox(width: 8),
                               GestureDetector(
-                                onTap: () =>
-                                    setState(() => _pickedFile = null),
-                                child: const Icon(Icons.close,
-                                    color: AppColors.textMuted, size: 18),
+                                onTap: () => setState(() => _pickedFile = null),
+                                child: const Icon(
+                                  Icons.close,
+                                  color: AppColors.textMuted,
+                                  size: 18,
+                                ),
                               ),
                             ],
                           ],
                         ),
                       ),
                     ),
-                    const _FieldHelper('Open your browser to upload the PDF file.'),
+                    const _FieldHelper(
+                      'Open your browser to upload the PDF file.',
+                    ),
                     const SizedBox(height: 16),
                     // Browse button between file input and shelf selector
                     SizedBox(
@@ -636,7 +686,8 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                       onChanged: (v) => setState(() => _fileShelfId = v),
                     ),
                     const _FieldHelper(
-                        'Choose a shelf to store your PDF file link.'),
+                      'Choose a shelf to store your PDF file link.',
+                    ),
                   ],
                 ),
               ),
@@ -735,7 +786,9 @@ class _ImportCard extends StatelessWidget {
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              color: Colors.white, strokeWidth: 2),
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
                         ),
                       )
                     : Row(
@@ -751,8 +804,11 @@ class _ImportCard extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 8),
-                          const Icon(Icons.arrow_forward,
-                              color: Colors.white, size: 16),
+                          const Icon(
+                            Icons.arrow_forward,
+                            color: Colors.white,
+                            size: 16,
+                          ),
                         ],
                       ),
               ),
@@ -883,19 +939,21 @@ class _ShelfDropdown extends StatelessWidget {
                     ),
                   ),
                 ),
-                ...shelves.map((s) => DropdownMenuItem<String?>(
-                      value: s.id,
-                      child: Text(
-                        s.name,
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontWeight: FontWeight.w400,
-                          fontSize: 18,
-                          height: 1.5,
-                          color: AppColors.textPrimary,
-                        ),
+                ...shelves.map(
+                  (s) => DropdownMenuItem<String?>(
+                    value: s.id,
+                    child: Text(
+                      s.name,
+                      style: const TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w400,
+                        fontSize: 18,
+                        height: 1.5,
+                        color: AppColors.textPrimary,
                       ),
-                    )),
+                    ),
+                  ),
+                ),
               ],
               onChanged: onChanged,
             ),

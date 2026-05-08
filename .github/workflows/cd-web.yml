@@ -1,0 +1,66 @@
+# CD workflow for MyPDF web -> Firebase Hosting
+#
+# Trigger: every push to `main`. Pull requests deploy to a temporary preview
+# channel keyed by PR number (auto-expires after 7 days).
+#
+# Required GitHub repository secret (Settings -> Secrets and variables -> Actions):
+#   FIREBASE_SERVICE_ACCOUNT
+#     Service account JSON for the `readtrack-8262c` Firebase project.
+#     Obtain via Firebase Console -> Project Settings -> Service Accounts ->
+#     Generate new private key. Paste the entire JSON file contents as the
+#     secret value (single-line or multi-line both work).
+#
+# Flutter version pinned to 3.35.0 to match `.github/workflows/ci.yml`.
+#
+# Note on OCR assets:
+# `web/ocr/` ships with .gitkeep only (Tesseract.js binaries are NOT committed).
+# The deployed build will run, but OCR will degrade silently on prod web until
+# those binaries are added (see README "One-time setup: OCR engine assets").
+# This is a known, deliberately-deferred limitation for the demo scope.
+
+name: CD - Web (Firebase Hosting)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy-web:
+    name: Build + Deploy Web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.35.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build web (release)
+        run: flutter build web --release
+
+      - name: Deploy to Firebase Hosting (live)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: readtrack-8262c
+          channelId: live
+
+      - name: Deploy to Firebase Hosting (PR preview)
+        if: github.event_name == 'pull_request'
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+          projectId: readtrack-8262c
+          expires: 7d

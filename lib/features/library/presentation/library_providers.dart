@@ -26,8 +26,9 @@ final recentBooksServiceProvider = Provider<RecentBooksService>((ref) {
 
 /// Tracks per-session unlocked book IDs for the per-book PIN lock feature
 /// (Wave 2). Process-lifetime only — kill the app and every book re-locks.
-final bookUnlockSessionProvider =
-    Provider<BookUnlockSession>((ref) => BookUnlockSession());
+final bookUnlockSessionProvider = Provider<BookUnlockSession>(
+  (ref) => BookUnlockSession(),
+);
 
 /// Reactive stream of locally-stored recent book IDs (most recent first).
 final recentBookIdsProvider = StreamProvider<List<String>>((ref) {
@@ -54,7 +55,10 @@ final shelvesProvider = StreamProvider<List<BookshelfModel>>((ref) {
   return ref.watch(firestoreDataSourceProvider).watchShelves(uid);
 });
 
-final booksByShelfProvider = StreamProvider.family<List<BookModel>, String>((ref, shelfId) {
+final booksByShelfProvider = StreamProvider.family<List<BookModel>, String>((
+  ref,
+  shelfId,
+) {
   final uid = ref.watch(authStateProvider).valueOrNull?.uid;
   if (uid == null) return const Stream.empty();
   return ref
@@ -69,15 +73,24 @@ final allBooksProvider = StreamProvider<List<BookModel>>((ref) {
   return ref.watch(firestoreDataSourceProvider).watchBooks(uid);
 });
 
-final notesByBookProvider = StreamProvider.family<List<NoteModel>, String>((ref, bookId) {
+final notesByBookProvider = StreamProvider.family<List<NoteModel>, String>((
+  ref,
+  bookId,
+) {
   return ref.watch(firestoreDataSourceProvider).watchNotesByBookId(bookId);
 });
 
-final noteByIdProvider = FutureProvider.family<NoteModel?, String>((ref, noteId) {
+final noteByIdProvider = FutureProvider.family<NoteModel?, String>((
+  ref,
+  noteId,
+) {
   return ref.watch(firestoreDataSourceProvider).getNoteById(noteId);
 });
 
-final bookByIdProvider = StreamProvider.family<BookModel?, String>((ref, bookId) {
+final bookByIdProvider = StreamProvider.family<BookModel?, String>((
+  ref,
+  bookId,
+) {
   return ref.watch(firestoreDataSourceProvider).watchBook(bookId);
 });
 
@@ -135,7 +148,8 @@ final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
   if (kIsWeb) {
     if (url.startsWith('local://')) {
       throw Exception(
-          'This PDF is stored on a phone and cannot be opened on the web.');
+        'This PDF is stored on a phone and cannot be opened on the web.',
+      );
     }
     return url;
   }
@@ -148,7 +162,8 @@ final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
     final localFile = File('${docs.path}/local_pdfs/$filename');
     if (!await localFile.exists()) {
       throw Exception(
-          'This PDF is stored on another device and is not available here.');
+        'This PDF is stored on another device and is not available here.',
+      );
     }
     return localFile.absolute.path;
   }
@@ -170,20 +185,22 @@ final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
 
   final response = await http
       .get(
-    Uri.parse(url),
-    headers: const {
-      'User-Agent': 'Mozilla/5.0 (Mobile; MyPDF) AppleWebKit/537.36',
-      'Accept': 'application/pdf,*/*',
-    },
-  )
+        Uri.parse(url),
+        headers: const {
+          'User-Agent': 'Mozilla/5.0 (Mobile; MyPDF) AppleWebKit/537.36',
+          'Accept': 'application/pdf,*/*',
+        },
+      )
       .timeout(
-    const Duration(seconds: 30),
-    onTimeout: () => throw Exception(
-        'PDF download timed out after 30s. Check your network or the URL.'),
-  );
+        const Duration(seconds: 30),
+        onTimeout: () => throw Exception(
+          'PDF download timed out after 30s. Check your network or the URL.',
+        ),
+      );
   if (response.statusCode != 200) {
     throw Exception(
-        'Download failed (HTTP ${response.statusCode}). Make sure the URL is publicly accessible.');
+      'Download failed (HTTP ${response.statusCode}). Make sure the URL is publicly accessible.',
+    );
   }
   if (response.bodyBytes.length < 100) {
     throw Exception('Downloaded file is too small to be a PDF.');
@@ -191,7 +208,8 @@ final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
   if (!_looksLikePdf(response.bodyBytes)) {
     final ct = response.headers['content-type'] ?? 'unknown';
     throw Exception(
-        'URL did not return a PDF (content-type: $ct). For Google Drive use the direct download link, not the share preview.');
+      'URL did not return a PDF (content-type: $ct). For Google Drive use the direct download link, not the share preview.',
+    );
   }
   await file.writeAsBytes(response.bodyBytes, flush: true);
 
@@ -218,85 +236,98 @@ final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
 /// Mobile caches the JPEG to `${docs}/page_imgs/img_{hash(url)}_{pageIndex}.jpg`
 /// so repeat reads are zero-cost. Web has no filesystem, so it renders fresh
 /// every time (the OCR cache layer handles dedupe at the text level).
-final pdfPageImageProvider = FutureProvider.family<
-    Uint8List?, ({String url, int pageIndex})>((ref, args) async {
-  final url = args.url;
-  final pageIndex = args.pageIndex;
-  // pdfx is 1-based; we accept 0-based to match reader_screen.
-  final pdfxPageNumber = pageIndex + 1;
+final pdfPageImageProvider =
+    FutureProvider.family<Uint8List?, ({String url, int pageIndex})>((
+      ref,
+      args,
+    ) async {
+      final url = args.url;
+      final pageIndex = args.pageIndex;
+      // pdfx is 1-based; we accept 0-based to match reader_screen.
+      final pdfxPageNumber = pageIndex + 1;
 
-  try {
-    if (kIsWeb) {
-      // No filesystem on web — fetch bytes and render directly, no disk cache.
-      // Routes external URLs through the Supabase Edge Function proxy so
-      // CORS doesn't block thumbnail downloads.
-      if (url.startsWith('local://')) return null;
-      final response = await fetchPdfBytes(url);
-      final document = await PdfDocument.openData(response.bodyBytes);
-      final page = await document.getPage(pdfxPageNumber);
-      final scale = page.width > 0 && page.width > 1600.0
-          ? 1600.0 / page.width
-          : 1.0;
-      final renderWidth = (page.width * scale).clamp(1.0, 1600.0).toDouble();
-      final renderHeight = (page.height * scale).clamp(1.0, 1600.0).toDouble();
-      final pageImage = await page.render(
-        width: renderWidth,
-        height: renderHeight,
-        format: PdfPageImageFormat.jpeg,
-      );
-      await page.close();
-      await document.close();
-      return pageImage?.bytes;
-    }
+      try {
+        if (kIsWeb) {
+          // No filesystem on web — fetch bytes and render directly, no disk cache.
+          // Routes external URLs through the Supabase Edge Function proxy so
+          // CORS doesn't block thumbnail downloads.
+          if (url.startsWith('local://')) return null;
+          final response = await fetchPdfBytes(url);
+          final document = await PdfDocument.openData(response.bodyBytes);
+          final page = await document.getPage(pdfxPageNumber);
+          final scale = page.width > 0 && page.width > 1600.0
+              ? 1600.0 / page.width
+              : 1.0;
+          final renderWidth = (page.width * scale)
+              .clamp(1.0, 1600.0)
+              .toDouble();
+          final renderHeight = (page.height * scale)
+              .clamp(1.0, 1600.0)
+              .toDouble();
+          final pageImage = await page.render(
+            width: renderWidth,
+            height: renderHeight,
+            format: PdfPageImageFormat.jpeg,
+          );
+          await page.close();
+          await document.close();
+          return pageImage?.bytes;
+        }
 
-    final docs = await getApplicationDocumentsDirectory();
-    final imgsDir = Directory('${docs.path}/page_imgs');
-    if (!await imgsDir.exists()) {
-      await imgsDir.create(recursive: true);
-    }
-    final imgFile = File(
-        '${imgsDir.path}/img_${url.hashCode.abs()}_$pageIndex.jpg');
-    if (await imgFile.exists()) return await imgFile.readAsBytes();
+        final docs = await getApplicationDocumentsDirectory();
+        final imgsDir = Directory('${docs.path}/page_imgs');
+        if (!await imgsDir.exists()) {
+          await imgsDir.create(recursive: true);
+        }
+        final imgFile = File(
+          '${imgsDir.path}/img_${url.hashCode.abs()}_$pageIndex.jpg',
+        );
+        if (await imgFile.exists()) return await imgFile.readAsBytes();
 
-    final pdfPath = await ref.read(pdfPathProvider(url).future);
-    final document = await PdfDocument.openFile(pdfPath);
-    final page = await document.getPage(pdfxPageNumber);
-    final scale = page.width > 0 && page.width > 1600.0
-        ? 1600.0 / page.width
-        : 1.0;
-    final renderWidth = (page.width * scale).clamp(1.0, 1600.0).toDouble();
-    final renderHeight = (page.height * scale).clamp(1.0, 1600.0).toDouble();
-    final pageImage = await page.render(
-      width: renderWidth,
-      height: renderHeight,
-      format: PdfPageImageFormat.jpeg,
-    );
-    await page.close();
-    await document.close();
+        final pdfPath = await ref.read(pdfPathProvider(url).future);
+        final document = await PdfDocument.openFile(pdfPath);
+        final page = await document.getPage(pdfxPageNumber);
+        final scale = page.width > 0 && page.width > 1600.0
+            ? 1600.0 / page.width
+            : 1.0;
+        final renderWidth = (page.width * scale).clamp(1.0, 1600.0).toDouble();
+        final renderHeight = (page.height * scale)
+            .clamp(1.0, 1600.0)
+            .toDouble();
+        final pageImage = await page.render(
+          width: renderWidth,
+          height: renderHeight,
+          format: PdfPageImageFormat.jpeg,
+        );
+        await page.close();
+        await document.close();
 
-    final bytes = pageImage?.bytes;
-    if (bytes != null) await imgFile.writeAsBytes(bytes);
-    return bytes;
-  } catch (_) {
-    return null;
-  }
-});
+        final bytes = pageImage?.bytes;
+        if (bytes != null) await imgFile.writeAsBytes(bytes);
+        return bytes;
+      } catch (_) {
+        return null;
+      }
+    });
 
 /// Renders the first page of a PDF as JPEG bytes (cached to disk).
 ///
 /// Backward-compat thin wrapper around [pdfPageImageProvider]; kept so
 /// existing thumbnail call sites (`pdf_card`, `note_edit_screen`,
 /// `book_info_screen`) need no changes.
-final pdfThumbnailProvider =
-    FutureProvider.family<Uint8List?, String>((ref, url) {
+final pdfThumbnailProvider = FutureProvider.family<Uint8List?, String>((
+  ref,
+  url,
+) {
   return ref.watch(pdfPageImageProvider((url: url, pageIndex: 0)).future);
 });
 
 /// Cache for OCR'd page text. Backed by Hive (`app_prefs` box) and keyed by
 /// `ocr_v1_{bookId}_{pageIndex}` so a future engine swap can cut a new
 /// namespace without colliding with stale entries.
-final ocrCacheServiceProvider =
-    Provider<OcrCacheService>((ref) => OcrCacheService());
+final ocrCacheServiceProvider = Provider<OcrCacheService>(
+  (ref) => OcrCacheService(),
+);
 
 /// Owns the OCR engine for the current platform. Disposed automatically when
 /// the provider scope tears down (e.g. on logout / hot restart).
@@ -307,7 +338,9 @@ final ocrDataSourceProvider = Provider<OcrDataSource>((ref) {
     // so disposal during tests / hot-restart doesn't blow up the scope.
     try {
       ds.dispose();
-    } catch (_) {/* best-effort */}
+    } catch (_) {
+      /* best-effort */
+    }
   });
   return ds;
 });
@@ -325,41 +358,47 @@ final ocrDataSourceProvider = Provider<OcrDataSource>((ref) {
 /// (success OR failure) so the rendered JPEG bytes don't pin memory during
 /// background pre-OCR of long PDFs — without this, a 200-page scan would
 /// climb to ~3 GB resident on phones.
-final ocrPageTextProvider = FutureProvider.family<String,
-    ({String bookId, String url, int pageIndex})>((ref, args) async {
-  final cache = ref.read(ocrCacheServiceProvider);
+final ocrPageTextProvider =
+    FutureProvider.family<
+      String,
+      ({String bookId, String url, int pageIndex})
+    >((ref, args) async {
+      final cache = ref.read(ocrCacheServiceProvider);
 
-  // Cache hit: skip every other step. Hive reads are sync + sub-ms.
-  final cached = cache.get(args.bookId, args.pageIndex);
-  if (cached != null) return cached;
+      // Cache hit: skip every other step. Hive reads are sync + sub-ms.
+      final cached = cache.get(args.bookId, args.pageIndex);
+      if (cached != null) return cached;
 
-  final pageImageKey = (url: args.url, pageIndex: args.pageIndex);
+      final pageImageKey = (url: args.url, pageIndex: args.pageIndex);
 
-  try {
-    final bytes = await ref.read(pdfPageImageProvider(pageImageKey).future);
-    if (bytes == null) {
-      throw StateError(
-          'Could not render page ${args.pageIndex + 1} for OCR (image bytes were null).');
-    }
+      try {
+        final bytes = await ref.read(pdfPageImageProvider(pageImageKey).future);
+        if (bytes == null) {
+          throw StateError(
+            'Could not render page ${args.pageIndex + 1} for OCR (image bytes were null).',
+          );
+        }
 
-    final raw =
-        await ref.read(ocrDataSourceProvider).recognize(bytes, langs: 'eng+tha');
-    final cleaned = cleanForTts(raw);
+        final raw = await ref
+            .read(ocrDataSourceProvider)
+            .recognize(bytes, langs: 'eng+tha');
+        final cleaned = cleanForTts(raw);
 
-    // Persist even empty results so we don't OCR the same blank page over and
-    // over (cache hit short-circuits next call). Best-effort write — failures
-    // here just mean we'll OCR again on next visit.
-    await cache.put(args.bookId, args.pageIndex, cleaned);
+        // Persist even empty results so we don't OCR the same blank page over and
+        // over (cache hit short-circuits next call). Best-effort write — failures
+        // here just mean we'll OCR again on next visit.
+        await cache.put(args.bookId, args.pageIndex, cleaned);
 
-    return cleaned;
-  } finally {
-    // Drop the rendered JPEG from Riverpod's family cache. Critical for
-    // memory headroom during background pre-OCR loops.
-    ref.invalidate(pdfPageImageProvider(pageImageKey));
-  }
-});
+        return cleaned;
+      } finally {
+        // Drop the rendered JPEG from Riverpod's family cache. Critical for
+        // memory headroom during background pre-OCR loops.
+        ref.invalidate(pdfPageImageProvider(pageImageKey));
+      }
+    });
 
 /// Surfaces background-OCR progress (done / total) for the app-bar chip in
 /// Wave 3. `null` means no background pre-OCR is currently running.
-final bookOcrProgressProvider =
-    StateProvider<({int done, int total})?>((ref) => null);
+final bookOcrProgressProvider = StateProvider<({int done, int total})?>(
+  (ref) => null,
+);

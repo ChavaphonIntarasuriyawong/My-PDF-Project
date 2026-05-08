@@ -9,20 +9,23 @@ class StatusBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bg = switch (status) {
-      'reading'  => AppColors.statusReadingBg,
+      'reading' => AppColors.statusReadingBg,
       'finished' => AppColors.statusFinishedBg,
-      'on_hold'  => AppColors.statusOnHoldBg,
-      _          => AppColors.surfaceMuted,
+      'on_hold' => AppColors.statusOnHoldBg,
+      _ => AppColors.surfaceMuted,
     };
     final label = switch (status) {
-      'reading'  => 'Reading',
+      'reading' => 'Reading',
       'finished' => 'Finished',
-      'on_hold'  => 'On Hold',
-      _          => status,
+      'on_hold' => 'On Hold',
+      _ => status,
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(2)),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(2),
+      ),
       child: Text(label.toUpperCase(), style: AppTypography.badgeLabel),
     );
   }

@@ -11,25 +11,50 @@ import 'package:my_pdf/features/library/presentation/library_providers.dart';
 
 const _user = UserModel(uid: 'u1', name: 'Alice', email: 'a@b.com');
 
-final _shelf = BookshelfModel(id: 's1', name: 'Science', ownerId: 'u1', createdAt: DateTime(2025));
+final _shelf = BookshelfModel(
+  id: 's1',
+  name: 'Science',
+  ownerId: 'u1',
+  createdAt: DateTime(2025),
+);
 
 const _book = BookModel(
-  id: 'b1', title: 'Cosmos', link: 'https://pdf.url',
-  totalPages: 100, currentPage: 50, progress: 50,
-  status: 'reading', shelfId: 's1', ownerId: 'u1',
+  id: 'b1',
+  title: 'Cosmos',
+  link: 'https://pdf.url',
+  totalPages: 100,
+  currentPage: 50,
+  progress: 50,
+  status: 'reading',
+  shelfId: 's1',
+  ownerId: 'u1',
 );
 
 Widget _buildScreen({
   List<BookshelfModel> shelves = const [],
   List<BookModel> books = const [],
 }) {
-  final router = GoRouter(routes: [
-    GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
-    GoRoute(path: '/book/new', builder: (_, _) => const Scaffold(body: Text('New Book'))),
-    GoRoute(path: '/profile', builder: (_, _) => const Scaffold(body: Text('Profile'))),
-    GoRoute(path: '/shelf/:id', builder: (_, _) => const Scaffold(body: Text('Shelf'))),
-    GoRoute(path: '/book/:id', builder: (_, _) => const Scaffold(body: Text('Book'))),
-  ]);
+  final router = GoRouter(
+    routes: [
+      GoRoute(path: '/', builder: (_, _) => const HomeScreen()),
+      GoRoute(
+        path: '/book/new',
+        builder: (_, _) => const Scaffold(body: Text('New Book')),
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (_, _) => const Scaffold(body: Text('Profile')),
+      ),
+      GoRoute(
+        path: '/shelf/:id',
+        builder: (_, _) => const Scaffold(body: Text('Shelf')),
+      ),
+      GoRoute(
+        path: '/book/:id',
+        builder: (_, _) => const Scaffold(body: Text('Book')),
+      ),
+    ],
+  );
 
   return ProviderScope(
     overrides: [

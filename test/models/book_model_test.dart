@@ -144,21 +144,23 @@ void main() {
       expect(m.needsOcr, isTrue);
     });
 
-    test('fromMap with missing needsOcr key defaults to false (backward compat)',
-        () {
-      // Existing books written before Wave 4 have no `needsOcr` field;
-      // fromMap must tolerate the absence and return false.
-      final m = BookModel.fromMap('legacy_book', {
-        'title': 'Legacy',
-        'link': 'https://pdf.url',
-        'totalPages': 10,
-        'currentPage': 0,
-        'status': 'reading',
-        'shelfId': 's1',
-        'ownerId': 'u1',
-      });
-      expect(m.needsOcr, isFalse);
-    });
+    test(
+      'fromMap with missing needsOcr key defaults to false (backward compat)',
+      () {
+        // Existing books written before Wave 4 have no `needsOcr` field;
+        // fromMap must tolerate the absence and return false.
+        final m = BookModel.fromMap('legacy_book', {
+          'title': 'Legacy',
+          'link': 'https://pdf.url',
+          'totalPages': 10,
+          'currentPage': 0,
+          'status': 'reading',
+          'shelfId': 's1',
+          'ownerId': 'u1',
+        });
+        expect(m.needsOcr, isFalse);
+      },
+    );
 
     test('fromMap with explicit null needsOcr defaults to false', () {
       final m = BookModel.fromMap('b1', {
@@ -174,15 +176,17 @@ void main() {
       expect(m.needsOcr, isFalse);
     });
 
-    test('copyWith(needsOcr: true) flips the field while preserving siblings',
-        () {
-      final updated = book.copyWith(needsOcr: true);
-      expect(updated.needsOcr, isTrue);
-      expect(updated.title, book.title);
-      expect(updated.link, book.link);
-      expect(updated.id, book.id);
-      expect(updated.ownerId, book.ownerId);
-    });
+    test(
+      'copyWith(needsOcr: true) flips the field while preserving siblings',
+      () {
+        final updated = book.copyWith(needsOcr: true);
+        expect(updated.needsOcr, isTrue);
+        expect(updated.title, book.title);
+        expect(updated.link, book.link);
+        expect(updated.id, book.id);
+        expect(updated.ownerId, book.ownerId);
+      },
+    );
 
     test('copyWith without needsOcr preserves the existing value', () {
       const scanned = BookModel(

@@ -71,7 +71,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
           } else if (ctx.mounted) {
             final err = ref.read(libraryControllerProvider).error;
             ScaffoldMessenger.of(ctx).showSnackBar(
-              SnackBar(content: Text(err?.toString() ?? 'Could not create shelf')),
+              SnackBar(
+                content: Text(err?.toString() ?? 'Could not create shelf'),
+              ),
             );
           }
         },
@@ -88,7 +90,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     final books = allBooks.valueOrNull ?? [];
     // Recent Readings — top 5 books by lastReadAt (most recent first, nulls last).
-    final recentReadings = [...books]..sort((a, b) {
+    final recentReadings = [...books]
+      ..sort((a, b) {
         final da = a.lastReadAt;
         final db = b.lastReadAt;
         if (da == null && db == null) return 0;
@@ -96,8 +99,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         if (db == null) return -1;
         return db.compareTo(da);
       });
-    final recentReadingsTop5 =
-        recentReadings.take(5).toList(growable: false);
+    final recentReadingsTop5 = recentReadings.take(5).toList(growable: false);
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
@@ -125,22 +127,30 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       onTap: () => _scaffoldKey.currentState?.openDrawer(),
                       child: Container(
                         constraints: const BoxConstraints(
-                            minWidth: 48, minHeight: 48),
+                          minWidth: 48,
+                          minHeight: 48,
+                        ),
                         padding: const EdgeInsets.all(8),
                         alignment: Alignment.center,
-                        child: const Icon(Icons.menu,
-                            color: AppColors.primary, size: 20),
+                        child: const Icon(
+                          Icons.menu,
+                          color: AppColors.primary,
+                          size: 20,
+                        ),
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Text('MYPDF', style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w700,
-                    fontSize: 18,
-                    letterSpacing: -0.9,
-                    color: AppColors.primary,
-                  )),
+                  const Text(
+                    'MYPDF',
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w700,
+                      fontSize: 18,
+                      letterSpacing: -0.9,
+                      color: AppColors.primary,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -158,10 +168,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             style: AppTypography.greeting,
                           ),
                           const SizedBox(height: 4),
-                          Text('Your Digital Library',
-                              style: AppTypography.headlineLarge),
+                          Text(
+                            'Your Digital Library',
+                            style: AppTypography.headlineLarge,
+                          ),
                           const SizedBox(height: 32),
-                          Text('Book Shelves', style: AppTypography.titleMedium),
+                          Text(
+                            'Book Shelves',
+                            style: AppTypography.titleMedium,
+                          ),
                           const SizedBox(height: 12),
                           shelves.when(
                             data: (list) => Column(
@@ -173,51 +188,58 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   onTap: () =>
                                       context.push('/shelf/$kAllShelfId'),
                                 ),
-                                ...list.map((s) => _ShelfRow(
-                                      name: s.name,
-                                      count: books
-                                          .where((b) => b.shelfId == s.id)
-                                          .length,
-                                      selected: false,
-                                      onTap: () =>
-                                          context.push('/shelf/${s.id}'),
-                                    )),
+                                ...list.map(
+                                  (s) => _ShelfRow(
+                                    name: s.name,
+                                    count: books
+                                        .where((b) => b.shelfId == s.id)
+                                        .length,
+                                    selected: false,
+                                    onTap: () => context.push('/shelf/${s.id}'),
+                                  ),
+                                ),
                                 const SizedBox(height: 16),
                                 Semantics(
                                   button: true,
                                   label: 'Create new shelf',
                                   child: GestureDetector(
-                                  onTap: _showNewShelfModal,
-                                  child: Container(
-                                    width: double.infinity,
-                                    padding: const EdgeInsets.all(17),
-                                    decoration: BoxDecoration(
-                                      border: Border.all(
-                                        color: AppColors.borderSubtle,
-                                        style: BorderStyle.solid,
+                                    onTap: _showNewShelfModal,
+                                    child: Container(
+                                      width: double.infinity,
+                                      padding: const EdgeInsets.all(17),
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                          color: AppColors.borderSubtle,
+                                          style: BorderStyle.solid,
+                                        ),
+                                        borderRadius: BorderRadius.circular(8),
                                       ),
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    child: Row(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        const Icon(Icons.add,
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          const Icon(
+                                            Icons.add,
                                             size: 18,
-                                            color: AppColors.textSecondary),
-                                        const SizedBox(width: 8),
-                                        Text('NEW SHELF',
-                                            style: AppTypography.labelSmall),
-                                      ],
+                                            color: AppColors.textSecondary,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'NEW SHELF',
+                                            style: AppTypography.labelSmall,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
-                                ),
                                 ),
                               ],
                             ),
                             loading: () => const _ShimmerList(count: 3),
-                            error: (e, _) => Text('Error: $e',
-                                style: AppTypography.bodySmall),
+                            error: (e, _) => Text(
+                              'Error: $e',
+                              style: AppTypography.bodySmall,
+                            ),
                           ),
                           const SizedBox(height: 32),
                           Text('All PDF', style: AppTypography.titleMedium),
@@ -232,7 +254,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 24, vertical: 48),
+                          horizontal: 24,
+                          vertical: 48,
+                        ),
                         child: Center(
                           child: Text(
                             'No books yet. Tap Create to add one.',
@@ -253,7 +277,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               child: PdfCard(
                                 book: recentReadingsTop5[i],
                                 onTap: () => context.push(
-                                    '/book/${recentReadingsTop5[i].id}'),
+                                  '/book/${recentReadingsTop5[i].id}',
+                                ),
                               ),
                             ),
                           ),
@@ -343,11 +368,16 @@ class _AppDrawer extends ConsumerWidget {
                       onTap: onClose,
                       child: Container(
                         constraints: const BoxConstraints(
-                            minWidth: 48, minHeight: 48),
+                          minWidth: 48,
+                          minHeight: 48,
+                        ),
                         padding: const EdgeInsets.all(6),
                         alignment: Alignment.center,
-                        child: const Icon(Icons.close,
-                            size: 20, color: AppColors.textSecondary),
+                        child: const Icon(
+                          Icons.close,
+                          size: 20,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ),
@@ -367,13 +397,20 @@ class _AppDrawer extends ConsumerWidget {
                 child: IntrinsicHeight(
                   child: Row(
                     children: [
-                      Expanded(child: _MiniStat(label: 'READ', value: '$readCount')),
-                      VerticalDivider(
-                          width: 1, color: AppColors.borderSubtle),
-                      Expanded(child: _MiniStat(label: 'NOTES', value: '$notesCount')),
-                      VerticalDivider(
-                          width: 1, color: AppColors.borderSubtle),
-                      Expanded(child: _MiniStat(label: 'SHELVES', value: '${shelves.length}')),
+                      Expanded(
+                        child: _MiniStat(label: 'READ', value: '$readCount'),
+                      ),
+                      VerticalDivider(width: 1, color: AppColors.borderSubtle),
+                      Expanded(
+                        child: _MiniStat(label: 'NOTES', value: '$notesCount'),
+                      ),
+                      VerticalDivider(width: 1, color: AppColors.borderSubtle),
+                      Expanded(
+                        child: _MiniStat(
+                          label: 'SHELVES',
+                          value: '${shelves.length}',
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -393,8 +430,9 @@ class _AppDrawer extends ConsumerWidget {
                 onClose();
                 final router = GoRouter.of(context);
                 Future.delayed(
-                    const Duration(milliseconds: 200),
-                    () => router.push(AppRoutes.profile));
+                  const Duration(milliseconds: 200),
+                  () => router.push(AppRoutes.profile),
+                );
               },
             ),
             _DrawerNavTile(
@@ -410,8 +448,9 @@ class _AppDrawer extends ConsumerWidget {
                 onClose();
                 final router = GoRouter.of(context);
                 Future.delayed(
-                    const Duration(milliseconds: 200),
-                    () => router.push(AppRoutes.newBook));
+                  const Duration(milliseconds: 200),
+                  () => router.push(AppRoutes.newBook),
+                );
               },
             ),
             const Padding(
@@ -425,8 +464,9 @@ class _AppDrawer extends ConsumerWidget {
                 onClose();
                 final router = GoRouter.of(context);
                 Future.delayed(
-                    const Duration(milliseconds: 200),
-                    () => router.push('${AppRoutes.profile}/edit'));
+                  const Duration(milliseconds: 200),
+                  () => router.push('${AppRoutes.profile}/edit'),
+                );
               },
             ),
 
@@ -440,24 +480,29 @@ class _AppDrawer extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
               child: ListTile(
-                leading: const Icon(Icons.logout, size: 18, color: AppColors.error),
-                title: const Text('LOGOUT',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      letterSpacing: 0.5,
-                      color: AppColors.error,
-                    )),
+                leading: const Icon(
+                  Icons.logout,
+                  size: 18,
+                  color: AppColors.error,
+                ),
+                title: const Text(
+                  'LOGOUT',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                    color: AppColors.error,
+                  ),
+                ),
                 onTap: () async {
                   onClose();
-                  await ref
-                      .read(authControllerProvider.notifier)
-                      .logout();
+                  await ref.read(authControllerProvider.notifier).logout();
                 },
                 dense: true,
                 shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(4)),
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ),
             Padding(
@@ -542,9 +587,11 @@ class _DrawerNavTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
-                Icon(icon,
-                    size: 18,
-                    color: active ? AppColors.primary : AppColors.textSecondary),
+                Icon(
+                  icon,
+                  size: 18,
+                  color: active ? AppColors.primary : AppColors.textSecondary,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   label,
@@ -594,13 +641,17 @@ class _ShelfRow extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surface,
             borderRadius: BorderRadius.circular(8),
-            border:
-                selected ? Border.all(color: AppColors.primary, width: 1.5) : null,
+            border: selected
+                ? Border.all(color: AppColors.primary, width: 1.5)
+                : null,
           ),
           child: Row(
             children: [
-              const Icon(Icons.folder_rounded,
-                  size: 20, color: AppColors.primary),
+              const Icon(
+                Icons.folder_rounded,
+                size: 20,
+                color: AppColors.primary,
+              ),
               const SizedBox(width: 12),
               Expanded(child: Text(name, style: AppTypography.labelLarge)),
               Text('$count', style: AppTypography.bodySmall),
@@ -633,4 +684,3 @@ class _ShimmerList extends StatelessWidget {
     );
   }
 }
-

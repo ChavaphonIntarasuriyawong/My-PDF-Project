@@ -56,10 +56,7 @@ void main() {
           shelvesProvider.overrideWith((_) => const Stream.empty()),
           allBooksProvider.overrideWith((_) => Stream.value(const [])),
         ],
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: router,
-        ),
+        child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
       ),
     );
     await tester.pump();

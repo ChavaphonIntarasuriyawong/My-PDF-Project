@@ -19,45 +19,109 @@ class _FakeDataSource implements FirestoreDataSource {
   @override
   Future<BookModel> createBook(BookModel book) async {
     createdBook = BookModel(
-      id: 'new-id', title: book.title, link: book.link,
-      totalPages: 0, currentPage: 0, progress: 0,
-      status: 'reading', shelfId: book.shelfId, ownerId: book.ownerId,
+      id: 'new-id',
+      title: book.title,
+      link: book.link,
+      totalPages: 0,
+      currentPage: 0,
+      progress: 0,
+      status: 'reading',
+      shelfId: book.shelfId,
+      ownerId: book.ownerId,
     );
     return createdBook!;
   }
 
-  @override Future<BookshelfModel> createShelf({required String name, required String ownerId}) => throw UnimplementedError();
-  @override Future<void> updateShelfName(String s, String n) => throw UnimplementedError();
-  @override Future<void> deleteShelf(String s) => throw UnimplementedError();
-  @override Future<String?> deleteBook(String b) => throw UnimplementedError();
-  @override Future<void> updateReadingProgress({required String bookId, required int currentPage, required int totalPages}) => throw UnimplementedError();
-  @override Future<void> updateBookStatus(String b, String s) => throw UnimplementedError();
-  @override Future<void> updateBookTitle(String b, String t) => throw UnimplementedError();
-  @override Future<void> updateBookLock(String b, {required bool isLocked, required String? lockHash}) => throw UnimplementedError();
-  @override Future<void> moveBook(String b, String s) => throw UnimplementedError();
-  @override Future<void> updateUserProfile(String uid, {String? name}) => throw UnimplementedError();
+  @override
+  Future<BookshelfModel> createShelf({
+    required String name,
+    required String ownerId,
+  }) => throw UnimplementedError();
+  @override
+  Future<void> updateShelfName(String s, String n) =>
+      throw UnimplementedError();
+  @override
+  Future<void> deleteShelf(String s) => throw UnimplementedError();
+  @override
+  Future<String?> deleteBook(String b) => throw UnimplementedError();
+  @override
+  Future<void> updateReadingProgress({
+    required String bookId,
+    required int currentPage,
+    required int totalPages,
+  }) => throw UnimplementedError();
+  @override
+  Future<void> updateBookStatus(String b, String s) =>
+      throw UnimplementedError();
+  @override
+  Future<void> updateBookTitle(String b, String t) =>
+      throw UnimplementedError();
+  @override
+  Future<void> updateBookLock(
+    String b, {
+    required bool isLocked,
+    required String? lockHash,
+  }) => throw UnimplementedError();
+  @override
+  Future<void> moveBook(String b, String s) => throw UnimplementedError();
+  @override
+  Future<void> updateUserProfile(String uid, {String? name}) =>
+      throw UnimplementedError();
 
   @override
   Stream<int> watchUserNotesCount(List<String> bookIds) => Stream.value(0);
-  @override Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
-  @override Future<NoteModel> createNote({required String bookId, required String title, required String content}) => throw UnimplementedError();
-  @override Future<void> updateNote(String noteId, {required String title, required String content}) => throw UnimplementedError();
-  @override Future<void> deleteNote(String noteId) => throw UnimplementedError();
-  @override Future<void> deleteNotes(List<String> noteIds) async {}
-  @override Stream<List<NoteModel>> watchNotesByBookId(String bookId) => const Stream.empty();
-  @override Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
-  @override Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();
-  @override Stream<List<BookModel>> watchBooksByShelf({required String shelfId, required String ownerId}) => const Stream.empty();
-  @override Stream<BookModel?> watchBook(String b) => const Stream.empty();
+  @override
+  Future<NoteModel?> getNoteById(String n) => throw UnimplementedError();
+  @override
+  Future<NoteModel> createNote({
+    required String bookId,
+    required String title,
+    required String content,
+  }) => throw UnimplementedError();
+  @override
+  Future<void> updateNote(
+    String noteId, {
+    required String title,
+    required String content,
+  }) => throw UnimplementedError();
+  @override
+  Future<void> deleteNote(String noteId) => throw UnimplementedError();
+  @override
+  Future<void> deleteNotes(List<String> noteIds) async {}
+  @override
+  Stream<List<NoteModel>> watchNotesByBookId(String bookId) =>
+      const Stream.empty();
+  @override
+  Stream<List<BookshelfModel>> watchShelves(String o) => const Stream.empty();
+  @override
+  Stream<List<BookModel>> watchBooks(String o) => const Stream.empty();
+  @override
+  Stream<List<BookModel>> watchBooksByShelf({
+    required String shelfId,
+    required String ownerId,
+  }) => const Stream.empty();
+  @override
+  Stream<BookModel?> watchBook(String b) => const Stream.empty();
 }
 
 Widget _buildScreen(_FakeDataSource ds) {
-  final router = GoRouter(routes: [
-    GoRoute(path: '/', builder: (_, _) => const NewBookScreen()),
-    GoRoute(path: '/home', builder: (_, _) => const Scaffold(body: Text('Home'))),
-    GoRoute(path: '/profile', builder: (_, _) => const Scaffold(body: Text('Profile'))),
-    GoRoute(path: '/book/:id', builder: (_, _) => const Scaffold(body: Text('Book Info'))),
-  ]);
+  final router = GoRouter(
+    routes: [
+      GoRoute(path: '/', builder: (_, _) => const NewBookScreen()),
+      GoRoute(
+        path: '/home',
+        builder: (_, _) => const Scaffold(body: Text('Home')),
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (_, _) => const Scaffold(body: Text('Profile')),
+      ),
+      GoRoute(
+        path: '/book/:id',
+        builder: (_, _) => const Scaffold(body: Text('Book Info')),
+      ),
+    ],
+  );
   return ProviderScope(
     overrides: [
       authStateProvider.overrideWith((_) => Stream.value(_user)),

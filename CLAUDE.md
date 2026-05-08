@@ -42,13 +42,19 @@ npx supabase functions deploy pdf-proxy --no-verify-jwt   # CORS proxy
 - Metadata (`author`, `year`): `syncfusion_flutter_pdf` via `lib/features/library/data/pdf_metadata.dart`.
 - TTS text source: `flutter_pdf_text` mobile, Syncfusion bytes web.
 
-**Cascading deletes** (in `LibraryController.deleteBook`): batch delete notes → purge Supabase object → clear local cache/thumb → remove from Hive recents. `deleteBook` returns the book's `link` to enable storage purge.
+**Cascading deletes** (in `LibraryController.deleteBook`): batch delete notes → purge Supabase object → clear local cache/thumb → remove from Hive recents → purge Hive OCR cache (`OcrCacheService.purgeBook`). `deleteBook` returns the book's `link` to enable storage purge.
 
-**Local cache (Hive):** box `app_prefs` opened in `main.dart`. `RecentBooksService` (`lib/core/local/`) maintains `recent_book_ids` (cap 10, LRU dedupe). Surfaced as horizontal "Recently Opened" rail.
+**Local cache (Hive):** box `app_prefs` opened in `main.dart`. Two services own keys in this box, nothing else writes:
+- `RecentBooksService` (`lib/core/local/recent_books_service.dart`) → `recent_book_ids` (cap 10, LRU dedupe). Surfaced as horizontal "Recently Opened" rail.
+- `OcrCacheService` (`lib/core/local/ocr_cache_service.dart`) → `ocr_v1_{bookId}_{pageIndex}` (per-page OCR text, schema-versioned for future engine swaps).
 
 **Web layout:** `MyPdfApp` injects `_PhoneFrame` via `MaterialApp.router(builder:)`. Viewport ≥600 px → centered 412×896 phone frame. <600 px → pass-through.
 
-**Feature flag:** [PENDING] — one major feature must be gated via Firebase Remote Config before submission. Rollback path: disable flag → feature hidden without redeploy. Until wired, no flag-gated code paths exist; add the gate alongside the next major feature (candidates: TTS, web reader, recents rail).
+**OCR fallback (mobile + web).** Scanned PDFs (no embedded text layer) route through Tesseract for TTS. Mobile = `tesseract_ocr` (FFI). Web = Tesseract.js v5 in a Web Worker. Languages: English + Thai (`tessdata_best`, OEM=1 LSTM-only). Trigger is hybrid — lazy on first read of a page plus a background pre-OCR sweep. `BookModel.needsOcr` is set at upload time by the `_isBitmapOnlyPdf` heuristic in `new_book_screen.dart`, so the reader skips the text-extraction probe and routes straight to OCR. Gated by Remote Config flag `ocr_fallback_enabled` (default true, 1 h TTL).
+
+**Per-book PIN lock.** Optional per-book gate. PIN hashed with SHA-256-crypt (`lib/features/library/data/book_lock_hasher.dart`) — raw PIN never stored. On entry to `/book/:id/reading` or `/book/:id/note` the GoRouter redirect inspects `book.isLocked` and the in-memory `BookUnlockSession`; if locked + not-yet-unlocked, the user is sent to `BookLockScreen` (numpad + biometric quick-unlock via `BiometricAuthService`). The unlocked-set is process-lifetime only — kill / restart re-locks every book.
+
+**Feature flag system established.** `featureFlagsProvider` (overridden in `main.dart` with the singleton built before `runApp`) wraps `firebase_remote_config`. `ocr_fallback_enabled` is the first live flag and satisfies the submission requirement. New flags go in `FeatureFlags._defaults` and are read through the provider — never call `FirebaseRemoteConfig.instance` directly.
 
 ---
 
@@ -70,15 +76,26 @@ This repo uses 5 scoped subagents under `.claude/agents/`. **Dispatch in paralle
 
 ## Critical gotchas
 
-- **Web vs mobile branches everywhere.** `kIsWeb` guard required for: `path_provider`, `dart:io File`, `firebase_crashlytics`, `flutter_pdf_text`, `flutter_pdfview`. `local://` book links rejected on web.
+- **Web vs mobile branches everywhere.** `kIsWeb` guard required for: `path_provider`, `dart:io File`, `firebase_crashlytics`, `flutter_pdf_text`, `flutter_pdfview`, `tesseract_ocr`. `local://` book links rejected on web.
+- **OCR datasource is conditional-import only.** `lib/features/library/data/ocr_data_source.dart` selects `_io.dart` or `_web.dart` via `dart.library.js_interop`. Never import `_io.dart` or `_web.dart` directly — go through `OcrDataSource` / `createOcrDataSource()`.
+- **OCR assets must be present at build time.** Mobile expects `assets/tessdata/{eng,tha}.traineddata`; web expects `web/ocr/tesseract.min.js`, `web/ocr/worker.min.js`, `web/ocr/tesseract-core-simd.wasm`, and `web/ocr/lang/{eng,tha}.traineddata.gz`. See README for download URLs. Folders are scaffolded with `.gitkeep` only.
+- **Read flags through `featureFlagsProvider`.** Never call `FirebaseRemoteConfig.instance` from app code — go through the provider so test overrides and the singleton lifecycle stay intact.
+- **Hive `app_prefs` writes only via dedicated services.** `RecentBooksService` owns `recent_book_ids`; `OcrCacheService` owns `ocr_v1_*`. New keys require a new service in `lib/core/local/`.
 - **TTS on Android 11+** needs `<intent action android.intent.action.TTS_SERVICE>` inside `<queries>` in `AndroidManifest.xml` (package visibility).
 - **Web TTS voices** populate async — `_trySetWebVoice` polls `getVoices()` and retries on first user gesture.
 - **Firestore `whereIn` cap is 30** — `watchUserNotesCount` chunks `bookIds` and merges streams.
 - **Theme tokens only** — use `AppColors` / `AppTypography`, never raw hex/font names.
-- **Routes only via `GoRouter`** — no `Navigator.push`.
+- **Routes only via `GoRouter`** — no `Navigator.push`. `/book/:id/lock` is the per-book PIN gate; redirect logic lives in `routerProvider`.
 - **`firebase_options.dart`** is generated by `flutterfire configure`. Do not hand-edit.
 - **Edge Function URL** lives as `kCorsProxyBase` constant in `lib/core/network/pdf_fetcher.dart`. Update after redeploy.
 - **No avatar field** on user profile — name + email only.
+- **Biometric sign-in is removed.** `local_auth` and `BiometricAuthService` survive ONLY because the per-book lock uses them. Don't reintroduce a profile-level biometric toggle.
+
+### Pre-existing security debts (deliberately deferred for demo scope)
+- `web/index.html` loads pdf.js from `cdnjs.cloudflare.com` without SRI.
+- No CSP / COEP / COOP headers on the web build (Tesseract.js SIMD WASM degrades silently without `Cross-Origin-Embedder-Policy: require-corp`).
+- Hive `app_prefs` cache is unencrypted.
+- `tesseract_ocr 0.5.0` upstream has been unmaintained since 2023.
 
 ---
 
@@ -96,6 +113,11 @@ This repo uses 5 scoped subagents under `.claude/agents/`. **Dispatch in paralle
 - **Never** call `path_provider` or `dart:io File` without a `kIsWeb` guard.
 - **Never** import `flutter_pdf_text` on web — use Syncfusion bytes for web TTS text.
 - **Never** add an avatar field or any profile column beyond `name` + `email`.
+- **Never** call `FirebaseRemoteConfig.instance` directly — read flags through `featureFlagsProvider` so test overrides and the initialized singleton lifecycle hold.
+- **Never** write to the Hive `app_prefs` box outside the dedicated services (`RecentBooksService`, `OcrCacheService`). New keys need a new service.
+- **Never** import `tesseract_ocr` from web code — it's mobile/FFI only. Web OCR goes through the conditional `_web.dart` impl behind `OcrDataSource`.
+- **Never** import `ocr_data_source_io.dart` or `ocr_data_source_web.dart` directly — depend only on `OcrDataSource` + `createOcrDataSource()` so the conditional import resolves the right impl per platform.
+- **Never** reintroduce a profile-level biometric sign-in toggle — biometric stays scoped to the per-book lock.
 
 ---
 
@@ -127,7 +149,7 @@ This repo uses 5 scoped subagents under `.claude/agents/`. **Dispatch in paralle
 
 | Gate | Requirement |
 |---|---|
-| **Correctness** | `flutter analyze` clean (zero warnings/errors) · `flutter test` green · domain layer (`lib/features/*/domain/`) >80% line coverage |
+| **Correctness** | `flutter analyze` clean (zero warnings/errors) · `flutter test` green (current baseline: 181 pass · 2 skipped · 0 fail) · domain layer (`lib/features/*/domain/`) >80% line coverage |
 | **Security** | No secrets committed (Supabase anon key in `main.dart` is public-by-design; service keys never in repo) · Firestore rules + Supabase RLS reviewed for any new collection/bucket path · auth state checked on every protected route |
 | **Accessibility** | `Semantics` labels on every interactive widget (buttons, list items, icon-only taps) · WCAG AA contrast on `AppColors` pairings · tap targets ≥48×48 dp |
 | **Performance** | No unbounded `ListView` (use `.builder` + key) · all images and thumbnails cached · streams disposed in `ref.onDispose` · no synchronous PDF byte work on the UI isolate for files >2 MB |
@@ -138,8 +160,10 @@ Coverage check: `flutter test --coverage && genhtml coverage/lcov.info -o covera
 
 ## Configuration touch-points
 
-- `lib/main.dart` — Supabase URL + anon key, Hive box open, Firebase + Crashlytics init
+- `lib/main.dart` — Supabase URL + anon key, Hive box open, Firebase + Crashlytics init, `FeatureFlags` initialize + `featureFlagsProvider` override
 - `lib/firebase_options.dart` — Firebase config (generated)
+- `lib/core/config/feature_flags.dart` — Remote Config defaults (`_defaults` map) + typed getters
 - `lib/core/network/pdf_fetcher.dart` — Edge Function URL
-- `android/app/src/main/AndroidManifest.xml` — TTS_SERVICE intent query
+- `android/app/src/main/AndroidManifest.xml` — TTS_SERVICE intent query, `USE_BIOMETRIC` permission
 - `supabase/functions/pdf-proxy/index.ts` — Deno CORS proxy source
+- `assets/tessdata/` (mobile) and `web/ocr/` (web) — OCR engine assets, populated manually per README

@@ -15,8 +15,7 @@ class OcrCacheService {
 
   Box get _box => Hive.box(boxName);
 
-  String _key(String bookId, int pageIndex) =>
-      '$_prefix${bookId}_$pageIndex';
+  String _key(String bookId, int pageIndex) => '$_prefix${bookId}_$pageIndex';
 
   /// Synchronous read — returns `null` if no cache entry exists.
   String? get(String bookId, int pageIndex) {

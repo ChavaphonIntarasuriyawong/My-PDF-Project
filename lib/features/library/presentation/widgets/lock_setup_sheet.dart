@@ -208,17 +208,17 @@ class _LockSetupSheetState extends ConsumerState<LockSetupSheet> {
   Widget _buildHeader() {
     final (title, subtitle) = switch (_step) {
       _LockStep.verifyCurrent => (
-          'Enter current PIN',
-          'Verify your existing PIN to continue.',
-        ),
+        'Enter current PIN',
+        'Verify your existing PIN to continue.',
+      ),
       _LockStep.manage => (
-          'Manage lock',
-          'Change or remove the PIN for this book.',
-        ),
+        'Manage lock',
+        'Change or remove the PIN for this book.',
+      ),
       _LockStep.enterAndConfirm => (
-          widget.currentlyLocked ? 'Set new PIN' : 'Lock this book',
-          'Choose a 6-digit PIN. You will need it to open this book.',
-        ),
+        widget.currentlyLocked ? 'Set new PIN' : 'Lock this book',
+        'Choose a 6-digit PIN. You will need it to open this book.',
+      ),
     };
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,8 +386,9 @@ class _ManageActions extends StatelessWidget {
               ),
               label: Text(
                 'Change PIN',
-                style: AppTypography.labelLarge
-                    .copyWith(color: AppColors.primary),
+                style: AppTypography.labelLarge.copyWith(
+                  color: AppColors.primary,
+                ),
               ),
               style: OutlinedButton.styleFrom(
                 side: const BorderSide(color: AppColors.primary, width: 1.5),
@@ -422,8 +423,9 @@ class _ManageActions extends StatelessWidget {
                     ),
               label: Text(
                 'Remove lock',
-                style: AppTypography.labelLarge
-                    .copyWith(color: AppColors.error),
+                style: AppTypography.labelLarge.copyWith(
+                  color: AppColors.error,
+                ),
               ),
               style: OutlinedButton.styleFrom(
                 backgroundColor: AppColors.surface,

@@ -14,9 +14,7 @@ String cleanForTts(String raw) {
   // Replace runs of broken-font glyphs / exotic symbols with a single space.
   // Keep printable ASCII, Latin supplement, Latin Extended-A, curly quotes,
   // en/em dashes, and newlines.
-  text = text.replaceAll(
-      RegExp(r"[^ -~ -ſ‘’“”–—\n]+"),
-      ' ');
+  text = text.replaceAll(RegExp(r"[^ -~ -ſ‘’“”–—\n]+"), ' ');
   text = text.replaceAll(RegExp(r' {2,}'), ' ');
   return text.trim();
 }

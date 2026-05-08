@@ -14,12 +14,17 @@ class _FakeRepo implements AuthRepository {
   Either<Failure, UserModel>? loginResult;
 
   @override
-  Future<Either<Failure, UserModel>> login({required String email, required String password}) async =>
-      loginResult ?? const Left(AuthFailure('No result set'));
+  Future<Either<Failure, UserModel>> login({
+    required String email,
+    required String password,
+  }) async => loginResult ?? const Left(AuthFailure('No result set'));
 
   @override
-  Future<Either<Failure, UserModel>> register({required String name, required String email, required String password}) async =>
-      throw UnimplementedError();
+  Future<Either<Failure, UserModel>> register({
+    required String name,
+    required String email,
+    required String password,
+  }) async => throw UnimplementedError();
 
   @override
   Future<Either<Failure, void>> logout() async => const Right(null);
@@ -32,11 +37,19 @@ class _FakeRepo implements AuthRepository {
 }
 
 Widget _buildScreen(_FakeRepo repo) {
-  final router = GoRouter(routes: [
-    GoRoute(path: '/', builder: (_, _) => const LoginScreen()),
-    GoRoute(path: '/home', builder: (_, _) => const Scaffold(body: Text('Home'))),
-    GoRoute(path: '/register', builder: (_, _) => const Scaffold(body: Text('Register'))),
-  ]);
+  final router = GoRouter(
+    routes: [
+      GoRoute(path: '/', builder: (_, _) => const LoginScreen()),
+      GoRoute(
+        path: '/home',
+        builder: (_, _) => const Scaffold(body: Text('Home')),
+      ),
+      GoRoute(
+        path: '/register',
+        builder: (_, _) => const Scaffold(body: Text('Register')),
+      ),
+    ],
+  );
 
   return ProviderScope(
     overrides: [authRepositoryProvider.overrideWithValue(repo)],
@@ -46,7 +59,9 @@ Widget _buildScreen(_FakeRepo repo) {
 
 void main() {
   group('LoginScreen (5.1)', () {
-    testWidgets('renders email and password fields and sign in button', (tester) async {
+    testWidgets('renders email and password fields and sign in button', (
+      tester,
+    ) async {
       await tester.pumpWidget(_buildScreen(_FakeRepo()));
       expect(find.text('EMAIL'), findsOneWidget);
       expect(find.text('PASSWORD'), findsOneWidget);
@@ -67,19 +82,28 @@ void main() {
       expect(find.text('Welcome Back'), findsOneWidget);
     });
 
-    testWidgets('GradientButton shows spinner when loading prop is true', (tester) async {
+    testWidgets('GradientButton shows spinner when loading prop is true', (
+      tester,
+    ) async {
       // Test the loading state directly on GradientButton rather than through async login
-      await tester.pumpWidget(MaterialApp(
-        home: Scaffold(
-          body: GradientButton(label: 'Sign In', loading: true, onPressed: () {}),
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: GradientButton(
+              label: 'Sign In',
+              loading: true,
+              onPressed: () {},
+            ),
+          ),
         ),
-      ));
+      );
       expect(find.byType(CircularProgressIndicator), findsOneWidget);
       expect(find.text('Sign In'), findsNothing);
     });
 
     testWidgets('shows snackbar on login error', (tester) async {
-      final repo = _FakeRepo()..loginResult = const Left(AuthFailure('Wrong password'));
+      final repo = _FakeRepo()
+        ..loginResult = const Left(AuthFailure('Wrong password'));
       await tester.pumpWidget(_buildScreen(repo));
 
       await tester.enterText(find.byType(TextField).at(0), 'a@b.com');
@@ -92,7 +116,10 @@ void main() {
 
     testWidgets('register link is visible', (tester) async {
       await tester.pumpWidget(_buildScreen(_FakeRepo()));
-      expect(find.textContaining('Register now', findRichText: true), findsOneWidget);
+      expect(
+        find.textContaining('Register now', findRichText: true),
+        findsOneWidget,
+      );
     });
 
     testWidgets('password visibility toggle works', (tester) async {

@@ -28,15 +28,17 @@ void main() {
       expect(BookLockHasher.verify('123456', b), isTrue);
     });
 
-    test('verify returns false on a malformed stored hash instead of throwing',
-        () {
-      // Plain text — exercises the FormatException branch (no `$` segments).
-      expect(BookLockHasher.verify('123456', 'not-a-crypt-string'), isFalse);
-      expect(BookLockHasher.verify('123456', ''), isFalse);
-      // Truncated crypt string — exercises the RangeError branch where the
-      // parser tries to slice past the end of a too-short field.
-      expect(BookLockHasher.verify('123456', r'$5$'), isFalse);
-      expect(BookLockHasher.verify('123456', r'$5$salt'), isFalse);
-    });
+    test(
+      'verify returns false on a malformed stored hash instead of throwing',
+      () {
+        // Plain text — exercises the FormatException branch (no `$` segments).
+        expect(BookLockHasher.verify('123456', 'not-a-crypt-string'), isFalse);
+        expect(BookLockHasher.verify('123456', ''), isFalse);
+        // Truncated crypt string — exercises the RangeError branch where the
+        // parser tries to slice past the end of a too-short field.
+        expect(BookLockHasher.verify('123456', r'$5$'), isFalse);
+        expect(BookLockHasher.verify('123456', r'$5$salt'), isFalse);
+      },
+    );
   });
 }

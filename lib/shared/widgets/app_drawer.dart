@@ -66,8 +66,11 @@ class AppDrawer extends ConsumerWidget {
                     onTap: onClose,
                     child: Container(
                       padding: const EdgeInsets.all(6),
-                      child: const Icon(Icons.close,
-                          size: 20, color: AppColors.textSecondary),
+                      child: const Icon(
+                        Icons.close,
+                        size: 20,
+                        color: AppColors.textSecondary,
+                      ),
                     ),
                   ),
                 ],
@@ -84,11 +87,29 @@ class AppDrawer extends ConsumerWidget {
                 child: IntrinsicHeight(
                   child: Row(
                     children: [
-                      Expanded(child: _MiniStat(label: 'READ', value: '${books.length}')),
-                      const VerticalDivider(width: 1, color: AppColors.borderSubtle),
-                      Expanded(child: _MiniStat(label: 'NOTES', value: '$notesCount')),
-                      const VerticalDivider(width: 1, color: AppColors.borderSubtle),
-                      Expanded(child: _MiniStat(label: 'SHELVES', value: '${shelves.length}')),
+                      Expanded(
+                        child: _MiniStat(
+                          label: 'READ',
+                          value: '${books.length}',
+                        ),
+                      ),
+                      const VerticalDivider(
+                        width: 1,
+                        color: AppColors.borderSubtle,
+                      ),
+                      Expanded(
+                        child: _MiniStat(label: 'NOTES', value: '$notesCount'),
+                      ),
+                      const VerticalDivider(
+                        width: 1,
+                        color: AppColors.borderSubtle,
+                      ),
+                      Expanded(
+                        child: _MiniStat(
+                          label: 'SHELVES',
+                          value: '${shelves.length}',
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -107,8 +128,9 @@ class AppDrawer extends ConsumerWidget {
                 onClose();
                 final router = GoRouter.of(context);
                 Future.delayed(
-                    const Duration(milliseconds: 200),
-                    () => router.go(AppRoutes.profile));
+                  const Duration(milliseconds: 200),
+                  () => router.go(AppRoutes.profile),
+                );
               },
             ),
             _DrawerNavTile(
@@ -119,8 +141,9 @@ class AppDrawer extends ConsumerWidget {
                 onClose();
                 final router = GoRouter.of(context);
                 Future.delayed(
-                    const Duration(milliseconds: 200),
-                    () => router.go(AppRoutes.home));
+                  const Duration(milliseconds: 200),
+                  () => router.go(AppRoutes.home),
+                );
               },
             ),
             _DrawerNavTile(
@@ -131,8 +154,9 @@ class AppDrawer extends ConsumerWidget {
                 onClose();
                 final router = GoRouter.of(context);
                 Future.delayed(
-                    const Duration(milliseconds: 200),
-                    () => router.push(AppRoutes.newBook));
+                  const Duration(milliseconds: 200),
+                  () => router.push(AppRoutes.newBook),
+                );
               },
             ),
             const Padding(
@@ -146,8 +170,9 @@ class AppDrawer extends ConsumerWidget {
                 onClose();
                 final router = GoRouter.of(context);
                 Future.delayed(
-                    const Duration(milliseconds: 200),
-                    () => router.push(AppRoutes.editProfile));
+                  const Duration(milliseconds: 200),
+                  () => router.push(AppRoutes.editProfile),
+                );
               },
             ),
             const Spacer(),
@@ -158,21 +183,29 @@ class AppDrawer extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
               child: ListTile(
-                leading: const Icon(Icons.logout, size: 18, color: AppColors.error),
-                title: const Text('LOGOUT',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                      letterSpacing: 0.5,
-                      color: AppColors.error,
-                    )),
+                leading: const Icon(
+                  Icons.logout,
+                  size: 18,
+                  color: AppColors.error,
+                ),
+                title: const Text(
+                  'LOGOUT',
+                  style: TextStyle(
+                    fontFamily: 'Inter',
+                    fontWeight: FontWeight.w600,
+                    fontSize: 13,
+                    letterSpacing: 0.5,
+                    color: AppColors.error,
+                  ),
+                ),
                 onTap: () async {
                   onClose();
                   await ref.read(authControllerProvider.notifier).logout();
                 },
                 dense: true,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(4),
+                ),
               ),
             ),
             const Padding(
@@ -259,9 +292,11 @@ class _DrawerNavTile extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             child: Row(
               children: [
-                Icon(icon,
-                    size: 18,
-                    color: active ? AppColors.primary : AppColors.textSecondary),
+                Icon(
+                  icon,
+                  size: 18,
+                  color: active ? AppColors.primary : AppColors.textSecondary,
+                ),
                 const SizedBox(width: 12),
                 Text(
                   label,

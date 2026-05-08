@@ -69,23 +69,24 @@ void main() {
     });
 
     test(
-        'purgeAll wipes ocr_v1_ namespace but leaves unrelated keys (recents) alone',
-        () async {
-      final box = Hive.box(OcrCacheService.boxName);
-      // Pretend RecentBooksService had already populated its key.
-      await box.put('recent_book_ids', <String>['b1', 'b2']);
+      'purgeAll wipes ocr_v1_ namespace but leaves unrelated keys (recents) alone',
+      () async {
+        final box = Hive.box(OcrCacheService.boxName);
+        // Pretend RecentBooksService had already populated its key.
+        await box.put('recent_book_ids', <String>['b1', 'b2']);
 
-      final svc = OcrCacheService();
-      await svc.put('bookA', 0, 'A0');
-      await svc.put('bookB', 7, 'B7');
+        final svc = OcrCacheService();
+        await svc.put('bookA', 0, 'A0');
+        await svc.put('bookB', 7, 'B7');
 
-      await svc.purgeAll();
+        await svc.purgeAll();
 
-      expect(svc.get('bookA', 0), isNull);
-      expect(svc.get('bookB', 7), isNull);
-      // Recents key must survive.
-      expect(box.get('recent_book_ids'), <String>['b1', 'b2']);
-    });
+        expect(svc.get('bookA', 0), isNull);
+        expect(svc.get('bookB', 7), isNull);
+        // Recents key must survive.
+        expect(box.get('recent_book_ids'), <String>['b1', 'b2']);
+      },
+    );
 
     test('purgeAll on an empty namespace is a no-op', () async {
       final box = Hive.box(OcrCacheService.boxName);
@@ -96,17 +97,18 @@ void main() {
     });
 
     test(
-        'schema-versioned key format is ocr_v1_{bookId}_{pageIndex}',
-        () async {
-      final svc = OcrCacheService();
-      await svc.put('book123', 5, 'expected text');
-      // Direct read against the underlying box pins the key shape so a
-      // future schema bump (e.g. ocr_v2_) is forced to land its own
-      // namespace migration test rather than silently breaking caches in
-      // the wild.
-      final raw = Hive.box(OcrCacheService.boxName).get('ocr_v1_book123_5');
-      expect(raw, 'expected text');
-    });
+      'schema-versioned key format is ocr_v1_{bookId}_{pageIndex}',
+      () async {
+        final svc = OcrCacheService();
+        await svc.put('book123', 5, 'expected text');
+        // Direct read against the underlying box pins the key shape so a
+        // future schema bump (e.g. ocr_v2_) is forced to land its own
+        // namespace migration test rather than silently breaking caches in
+        // the wild.
+        final raw = Hive.box(OcrCacheService.boxName).get('ocr_v1_book123_5');
+        expect(raw, 'expected text');
+      },
+    );
 
     test('keys are scoped per page index', () async {
       final svc = OcrCacheService();

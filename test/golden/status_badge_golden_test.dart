@@ -7,26 +7,26 @@ import 'package:my_pdf/core/theme/app_theme.dart';
 import 'package:my_pdf/shared/widgets/status_badge.dart';
 
 Widget _harness() => MaterialApp(
-      theme: AppTheme.light,
-      home: Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: const [
-                StatusBadge('reading'),
-                SizedBox(height: 8),
-                StatusBadge('finished'),
-                SizedBox(height: 8),
-                StatusBadge('on_hold'),
-              ],
-            ),
-          ),
+  theme: AppTheme.light,
+  home: Scaffold(
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: const [
+            StatusBadge('reading'),
+            SizedBox(height: 8),
+            StatusBadge('finished'),
+            SizedBox(height: 8),
+            StatusBadge('on_hold'),
+          ],
         ),
       ),
-    );
+    ),
+  ),
+);
 
 void main() {
   testWidgets('StatusBadge — all states', (tester) async {

@@ -94,7 +94,12 @@ class BiometricAuthService {
       );
       return false;
     } catch (e, st) {
-      AppLogger.warn(_logTag, 'authenticate unexpected error', error: e, st: st);
+      AppLogger.warn(
+        _logTag,
+        'authenticate unexpected error',
+        error: e,
+        st: st,
+      );
       return false;
     }
   }

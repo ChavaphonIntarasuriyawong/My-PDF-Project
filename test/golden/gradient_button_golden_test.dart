@@ -12,16 +12,16 @@ import 'package:my_pdf/core/theme/app_theme.dart';
 import 'package:my_pdf/shared/widgets/gradient_button.dart';
 
 Widget _harness(Widget child) => MaterialApp(
-      theme: AppTheme.light,
-      home: Scaffold(
-        body: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: SizedBox(width: 320, child: child),
-          ),
-        ),
+  theme: AppTheme.light,
+  home: Scaffold(
+    body: Center(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: SizedBox(width: 320, child: child),
       ),
-    );
+    ),
+  ),
+);
 
 void main() {
   group('GradientButton goldens', () {

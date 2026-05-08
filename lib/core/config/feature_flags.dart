@@ -10,7 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 /// silently falls through to defaults — never throws — so the app keeps booting.
 class FeatureFlags {
   FeatureFlags({FirebaseRemoteConfig? remoteConfig})
-      : _remoteConfig = remoteConfig ?? FirebaseRemoteConfig.instance;
+    : _remoteConfig = remoteConfig ?? FirebaseRemoteConfig.instance;
 
   final FirebaseRemoteConfig _remoteConfig;
 
@@ -29,11 +29,13 @@ class FeatureFlags {
   Future<void> initialize() async {
     try {
       await _remoteConfig.setDefaults(_defaults);
-      await _remoteConfig.setConfigSettings(RemoteConfigSettings(
-        fetchTimeout: const Duration(seconds: 10),
-        // 1h cache TTL — flags are not on a hot path, so ~hour-stale is fine.
-        minimumFetchInterval: const Duration(hours: 1),
-      ));
+      await _remoteConfig.setConfigSettings(
+        RemoteConfigSettings(
+          fetchTimeout: const Duration(seconds: 10),
+          // 1h cache TTL — flags are not on a hot path, so ~hour-stale is fine.
+          minimumFetchInterval: const Duration(hours: 1),
+        ),
+      );
       await _remoteConfig.fetchAndActivate();
     } catch (e, st) {
       // Never let Remote Config wedge app startup. Log and fall through —

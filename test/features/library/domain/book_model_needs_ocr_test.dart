@@ -138,8 +138,7 @@ void main() {
     });
 
     test('toMap then fromMap round-trips needsOcr=false', () {
-      final reconstructed =
-          BookModel.fromMap(_baseBook.id, _baseBook.toMap());
+      final reconstructed = BookModel.fromMap(_baseBook.id, _baseBook.toMap());
       expect(reconstructed.needsOcr, isFalse);
     });
 

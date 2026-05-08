@@ -24,13 +24,16 @@ class MobileOcrDataSource implements OcrDataSource {
   final Random _rand = Random.secure();
 
   @override
-  Future<String> recognize(Uint8List jpegBytes,
-      {String langs = 'eng+tha'}) async {
+  Future<String> recognize(
+    Uint8List jpegBytes, {
+    String langs = 'eng+tha',
+  }) async {
     if (kIsWeb) {
       // Defensive: provider already kIsWeb-branches, but a future direct
       // instantiation must fail loudly instead of crashing on dart:io.
       throw UnsupportedError(
-          'MobileOcrDataSource is not available on web; use WebOcrDataSource.');
+        'MobileOcrDataSource is not available on web; use WebOcrDataSource.',
+      );
     }
 
     final tempDir = await getTemporaryDirectory();
@@ -44,7 +47,10 @@ class MobileOcrDataSource implements OcrDataSource {
       // recognition itself runs on a native worker thread inside the plugin,
       // so we don't need to wrap the whole pipeline.
       if (jpegBytes.lengthInBytes > 2 * 1024 * 1024) {
-        await compute(_writeBytesIsolate, _WriteBytesArgs(tempFile.path, jpegBytes));
+        await compute(
+          _writeBytesIsolate,
+          _WriteBytesArgs(tempFile.path, jpegBytes),
+        );
       } else {
         await tempFile.writeAsBytes(jpegBytes, flush: true);
       }
@@ -52,10 +58,7 @@ class MobileOcrDataSource implements OcrDataSource {
       try {
         final result = await TesseractOcr.extractText(
           tempFile.path,
-          config: OCRConfig(
-            language: langs,
-            engine: OCREngine.tesseract,
-          ),
+          config: OCRConfig(language: langs, engine: OCREngine.tesseract),
         );
         return result;
       } catch (e) {
@@ -67,7 +70,8 @@ class MobileOcrDataSource implements OcrDataSource {
             msg.contains('Unable to load asset') ||
             msg.contains('traineddata')) {
           throw StateError(
-              'Tesseract language data missing - see assets/tessdata/README.md');
+            'Tesseract language data missing - see assets/tessdata/README.md',
+          );
         }
         rethrow;
       }
@@ -76,7 +80,9 @@ class MobileOcrDataSource implements OcrDataSource {
         if (await tempFile.exists()) {
           await tempFile.delete();
         }
-      } catch (_) {/* best-effort cleanup */}
+      } catch (_) {
+        /* best-effort cleanup */
+      }
     }
   }
 

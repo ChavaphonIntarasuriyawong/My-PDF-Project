@@ -5,7 +5,8 @@ import 'dart:typed_data';
 // the VM build so Flutter test (which targets the Dart VM) can load this
 // library without crashing on missing platform libs.
 import 'ocr_data_source_io.dart'
-    if (dart.library.js_interop) 'ocr_data_source_web.dart' as impl;
+    if (dart.library.js_interop) 'ocr_data_source_web.dart'
+    as impl;
 
 /// Datasource that runs OCR on a rendered page image and returns the
 /// recognised text.

@@ -48,10 +48,7 @@ void main() {
           shelvesProvider.overrideWith((_) => Stream.value(const [])),
           authStateProvider.overrideWith((_) => Stream.value(_user)),
         ],
-        child: MaterialApp.router(
-          theme: AppTheme.light,
-          routerConfig: router,
-        ),
+        child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
       ),
     );
     await tester.pump();

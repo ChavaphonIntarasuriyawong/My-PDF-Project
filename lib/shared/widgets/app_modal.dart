@@ -81,10 +81,14 @@ class _AppModalState extends State<AppModal> {
                   child: SizedBox(
                     height: 52,
                     child: OutlinedButton(
-                      onPressed:
-                          _loading ? null : () => Navigator.of(context).pop(),
+                      onPressed: _loading
+                          ? null
+                          : () => Navigator.of(context).pop(),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.primary, width: 1.5),
+                        side: const BorderSide(
+                          color: AppColors.primary,
+                          width: 1.5,
+                        ),
                         foregroundColor: AppColors.primary,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12),
@@ -113,7 +117,9 @@ class _AppModalState extends State<AppModal> {
                                   try {
                                     await widget.onConfirm();
                                   } finally {
-                                    if (mounted) setState(() => _loading = false);
+                                    if (mounted) {
+                                      setState(() => _loading = false);
+                                    }
                                   }
                                 },
                         )
@@ -127,7 +133,9 @@ class _AppModalState extends State<AppModal> {
                                   try {
                                     await widget.onConfirm();
                                   } finally {
-                                    if (mounted) setState(() => _loading = false);
+                                    if (mounted) {
+                                      setState(() => _loading = false);
+                                    }
                                   }
                                 },
                           borderRadius: 12,
@@ -163,20 +171,27 @@ class _DestructiveButton extends StatelessWidget {
           backgroundColor: AppColors.surface,
           foregroundColor: AppColors.error,
           side: const BorderSide(color: AppColors.error, width: 1.5),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
         ),
         child: loading
             ? const SizedBox(
                 width: 18,
                 height: 18,
-                child: CircularProgressIndicator(color: AppColors.error, strokeWidth: 2),
+                child: CircularProgressIndicator(
+                  color: AppColors.error,
+                  strokeWidth: 2,
+                ),
               )
             : Text(
                 label,
                 // height: 1.0 keeps descenders ('g','p','y') from being clipped
                 // by the button's bounded height. labelButton ships height: 1.5.
-                style: AppTypography.labelButton
-                    .copyWith(color: AppColors.error, height: 1.0),
+                style: AppTypography.labelButton.copyWith(
+                  color: AppColors.error,
+                  height: 1.0,
+                ),
               ),
       ),
     );

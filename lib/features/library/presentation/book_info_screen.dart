@@ -59,7 +59,9 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
   /// Drop selections that no longer exist (e.g. after a delete or stream
   /// refresh). Called from the notes list builder.
   void _pruneSelection(Set<String> validIds) {
-    final stale = _selectedNoteIds.where((id) => !validIds.contains(id)).toList();
+    final stale = _selectedNoteIds
+        .where((id) => !validIds.contains(id))
+        .toList();
     if (stale.isEmpty) return;
     // Defer so we don't setState during build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -141,7 +143,9 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
                       StatusBadge(s),
                       const SizedBox(width: 12),
                       Text(
-                        s == 'on_hold' ? 'On Hold' : s[0].toUpperCase() + s.substring(1),
+                        s == 'on_hold'
+                            ? 'On Hold'
+                            : s[0].toUpperCase() + s.substring(1),
                         style: AppTypography.labelLarge,
                       ),
                     ],
@@ -200,7 +204,11 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
   }
 
   void _showMoveShelfModal(
-      BuildContext context, WidgetRef ref, BookModel book, List<BookshelfModel> shelves) {
+    BuildContext context,
+    WidgetRef ref,
+    BookModel book,
+    List<BookshelfModel> shelves,
+  ) {
     String? selected = book.shelfId.isEmpty ? null : book.shelfId;
     showAppModal(
       context: context,
@@ -218,11 +226,13 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
                   selected: selected == null,
                   onTap: () => setModal(() => selected = null),
                 ),
-                ...shelves.map((s) => _ShelfPick(
-                      name: s.name,
-                      selected: selected == s.id,
-                      onTap: () => setModal(() => selected = s.id),
-                    )),
+                ...shelves.map(
+                  (s) => _ShelfPick(
+                    name: s.name,
+                    selected: selected == s.id,
+                    onTap: () => setModal(() => selected = s.id),
+                  ),
+                ),
               ],
             ),
           ),
@@ -280,21 +290,24 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
         // errors back up so the host scaffold's messenger handles them.
         onError: (msg) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(msg)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(msg)));
         },
       ),
     );
   }
 
-  Future<void> _showOptionsMenu(BuildContext context, WidgetRef ref,
-      BookModel book, List<BookshelfModel> shelves, Offset anchor) async {
+  Future<void> _showOptionsMenu(
+    BuildContext context,
+    WidgetRef ref,
+    BookModel book,
+    List<BookshelfModel> shelves,
+    Offset anchor,
+  ) async {
     final selected = await showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        anchor.dx - 149, anchor.dy + 8, 16, 0,
-      ),
+      position: RelativeRect.fromLTRB(anchor.dx - 149, anchor.dy + 8, 16, 0),
       color: AppColors.surface,
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
@@ -365,12 +378,16 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
           child: bookAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
             error: (e, _) => Center(
-                child: Text('Error: $e', style: AppTypography.bodyMedium)),
+              child: Text('Error: $e', style: AppTypography.bodyMedium),
+            ),
             data: (book) {
               if (book == null) {
                 return Center(
-                    child:
-                        Text('Book not found', style: AppTypography.bodyMedium));
+                  child: Text(
+                    'Book not found',
+                    style: AppTypography.bodyMedium,
+                  ),
+                );
               }
               return _buildBody(context, ref, book);
             },
@@ -441,13 +458,11 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
     return Row(
       children: [
         GestureDetector(
-          onTap: () =>
-              context.canPop() ? context.pop() : context.go('/home'),
+          onTap: () => context.canPop() ? context.pop() : context.go('/home'),
           behavior: HitTestBehavior.opaque,
           child: const Padding(
             padding: EdgeInsets.all(4),
-            child:
-                Icon(Icons.arrow_back, color: AppColors.primary, size: 16),
+            child: Icon(Icons.arrow_back, color: AppColors.primary, size: 16),
           ),
         ),
         const SizedBox(width: 12),
@@ -471,8 +486,7 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
             },
             child: const Padding(
               padding: EdgeInsets.all(4),
-              child: Icon(Icons.more_vert,
-                  color: AppColors.primary, size: 20),
+              child: Icon(Icons.more_vert, color: AppColors.primary, size: 20),
             ),
           ),
         ),
@@ -607,7 +621,10 @@ class _InlineReadButton extends StatelessWidget {
         color: AppColors.primary,
         shape: RoundedRectangleBorder(
           borderRadius: borderRadius,
-          side: BorderSide(color: Colors.white.withValues(alpha: 0.9), width: 1.5),
+          side: BorderSide(
+            color: Colors.white.withValues(alpha: 0.9),
+            width: 1.5,
+          ),
         ),
         elevation: 0,
         child: InkWell(
@@ -692,8 +709,7 @@ class _NotesSection extends ConsumerWidget {
         padding: EdgeInsets.all(24),
         child: Center(child: CircularProgressIndicator()),
       ),
-      error: (e, _) =>
-          Text('Error: $e', style: AppTypography.bodySmall),
+      error: (e, _) => Text('Error: $e', style: AppTypography.bodySmall),
       data: (notes) {
         // Ask the parent to drop selections that no longer exist.
         onPruneSelection(notes.map((n) => n.id).toSet());
@@ -732,28 +748,34 @@ class _NotesSection extends ConsumerWidget {
                 ),
                 child: Text(
                   'No notes yet. Tap "Add Note" to start writing.',
-                  style: AppTypography.bodyMedium
-                      .copyWith(color: AppColors.textSecondary),
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textSecondary,
+                  ),
                 ),
               )
             else
-              ...notes.map((n) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _NotePreview(
-                      note: n,
-                      selected: selectedNoteIds.contains(n.id),
-                      selectionMode: inSelectionMode,
-                      onTap: () {
-                        if (inSelectionMode) {
-                          onToggleNote(n.id);
-                        } else {
-                          showNoteEditSheet(context,
-                              bookId: bookId, noteId: n.id);
-                        }
-                      },
-                      onLongPress: () => onToggleNote(n.id),
-                    ),
-                  )),
+              ...notes.map(
+                (n) => Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: _NotePreview(
+                    note: n,
+                    selected: selectedNoteIds.contains(n.id),
+                    selectionMode: inSelectionMode,
+                    onTap: () {
+                      if (inSelectionMode) {
+                        onToggleNote(n.id);
+                      } else {
+                        showNoteEditSheet(
+                          context,
+                          bookId: bookId,
+                          noteId: n.id,
+                        );
+                      }
+                    },
+                    onLongPress: () => onToggleNote(n.id),
+                  ),
+                ),
+              ),
           ],
         );
       },
@@ -910,13 +932,9 @@ class _NotePreview extends StatelessWidget {
                 right: 12,
                 bottom: 18,
                 child: Icon(
-                  selected
-                      ? Icons.check_circle
-                      : Icons.radio_button_unchecked,
+                  selected ? Icons.check_circle : Icons.radio_button_unchecked,
                   size: 20,
-                  color: selected
-                      ? AppColors.primary
-                      : AppColors.textDisabled,
+                  color: selected ? AppColors.primary : AppColors.textDisabled,
                 ),
               ),
           ],
@@ -930,7 +948,11 @@ class _ShelfPick extends StatelessWidget {
   final String name;
   final bool selected;
   final VoidCallback onTap;
-  const _ShelfPick({required this.name, required this.selected, required this.onTap});
+  const _ShelfPick({
+    required this.name,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -948,8 +970,11 @@ class _ShelfPick extends StatelessWidget {
         ),
         child: Row(
           children: [
-            const Icon(Icons.folder_rounded,
-                size: 20, color: AppColors.primary),
+            const Icon(
+              Icons.folder_rounded,
+              size: 20,
+              color: AppColors.primary,
+            ),
             const SizedBox(width: 12),
             Expanded(child: Text(name, style: AppTypography.labelLarge)),
             if (selected)
@@ -977,8 +1002,9 @@ class _PrivacyTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final title = isLocked ? 'Manage lock' : 'Lock this book';
-    final subtitle =
-        isLocked ? 'Change or remove PIN' : 'Require a PIN to open';
+    final subtitle = isLocked
+        ? 'Change or remove PIN'
+        : 'Require a PIN to open';
     final icon = isLocked ? Icons.lock : Icons.lock_outline;
     return Semantics(
       button: true,
@@ -1045,11 +1071,16 @@ class _CoverPlaceholder extends StatelessWidget {
       child: loading
           ? const Center(
               child: CircularProgressIndicator(
-                  color: AppColors.primary, strokeWidth: 2),
+                color: AppColors.primary,
+                strokeWidth: 2,
+              ),
             )
           : const Center(
-              child: Icon(Icons.picture_as_pdf,
-                  size: 72, color: AppColors.primary),
+              child: Icon(
+                Icons.picture_as_pdf,
+                size: 72,
+                color: AppColors.primary,
+              ),
             ),
     );
   }

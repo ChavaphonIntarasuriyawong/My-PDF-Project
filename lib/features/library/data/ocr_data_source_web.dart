@@ -55,8 +55,10 @@ class WebOcrDataSource implements OcrDataSource {
   static const String _scriptId = 'mypdf-tesseract-js-loader';
 
   @override
-  Future<String> recognize(Uint8List jpegBytes,
-      {String langs = 'eng+tha'}) async {
+  Future<String> recognize(
+    Uint8List jpegBytes, {
+    String langs = 'eng+tha',
+  }) async {
     if (_disposed) {
       throw StateError('WebOcrDataSource has been disposed.');
     }
@@ -113,9 +115,12 @@ class WebOcrDataSource implements OcrDataSource {
       'error',
       ((web.Event _) {
         if (!completer.isCompleted) {
-          completer.completeError(StateError(
+          completer.completeError(
+            StateError(
               'Failed to load Tesseract.js from $_scriptUrl - '
-              'see web/ocr/README.md for the asset download instructions.'));
+              'see web/ocr/README.md for the asset download instructions.',
+            ),
+          );
         }
       }).toJS,
     );
@@ -131,8 +136,10 @@ class WebOcrDataSource implements OcrDataSource {
   Future<_TesseractWorker> _spawnWorker(String langs) async {
     // Tesseract.js takes an array of language codes (separate items, not a
     // `+`-joined string like the native lib).
-    final langArray =
-        langs.split('+').where((s) => s.isNotEmpty).toList(growable: false);
+    final langArray = langs
+        .split('+')
+        .where((s) => s.isNotEmpty)
+        .toList(growable: false);
     final jsLangs = langArray.map((l) => l.toJS).toList().toJS;
 
     // OEM=1 -> LSTM-only (best accuracy on modern traineddata).

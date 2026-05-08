@@ -24,7 +24,11 @@ void main() {
         'content': '',
         'updatedAt': 'bad',
       });
-      expect(note.updatedAt.isAfter(before) || note.updatedAt.isAtSameMomentAs(before), isTrue);
+      expect(
+        note.updatedAt.isAfter(before) ||
+            note.updatedAt.isAtSameMomentAs(before),
+        isTrue,
+      );
     });
 
     test('toMap excludes id', () {

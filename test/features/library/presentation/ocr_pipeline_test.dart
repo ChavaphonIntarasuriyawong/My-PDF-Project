@@ -1,13 +1,14 @@
 @Tags(['ocr-pipeline'])
 @Skip(
-    'Wave 4 — blocked by Wave 3 source issue: '
-    'lib/features/library/data/ocr_data_source.dart imports `dart:js_interop` '
-    'and `package:web` unconditionally at the top of the file, so any VM-side '
-    'test that transitively imports `library_providers.dart` (which holds the '
-    '`ocrPageTextProvider` we want to exercise) fails to compile. '
-    'Un-skip after Wave 5 splits the datasource into platform-conditional '
-    'imports (e.g. ocr_data_source_io.dart + ocr_data_source_web.dart with a '
-    'conditional `export`).')
+  'Wave 4 — blocked by Wave 3 source issue: '
+  'lib/features/library/data/ocr_data_source.dart imports `dart:js_interop` '
+  'and `package:web` unconditionally at the top of the file, so any VM-side '
+  'test that transitively imports `library_providers.dart` (which holds the '
+  '`ocrPageTextProvider` we want to exercise) fails to compile. '
+  'Un-skip after Wave 5 splits the datasource into platform-conditional '
+  'imports (e.g. ocr_data_source_io.dart + ocr_data_source_web.dart with a '
+  'conditional `export`).',
+)
 library;
 
 import 'package:flutter_test/flutter_test.dart';

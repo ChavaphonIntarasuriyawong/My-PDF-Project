@@ -70,16 +70,15 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
       vsync: this,
       duration: const Duration(milliseconds: 360),
     );
-    _shake = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 0.0, end: -10.0), weight: 1),
-      TweenSequenceItem(tween: Tween(begin: -10.0, end: 10.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 10.0, end: -8.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: -8.0, end: 6.0), weight: 2),
-      TweenSequenceItem(tween: Tween(begin: 6.0, end: 0.0), weight: 1),
-    ]).animate(CurvedAnimation(
-      parent: _shakeController,
-      curve: Curves.easeOut,
-    ));
+    _shake = TweenSequence<double>(
+      [
+        TweenSequenceItem(tween: Tween(begin: 0.0, end: -10.0), weight: 1),
+        TweenSequenceItem(tween: Tween(begin: -10.0, end: 10.0), weight: 2),
+        TweenSequenceItem(tween: Tween(begin: 10.0, end: -8.0), weight: 2),
+        TweenSequenceItem(tween: Tween(begin: -8.0, end: 6.0), weight: 2),
+        TweenSequenceItem(tween: Tween(begin: 6.0, end: 0.0), weight: 1),
+      ],
+    ).animate(CurvedAnimation(parent: _shakeController, curve: Curves.easeOut));
 
     WidgetsBinding.instance.addPostFrameCallback((_) => _probeBiometric());
   }
@@ -179,8 +178,7 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
   Future<void> _useBiometric() async {
     if (_biometricInProgress || _inputDisabled) return;
     setState(() => _biometricInProgress = true);
-    final ok = await BiometricAuthService()
-        .authenticate(reason: 'Unlock book');
+    final ok = await BiometricAuthService().authenticate(reason: 'Unlock book');
     if (!mounted) return;
     setState(() => _biometricInProgress = false);
     if (ok) {
@@ -220,10 +218,7 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
                         offset: Offset(_shake.value, 0),
                         child: child,
                       ),
-                      child: _PinDots(
-                        filled: _pin.length,
-                        total: _pinLength,
-                      ),
+                      child: _PinDots(filled: _pin.length, total: _pinLength),
                     ),
                     const SizedBox(height: 16),
                     _StatusLine(
@@ -414,8 +409,8 @@ class _StatusLine extends StatelessWidget {
     // Reserve vertical room so the layout doesn't jitter when the message
     // appears/disappears.
     return SizedBox(
-      height: AppTypography.bodyMedium.fontSize! *
-          AppTypography.bodyMedium.height!,
+      height:
+          AppTypography.bodyMedium.fontSize! * AppTypography.bodyMedium.height!,
     );
   }
 }
@@ -451,13 +446,16 @@ class _Numpad extends StatelessWidget {
             children: [
               const Expanded(child: SizedBox(height: 64)),
               const SizedBox(width: 12),
-              Expanded(child: _DigitKey(label: '0', onTap: () => onDigit('0'), disabled: disabled)),
-              const SizedBox(width: 12),
               Expanded(
-                child: _BackspaceKey(
-                  onTap: onBackspace,
+                child: _DigitKey(
+                  label: '0',
+                  onTap: () => onDigit('0'),
                   disabled: disabled,
                 ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _BackspaceKey(onTap: onBackspace, disabled: disabled),
               ),
             ],
           ),
@@ -518,9 +516,7 @@ class _DigitKey extends StatelessWidget {
               child: Text(
                 label,
                 style: AppTypography.headlineMedium.copyWith(
-                  color: disabled
-                      ? AppColors.textDisabled
-                      : AppColors.primary,
+                  color: disabled ? AppColors.textDisabled : AppColors.primary,
                 ),
               ),
             ),
@@ -557,9 +553,7 @@ class _BackspaceKey extends StatelessWidget {
               alignment: Alignment.center,
               child: Icon(
                 Icons.backspace_outlined,
-                color: disabled
-                    ? AppColors.textDisabled
-                    : AppColors.primary,
+                color: disabled ? AppColors.textDisabled : AppColors.primary,
                 size: 24,
               ),
             ),

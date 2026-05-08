@@ -18,12 +18,14 @@ class ShelfContentScreen extends ConsumerWidget {
   bool get _isAll => shelfId == kAllShelfId;
 
   Future<void> _showShelfMenu(
-      BuildContext context, WidgetRef ref, String shelfName, Offset anchor) async {
+    BuildContext context,
+    WidgetRef ref,
+    String shelfName,
+    Offset anchor,
+  ) async {
     final selected = await showMenu<String>(
       context: context,
-      position: RelativeRect.fromLTRB(
-        anchor.dx - 149, anchor.dy + 8, 16, 0,
-      ),
+      position: RelativeRect.fromLTRB(anchor.dx - 149, anchor.dy + 8, 16, 0),
       color: AppColors.surface,
       elevation: 8,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
@@ -73,7 +75,11 @@ class ShelfContentScreen extends ConsumerWidget {
       builder: (ctx) => AppModal(
         title: 'Edit shelf name',
         confirmLabel: 'Confirm',
-        body: LabeledTextField(label: 'Shelf Name', hint: current, controller: ctrl),
+        body: LabeledTextField(
+          label: 'Shelf Name',
+          hint: current,
+          controller: ctrl,
+        ),
         onConfirm: () async {
           if (ctrl.text.trim().isEmpty) return;
           final ok = await ref
@@ -84,7 +90,9 @@ class ShelfContentScreen extends ConsumerWidget {
           } else if (ctx.mounted) {
             final err = ref.read(libraryControllerProvider).error;
             ScaffoldMessenger.of(ctx).showSnackBar(
-              SnackBar(content: Text(err?.toString() ?? 'Could not rename shelf')),
+              SnackBar(
+                content: Text(err?.toString() ?? 'Could not rename shelf'),
+              ),
             );
           }
         },
@@ -104,7 +112,9 @@ class ShelfContentScreen extends ConsumerWidget {
           style: AppTypography.bodyMedium,
         ),
         onConfirm: () async {
-          await ref.read(libraryControllerProvider.notifier).deleteShelf(shelfId);
+          await ref
+              .read(libraryControllerProvider.notifier)
+              .deleteShelf(shelfId);
           if (ctx.mounted) {
             Navigator.of(ctx).pop();
             if (context.canPop()) {
@@ -121,7 +131,9 @@ class ShelfContentScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
-    final shelf = _isAll ? null : shelves.where((s) => s.id == shelfId).firstOrNull;
+    final shelf = _isAll
+        ? null
+        : shelves.where((s) => s.id == shelfId).firstOrNull;
     // For the synthetic "All" shelf, fall through to allBooksProvider so the
     // page lists every book in the user's library, not just one shelf.
     final books = _isAll
@@ -148,7 +160,11 @@ class ShelfContentScreen extends ConsumerWidget {
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                       ),
-                      child: const Icon(Icons.arrow_back, color: AppColors.primary, size: 16),
+                      child: const Icon(
+                        Icons.arrow_back,
+                        color: AppColors.primary,
+                        size: 16,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -162,15 +178,26 @@ class ShelfContentScreen extends ConsumerWidget {
                   if (!_isAll)
                     Builder(
                       builder: (btnCtx) => IconButton(
-                        icon: const Icon(Icons.more_vert, color: AppColors.primary),
+                        icon: const Icon(
+                          Icons.more_vert,
+                          color: AppColors.primary,
+                        ),
                         onPressed: shelf == null
                             ? null
                             : () {
-                                final box = btnCtx.findRenderObject() as RenderBox?;
+                                final box =
+                                    btnCtx.findRenderObject() as RenderBox?;
                                 final anchor = box != null
-                                    ? box.localToGlobal(Offset(box.size.width, 0))
+                                    ? box.localToGlobal(
+                                        Offset(box.size.width, 0),
+                                      )
                                     : Offset.zero;
-                                _showShelfMenu(context, ref, shelf.name, anchor);
+                                _showShelfMenu(
+                                  context,
+                                  ref,
+                                  shelf.name,
+                                  anchor,
+                                );
                               },
                       ),
                     ),

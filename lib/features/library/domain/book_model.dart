@@ -107,7 +107,9 @@ class BookModel {
       status: map['status'] ?? 'reading',
       shelfId: map['shelfId'] ?? '',
       ownerId: map['ownerId'] ?? '',
-      lastReadAt: map['lastReadAt'] != null ? DateTime.tryParse(map['lastReadAt']) : null,
+      lastReadAt: map['lastReadAt'] != null
+          ? DateTime.tryParse(map['lastReadAt'])
+          : null,
       author: map['author'] as String?,
       year: (map['year'] as num?)?.toInt(),
       needsOcr: rawNeedsOcr is bool ? rawNeedsOcr : false,

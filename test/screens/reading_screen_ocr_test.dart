@@ -43,8 +43,10 @@ class _FakeOcrDataSource implements OcrDataSource {
   Object? throwOnNext;
 
   @override
-  Future<String> recognize(Uint8List jpegBytes,
-      {String langs = 'eng+tha'}) async {
+  Future<String> recognize(
+    Uint8List jpegBytes, {
+    String langs = 'eng+tha',
+  }) async {
     callCount++;
     final err = throwOnNext;
     if (err != null) {
@@ -64,7 +66,7 @@ class _FakeOcrDataSource implements OcrDataSource {
 /// touches; we extend the production class and override the getter.
 class _FakeFeatureFlags extends FeatureFlags {
   _FakeFeatureFlags(this._enabled, FirebaseRemoteConfig rc)
-      : super(remoteConfig: rc);
+    : super(remoteConfig: rc);
   final bool _enabled;
   @override
   bool get ocrFallbackEnabled => _enabled;
@@ -82,8 +84,7 @@ void main() {
   late Directory tempDir;
 
   setUpAll(() async {
-    tempDir =
-        await Directory.systemTemp.createTemp('reading_screen_ocr_test_');
+    tempDir = await Directory.systemTemp.createTemp('reading_screen_ocr_test_');
     Hive.init(tempDir.path);
   });
 
@@ -131,31 +132,37 @@ void main() {
       final cache = container.read(ocrCacheServiceProvider);
       await cache.put('book42', 3, 'cached text');
 
-      final result = await container.read(ocrPageTextProvider((
-        bookId: 'book42',
-        url: 'https://x/test.pdf',
-        pageIndex: 3,
-      )).future);
+      final result = await container.read(
+        ocrPageTextProvider((
+          bookId: 'book42',
+          url: 'https://x/test.pdf',
+          pageIndex: 3,
+        )).future,
+      );
 
       expect(result, 'cached text');
-      expect(fake.callCount, 0,
-          reason: 'cache hit must skip OCR engine entirely');
+      expect(
+        fake.callCount,
+        0,
+        reason: 'cache hit must skip OCR engine entirely',
+      );
     });
 
     test('cache miss invokes OCR, cleans output, then caches', () async {
-      final fake = _FakeOcrDataSource()
-        ..response = 'first   line\nsecond line';
+      final fake = _FakeOcrDataSource()..response = 'first   line\nsecond line';
       final container = buildContainer(
         fake: fake,
         pageBytes: Uint8List.fromList([1, 2, 3]),
       );
       addTearDown(container.dispose);
 
-      final result = await container.read(ocrPageTextProvider((
-        bookId: 'bookA',
-        url: 'https://x/a.pdf',
-        pageIndex: 0,
-      )).future);
+      final result = await container.read(
+        ocrPageTextProvider((
+          bookId: 'bookA',
+          url: 'https://x/a.pdf',
+          pageIndex: 0,
+        )).future,
+      );
 
       expect(fake.callCount, 1);
       // `cleanForTts` collapses runs of spaces and joins single \n with a
@@ -169,8 +176,7 @@ void main() {
       );
     });
 
-    test('second read of same (bookId, page) does not re-invoke OCR',
-        () async {
+    test('second read of same (bookId, page) does not re-invoke OCR', () async {
       final fake = _FakeOcrDataSource()..response = 'page text';
       final container = buildContainer(
         fake: fake,
@@ -178,11 +184,7 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final args = (
-        bookId: 'bookB',
-        url: 'https://x/b.pdf',
-        pageIndex: 7,
-      );
+      final args = (bookId: 'bookB', url: 'https://x/b.pdf', pageIndex: 7);
 
       await container.read(ocrPageTextProvider(args).future);
       // Second read - Riverpod may serve from its own family cache, but
@@ -195,116 +197,132 @@ void main() {
       expect(fake.callCount, 1);
     });
 
-    test('empty OCR result is still cached so re-reads stay zero-cost',
-        () async {
-      final fake = _FakeOcrDataSource()..response = '';
-      final container = buildContainer(
-        fake: fake,
-        pageBytes: Uint8List.fromList([1, 2, 3]),
-      );
-      addTearDown(container.dispose);
+    test(
+      'empty OCR result is still cached so re-reads stay zero-cost',
+      () async {
+        final fake = _FakeOcrDataSource()..response = '';
+        final container = buildContainer(
+          fake: fake,
+          pageBytes: Uint8List.fromList([1, 2, 3]),
+        );
+        addTearDown(container.dispose);
 
-      final result = await container.read(ocrPageTextProvider((
-        bookId: 'bookC',
-        url: 'https://x/c.pdf',
-        pageIndex: 0,
-      )).future);
+        final result = await container.read(
+          ocrPageTextProvider((
+            bookId: 'bookC',
+            url: 'https://x/c.pdf',
+            pageIndex: 0,
+          )).future,
+        );
 
-      expect(result, '');
-      // Empty *string* is cached (not null) so we don't OCR a blank page
-      // every time the user revisits it.
-      expect(
-        container.read(ocrCacheServiceProvider).get('bookC', 0),
-        '',
-      );
-    });
+        expect(result, '');
+        // Empty *string* is cached (not null) so we don't OCR a blank page
+        // every time the user revisits it.
+        expect(container.read(ocrCacheServiceProvider).get('bookC', 0), '');
+      },
+    );
 
-    test('null page-image bytes throw a StateError caller can map to UI msg',
-        () async {
-      final fake = _FakeOcrDataSource();
-      final container = buildContainer(
-        fake: fake,
-        pageBytes: null,
-      );
-      addTearDown(container.dispose);
+    test(
+      'null page-image bytes throw a StateError caller can map to UI msg',
+      () async {
+        final fake = _FakeOcrDataSource();
+        final container = buildContainer(fake: fake, pageBytes: null);
+        addTearDown(container.dispose);
 
-      Object? caught;
-      try {
-        await container.read(ocrPageTextProvider((
-          bookId: 'bookD',
-          url: 'https://x/d.pdf',
-          pageIndex: 0,
-        )).future);
-      } catch (e) {
-        caught = e;
-      }
-      expect(caught, isA<StateError>());
-      // Must mention the page index so error logs are useful.
-      expect(caught.toString(), contains('1')); // 0-indexed -> human page 1
-      expect(fake.callCount, 0,
-          reason: 'render failure must short-circuit before recogniser run');
-    });
+        Object? caught;
+        try {
+          await container.read(
+            ocrPageTextProvider((
+              bookId: 'bookD',
+              url: 'https://x/d.pdf',
+              pageIndex: 0,
+            )).future,
+          );
+        } catch (e) {
+          caught = e;
+        }
+        expect(caught, isA<StateError>());
+        // Must mention the page index so error logs are useful.
+        expect(caught.toString(), contains('1')); // 0-indexed -> human page 1
+        expect(
+          fake.callCount,
+          0,
+          reason: 'render failure must short-circuit before recogniser run',
+        );
+      },
+    );
 
-    test('bookOcrProgressProvider stays null after a single foreground OCR',
-        () async {
-      // The provider only mutates from `_maybeStartBackgroundOcr` in the
-      // reading screen — `ocrPageTextProvider` itself must not poke it.
-      final fake = _FakeOcrDataSource()..response = 'hello';
-      final container = buildContainer(
-        fake: fake,
-        pageBytes: Uint8List.fromList([1, 2, 3]),
-      );
-      addTearDown(container.dispose);
+    test(
+      'bookOcrProgressProvider stays null after a single foreground OCR',
+      () async {
+        // The provider only mutates from `_maybeStartBackgroundOcr` in the
+        // reading screen — `ocrPageTextProvider` itself must not poke it.
+        final fake = _FakeOcrDataSource()..response = 'hello';
+        final container = buildContainer(
+          fake: fake,
+          pageBytes: Uint8List.fromList([1, 2, 3]),
+        );
+        addTearDown(container.dispose);
 
-      expect(container.read(bookOcrProgressProvider), isNull);
-      await container.read(ocrPageTextProvider((
-        bookId: 'bookE',
-        url: 'https://x/e.pdf',
-        pageIndex: 0,
-      )).future);
-      expect(container.read(bookOcrProgressProvider), isNull);
-    });
+        expect(container.read(bookOcrProgressProvider), isNull);
+        await container.read(
+          ocrPageTextProvider((
+            bookId: 'bookE',
+            url: 'https://x/e.pdf',
+            pageIndex: 0,
+          )).future,
+        );
+        expect(container.read(bookOcrProgressProvider), isNull);
+      },
+    );
   });
 
   group('kill-switch contract via featureFlagsProvider', () {
-    test('flag=false keeps reader off OCR pipeline (the read returns false)',
-        () {
+    test('flag=false keeps reader off OCR pipeline (the read returns false)', () {
       // The reader uses `ref.read(featureFlagsProvider).ocrFallbackEnabled` as
       // a single boolean guard. We pin the contract: when the override returns
       // false, that's what the reader observes — no fancy lazy init, no
       // off-thread surprises. If this stops being true, the reader's
       // kill-switch is silently broken.
-      final container = ProviderContainer(overrides: [
-        featureFlagsProvider.overrideWithValue(
-          _FakeFeatureFlags(false, _UnusedRemoteConfig()),
-        ),
-      ]);
+      final container = ProviderContainer(
+        overrides: [
+          featureFlagsProvider.overrideWithValue(
+            _FakeFeatureFlags(false, _UnusedRemoteConfig()),
+          ),
+        ],
+      );
       addTearDown(container.dispose);
       expect(container.read(featureFlagsProvider).ocrFallbackEnabled, isFalse);
     });
 
-    test('flag=true unblocks the OCR pipeline (no exceptions raised)',
-        () async {
-      final fake = _FakeOcrDataSource()..response = 'recovered';
-      final container = ProviderContainer(overrides: [
-        featureFlagsProvider.overrideWithValue(
-          _FakeFeatureFlags(true, _UnusedRemoteConfig()),
-        ),
-        ocrDataSourceProvider.overrideWithValue(fake),
-        pdfPageImageProvider.overrideWith(
-          (ref, args) async => Uint8List.fromList([1, 2, 3]),
-        ),
-      ]);
-      addTearDown(container.dispose);
+    test(
+      'flag=true unblocks the OCR pipeline (no exceptions raised)',
+      () async {
+        final fake = _FakeOcrDataSource()..response = 'recovered';
+        final container = ProviderContainer(
+          overrides: [
+            featureFlagsProvider.overrideWithValue(
+              _FakeFeatureFlags(true, _UnusedRemoteConfig()),
+            ),
+            ocrDataSourceProvider.overrideWithValue(fake),
+            pdfPageImageProvider.overrideWith(
+              (ref, args) async => Uint8List.fromList([1, 2, 3]),
+            ),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      expect(container.read(featureFlagsProvider).ocrFallbackEnabled, isTrue);
-      final result = await container.read(ocrPageTextProvider((
-        bookId: 'bookF',
-        url: 'https://x/f.pdf',
-        pageIndex: 0,
-      )).future);
-      expect(result, 'recovered');
-      expect(fake.callCount, 1);
-    });
+        expect(container.read(featureFlagsProvider).ocrFallbackEnabled, isTrue);
+        final result = await container.read(
+          ocrPageTextProvider((
+            bookId: 'bookF',
+            url: 'https://x/f.pdf',
+            pageIndex: 0,
+          )).future,
+        );
+        expect(result, 'recovered');
+        expect(fake.callCount, 1);
+      },
+    );
   });
 }
