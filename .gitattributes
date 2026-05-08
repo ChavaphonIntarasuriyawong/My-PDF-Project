@@ -1,0 +1,17 @@
+# Force LF line endings for all text files. Keeps `dart format
+# --set-exit-if-changed` reproducible across Windows dev (CRLF working dirs)
+# and Linux CI (LF) runners.
+* text=auto eol=lf
+
+# Binary files — leave untouched.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.traineddata binary
+*.gz binary
+*.wasm binary
+*.otf binary
+*.ttf binary

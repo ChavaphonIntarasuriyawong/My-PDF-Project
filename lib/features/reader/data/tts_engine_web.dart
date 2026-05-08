@@ -1,26 +1,20 @@
-import 'package:flutter_tts/flutter_tts.dart';
-
 import 'tts_engine.dart';
 
-/// Factory used by the web (`dart.library.js_interop`) branch of the
-/// conditional import in `tts_engine.dart`. flutter_tts 4.2.5 ships a real
-/// web plugin (`flutter_tts_web.dart` + `interop_types.dart`) registered
-/// through `flutter_web_plugins`, so we can import the public entry point
-/// and proxy through to it. Routing through this conditional file is what
-/// keeps Linux dart2js (CI) from choking on the package's top-level
-/// `dart:io` import — the same pattern that fixed `flutter_pdf_text` and
-/// `flutter_pdfview` for the web build.
-TtsEngine createTtsEngine() => _WebTtsEngine();
+/// Web factory used by the `dart.library.js_interop` branch of the conditional
+/// import in `tts_engine.dart`. Linux dart2js refuses to resolve
+/// `package:flutter_tts/flutter_tts.dart` even from a web-side conditional
+/// file (the package's public entrypoint pulls in a kernel chain dart2js
+/// rejects on Linux runners), so the web build cannot import flutter_tts at
+/// all. Result: web TTS is a no-op until the upstream package or dart2js
+/// behaviour changes. This is the deliberately-deferred R1 documented in
+/// the swift-stirring-mccarthy plan.
+TtsEngine createTtsEngine() => _NoopTtsEngine();
 
-/// Web implementation. Proxies every call to a `FlutterTts` instance, with
-/// two web-specific tweaks for the diagnostic getters [getEngines] and
-/// [getDefaultEngine]: the Web Speech API has no concept of "TTS engines",
-/// so we return `null` instead of letting the platform channel call fail
-/// silently. Both getters are guarded by an `if (!kIsWeb)` block at the
-/// reader's call site, so this branch is defensive only.
-class _WebTtsEngine implements TtsEngine {
-  final FlutterTts _inner = FlutterTts();
-
+/// Pure no-op implementation — every method completes without doing anything.
+/// The reader's `kIsWeb` paths still call into these and behave as if TTS is
+/// inactive: `speak()` returns 0, handlers are stored but never invoked,
+/// `setVoice`/`setLanguage`/etc. complete trivially.
+class _NoopTtsEngine implements TtsEngine {
   @override
   Future<dynamic> get getEngines async => null;
 
@@ -28,64 +22,44 @@ class _WebTtsEngine implements TtsEngine {
   Future<dynamic> get getDefaultEngine async => null;
 
   @override
-  Future<dynamic> get getLanguages => _inner.getLanguages;
+  Future<dynamic> get getLanguages async => const <String>[];
 
   @override
-  Future<dynamic> get getVoices => _inner.getVoices;
+  Future<dynamic> get getVoices async => const <Map<String, String>>[];
 
   @override
-  Future<dynamic> setLanguage(String lang) => _inner.setLanguage(lang);
+  Future<dynamic> setLanguage(String lang) async => 1;
 
   @override
-  Future<void> setSpeechRate(double rate) async {
-    await _inner.setSpeechRate(rate);
-  }
+  Future<void> setSpeechRate(double rate) async {}
 
   @override
-  Future<void> setVolume(double v) async {
-    await _inner.setVolume(v);
-  }
+  Future<void> setVolume(double v) async {}
 
   @override
-  Future<void> setPitch(double p) async {
-    await _inner.setPitch(p);
-  }
+  Future<void> setPitch(double p) async {}
 
   @override
-  Future<void> setVoice(Map<String, String> voice) async {
-    await _inner.setVoice(voice);
-  }
+  Future<void> setVoice(Map<String, String> voice) async {}
 
   @override
-  Future<void> awaitSpeakCompletion(bool flag) async {
-    await _inner.awaitSpeakCompletion(flag);
-  }
+  Future<void> awaitSpeakCompletion(bool flag) async {}
 
   @override
-  Future<dynamic> speak(String text) => _inner.speak(text);
+  Future<dynamic> speak(String text) async => 0;
 
   @override
-  Future<void> stop() async {
-    await _inner.stop();
-  }
+  Future<void> stop() async {}
 
   @override
-  void setProgressHandler(TtsProgressHandler h) {
-    _inner.setProgressHandler(h);
-  }
+  void setProgressHandler(TtsProgressHandler h) {}
 
   @override
-  void setCompletionHandler(void Function() h) {
-    _inner.setCompletionHandler(h);
-  }
+  void setCompletionHandler(void Function() h) {}
 
   @override
-  void setCancelHandler(void Function() h) {
-    _inner.setCancelHandler(h);
-  }
+  void setCancelHandler(void Function() h) {}
 
   @override
-  void setErrorHandler(TtsErrorHandler h) {
-    _inner.setErrorHandler(h);
-  }
+  void setErrorHandler(TtsErrorHandler h) {}
 }
