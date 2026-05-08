@@ -27,6 +27,13 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Check out the PR head directly instead of the auto-generated
+          # merge commit (default). The merge commit can mix older base-branch
+          # formatting with newer PR formatting, producing bytes that fail
+          # `dart format --set-exit-if-changed` even when both sides are
+          # individually clean.
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
