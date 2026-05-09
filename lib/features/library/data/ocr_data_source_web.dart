@@ -35,6 +35,7 @@ extension type _TesseractWorker._(JSObject _) implements JSObject {
   /// Returns a `Promise[RecognizeResult]`. The result has `.data.text`.
   external JSPromise<JSObject> recognize(JSAny image);
   external JSPromise<JSAny?> terminate();
+
   /// Sets Tesseract engine parameters (e.g. `tessedit_pageseg_mode`).
   external JSPromise<JSAny?> setParameters(JSObject params);
 }

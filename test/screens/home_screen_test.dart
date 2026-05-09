@@ -91,11 +91,7 @@ void main() {
     testWidgets('shows empty state when no books', (tester) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
-      // The "Recently Read" rail surfaces an inline empty message at the top,
-      // which is reachable in the default 800×600 tester viewport. The
-      // long-form "All PDF" empty state lives further down the scroll view
-      // and only appears after scrolling on shorter screens.
-      expect(find.text('No recent reading yet'), findsOneWidget);
+      expect(find.text('No recently read books yet.'), findsOneWidget);
     });
 
     testWidgets('shows Recently Read header', (tester) async {

@@ -112,9 +112,9 @@ void main() {
     return ProviderContainer(
       overrides: [
         ocrDataSourceProvider.overrideWithValue(fake),
-        // Always return the same fake JPEG bytes for any (url, pageIndex)
+        // Always return the same fake PNG bytes for any (url, pageIndex)
         // combination; OCR pipeline never inspects the bytes themselves.
-        pdfPageImageProvider.overrideWith((ref, args) async => pageBytes),
+        ocrPageImageProvider.overrideWith((ref, args) async => pageBytes),
       ],
     );
   }
@@ -305,7 +305,7 @@ void main() {
               _FakeFeatureFlags(true, _UnusedRemoteConfig()),
             ),
             ocrDataSourceProvider.overrideWithValue(fake),
-            pdfPageImageProvider.overrideWith(
+            ocrPageImageProvider.overrideWith(
               (ref, args) async => Uint8List.fromList([1, 2, 3]),
             ),
           ],

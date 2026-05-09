@@ -348,12 +348,15 @@ final ocrPageImageProvider =
           final response = await fetchPdfBytes(url);
           final document = await PdfDocument.openData(response.bodyBytes);
           final page = await document.getPage(pdfxPageNumber);
-          final scale =
-              page.width > 0 && page.width > maxDim ? maxDim / page.width : 1.0;
-          final renderWidth =
-              (page.width * scale).clamp(1.0, maxDim).toDouble();
-          final renderHeight =
-              (page.height * scale).clamp(1.0, maxDim).toDouble();
+          final scale = page.width > 0 && page.width > maxDim
+              ? maxDim / page.width
+              : 1.0;
+          final renderWidth = (page.width * scale)
+              .clamp(1.0, maxDim)
+              .toDouble();
+          final renderHeight = (page.height * scale)
+              .clamp(1.0, maxDim)
+              .toDouble();
           final pageImage = await page.render(
             width: renderWidth,
             height: renderHeight,
@@ -367,11 +370,13 @@ final ocrPageImageProvider =
         final pdfPath = await ref.read(pdfPathProvider(url).future);
         final document = await PdfDocument.openFile(pdfPath);
         final page = await document.getPage(pdfxPageNumber);
-        final scale =
-            page.width > 0 && page.width > maxDim ? maxDim / page.width : 1.0;
+        final scale = page.width > 0 && page.width > maxDim
+            ? maxDim / page.width
+            : 1.0;
         final renderWidth = (page.width * scale).clamp(1.0, maxDim).toDouble();
-        final renderHeight =
-            (page.height * scale).clamp(1.0, maxDim).toDouble();
+        final renderHeight = (page.height * scale)
+            .clamp(1.0, maxDim)
+            .toDouble();
         final pageImage = await page.render(
           width: renderWidth,
           height: renderHeight,
