@@ -38,7 +38,8 @@ Future<http.Response> fetchPdfBytes(String url) async {
       .timeout(const Duration(seconds: 180));
   if (resp.statusCode != 200) {
     throw Exception(
-        'Proxy HTTP ${resp.statusCode}: ${resp.body.substring(0, resp.body.length.clamp(0, 200))}');
+      'Proxy HTTP ${resp.statusCode}: ${resp.body.substring(0, resp.body.length.clamp(0, 200))}',
+    );
   }
   return resp;
 }
