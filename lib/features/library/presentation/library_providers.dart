@@ -322,6 +322,69 @@ final pdfThumbnailProvider = FutureProvider.family<Uint8List?, String>((
   return ref.watch(pdfPageImageProvider((url: url, pageIndex: 0)).future);
 });
 
+/// Renders a PDF page as PNG bytes for OCR input.
+///
+/// Distinct from [pdfPageImageProvider] in two ways that improve OCR accuracy:
+/// - PNG (lossless) eliminates JPEG compression artefacts around character edges.
+/// - 2400 px long-edge cap (~280 DPI for A4/Letter) vs the display provider's
+///   1600 px (~189 DPI), keeping render size inside Tesseract's recommended
+///   250-400 DPI sweet spot.
+///
+/// Not cached to disk — the rendered bytes are large and short-lived; the OCR
+/// text result is what gets cached (see [ocrPageTextProvider]).
+final ocrPageImageProvider =
+    FutureProvider.family<Uint8List?, ({String url, int pageIndex})>((
+      ref,
+      args,
+    ) async {
+      final url = args.url;
+      final pageIndex = args.pageIndex;
+      final pdfxPageNumber = pageIndex + 1;
+      const maxDim = 2400.0;
+
+      try {
+        if (kIsWeb) {
+          if (url.startsWith('local://')) return null;
+          final response = await fetchPdfBytes(url);
+          final document = await PdfDocument.openData(response.bodyBytes);
+          final page = await document.getPage(pdfxPageNumber);
+          final scale =
+              page.width > 0 && page.width > maxDim ? maxDim / page.width : 1.0;
+          final renderWidth =
+              (page.width * scale).clamp(1.0, maxDim).toDouble();
+          final renderHeight =
+              (page.height * scale).clamp(1.0, maxDim).toDouble();
+          final pageImage = await page.render(
+            width: renderWidth,
+            height: renderHeight,
+            format: PdfPageImageFormat.png,
+          );
+          await page.close();
+          await document.close();
+          return pageImage?.bytes;
+        }
+
+        final pdfPath = await ref.read(pdfPathProvider(url).future);
+        final document = await PdfDocument.openFile(pdfPath);
+        final page = await document.getPage(pdfxPageNumber);
+        final scale =
+            page.width > 0 && page.width > maxDim ? maxDim / page.width : 1.0;
+        final renderWidth = (page.width * scale).clamp(1.0, maxDim).toDouble();
+        final renderHeight =
+            (page.height * scale).clamp(1.0, maxDim).toDouble();
+        final pageImage = await page.render(
+          width: renderWidth,
+          height: renderHeight,
+          format: PdfPageImageFormat.png,
+        );
+        await page.close();
+        await document.close();
+        return pageImage?.bytes;
+      } catch (_) {
+        return null;
+      }
+    });
+
 /// Cache for OCR'd page text. Backed by Hive (`app_prefs` box) and keyed by
 /// `ocr_v1_{bookId}_{pageIndex}` so a future engine swap can cut a new
 /// namespace without colliding with stale entries.
@@ -372,7 +435,7 @@ final ocrPageTextProvider =
       final pageImageKey = (url: args.url, pageIndex: args.pageIndex);
 
       try {
-        final bytes = await ref.read(pdfPageImageProvider(pageImageKey).future);
+        final bytes = await ref.read(ocrPageImageProvider(pageImageKey).future);
         if (bytes == null) {
           throw StateError(
             'Could not render page ${args.pageIndex + 1} for OCR (image bytes were null).',
@@ -391,9 +454,9 @@ final ocrPageTextProvider =
 
         return cleaned;
       } finally {
-        // Drop the rendered JPEG from Riverpod's family cache. Critical for
+        // Drop the rendered PNG from Riverpod's family cache. Critical for
         // memory headroom during background pre-OCR loops.
-        ref.invalidate(pdfPageImageProvider(pageImageKey));
+        ref.invalidate(ocrPageImageProvider(pageImageKey));
       }
     });
 

@@ -35,6 +35,8 @@ extension type _TesseractWorker._(JSObject _) implements JSObject {
   /// Returns a `Promise[RecognizeResult]`. The result has `.data.text`.
   external JSPromise<JSObject> recognize(JSAny image);
   external JSPromise<JSAny?> terminate();
+  /// Sets Tesseract engine parameters (e.g. `tessedit_pageseg_mode`).
+  external JSPromise<JSAny?> setParameters(JSObject params);
 }
 
 /// Web implementation. Lazy-loads `web/ocr/tesseract.min.js` via a
@@ -56,7 +58,7 @@ class WebOcrDataSource implements OcrDataSource {
 
   @override
   Future<String> recognize(
-    Uint8List jpegBytes, {
+    Uint8List imageBytes, {
     String langs = 'eng+tha',
   }) async {
     if (_disposed) {
@@ -70,8 +72,8 @@ class WebOcrDataSource implements OcrDataSource {
     // raw Uint8List across the worker boundary efficiently, and Blob URLs
     // are revocable so memory pressure stays bounded.
     final blob = web.Blob(
-      [jpegBytes.toJS].toJS,
-      web.BlobPropertyBag(type: 'image/jpeg'),
+      [imageBytes.toJS].toJS,
+      web.BlobPropertyBag(type: 'image/png'),
     );
     final url = web.URL.createObjectURL(blob);
 
@@ -150,7 +152,17 @@ class WebOcrDataSource implements OcrDataSource {
     options.setProperty('langPath'.toJS, 'ocr/lang/'.toJS);
 
     final workerJs = await _tesseract.createWorker(jsLangs, 1, options).toDart;
-    return _TesseractWorker._(workerJs);
+    final worker = _TesseractWorker._(workerJs);
+
+    // PSM 6 = single uniform block of text. Skips layout analysis, which
+    // improves both speed and accuracy for the single-column scanned book
+    // pages this app processes. Default (PSM 3 = auto) tends to split
+    // columns incorrectly on dense text pages.
+    final params = JSObject();
+    params.setProperty('tessedit_pageseg_mode'.toJS, '6'.toJS);
+    await worker.setParameters(params).toDart;
+
+    return worker;
   }
 
   @override

@@ -524,57 +524,24 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       ref
           .read(karaokeControllerProvider.notifier)
           .onTtsStart(pageText, baseOffset: 0);
-      // Decide path: if a previous speak already failed to emit progress
-      // events, we're in fallback mode for this page — drive sentence-by-
-      // sentence instead. Otherwise speak the whole page and arm a 2 s timer
-      // that promotes us to fallback if no progress event ever lands.
-      final karaokeState = ref.read(karaokeControllerProvider);
-      if (karaokeState.fallbackSentenceMode) {
-        // Sentence queue path. _speakNextSentence handles speak() itself.
-        _karaokeSentences = _splitForKaraoke(pageText);
-        _karaokeSentenceIndex = 0;
-        if (mounted) setState(() => _ttsSpeaking = true);
-        if (!_speakNextSentence()) {
-          // Empty queue (no sentences extracted). Bail and let the user retry.
-          _karaokeSentences = null;
-          if (mounted) {
-            setState(() {
-              _ttsActive = false;
-              _ttsSpeaking = false;
-            });
-          }
-        }
-        return;
-      }
-      // Word-progress path: arm fallback detection + speak whole page.
-      _karaokeProgressEverFired = false;
-      _karaokeProgressDetectTimer?.cancel();
-      _karaokeProgressDetectTimer = Timer(const Duration(seconds: 2), () {
-        if (_isDisposed || !mounted) return;
-        if (_karaokeProgressEverFired) return;
-        if (v != _speakVersion) return;
-        // No progress events landed — promote to sentence mode for the next
-        // page. We don't restart the current page mid-speak (jarring); the
-        // *next* page will use sentence path automatically.
-        AppLogger.debug(
-          'TTS',
-          'no progress events after 2s, switching to sentence fallback',
-        );
-        ref.read(karaokeControllerProvider.notifier).enableFallbackMode();
-      });
+      // Sentence-by-sentence: split the page into sentences and speak each
+      // one as a separate utterance so the TTS reads in natural chunks.
+      // The completion handler in _speakNextSentence advances through the
+      // queue and calls _advanceToNextPageForTts when it empties.
+      _karaokeSentences = _splitForKaraoke(pageText);
+      _karaokeSentenceIndex = 0;
       if (mounted) setState(() => _ttsSpeaking = true);
-      // Diagnostic: extracted text length is a common failure mode (image-only PDFs).
-      AppLogger.debug(
-        'TTS',
-        'speaking ${pageText.length} chars, rate=$_speechRate pitch=$_pitch web=$kIsWeb',
-      );
-      final result = await _tts.speak(pageText);
-      AppLogger.debug(
-        'TTS',
-        'speak() returned: $result (version=$v, current=$_speakVersion)',
-      );
-      // With awaitSpeakCompletion(true), result==0 also fires on legitimate
-      // interruption (stop() before completion). Don't surface as error.
+      if (!_speakNextSentence()) {
+        // No sentences extracted — text had no punctuation boundaries and
+        // was entirely whitespace after cleaning.
+        _karaokeSentences = null;
+        if (mounted) {
+          setState(() {
+            _ttsActive = false;
+            _ttsSpeaking = false;
+          });
+        }
+      }
     } catch (e) {
       _pdfDoc = null;
       if (mounted) {
@@ -944,10 +911,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       if (v != _speakVersion) return;
     }
 
-    if (state.fallbackSentenceMode) {
+    if (_karaokeSentences != null) {
       // Sentence path: find which sentence contains the tapped word.
-      final sentences = _karaokeSentences;
-      if (sentences == null || sentences.isEmpty) return;
+      final sentences = _karaokeSentences!;
+      if (sentences.isEmpty) return;
       int matchIndex = sentences.length - 1; // fall through to last
       for (int i = 0; i < sentences.length; i++) {
         final s = sentences[i];
@@ -957,12 +924,9 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         }
       }
       _karaokeSentenceIndex = matchIndex;
-      // Mirror _speakCurrentPage: flip flags + re-pump the controller's
-      // speaking state so the empty-state doesn't briefly flash.
       ref
           .read(karaokeControllerProvider.notifier)
           .onTtsStart(fullText, baseOffset: 0);
-      ref.read(karaokeControllerProvider.notifier).enableFallbackMode();
       if (mounted) {
         setState(() {
           _ttsActive = true;
@@ -972,8 +936,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         _ttsActive = true;
         _ttsSpeaking = true;
       }
-      // _speakNextSentence pulls list[_karaokeSentenceIndex] then ++s the
-      // index, which is exactly what we want.
       _speakNextSentence();
       return;
     }
@@ -1027,21 +989,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     if (!_ttsActive || !_ttsSpeaking) return;
     final s = ref.read(karaokeControllerProvider);
     if (s.fullText.isEmpty) return;
-    if (s.fallbackSentenceMode) {
-      // Sentence-mode: simplest correct path is a full restart of the
-      // current page so the new rate applies on the next sentence.
-      final page = _currentPage > 0 ? _currentPage - 1 : 0;
-      _speakCurrentPage(page);
-      return;
-    }
-    // Word-mode: seek back to the currently-highlighted word so the new
-    // rate kicks in mid-page without losing position.
-    if (s.currentStart >= 0 && s.currentStart < s.fullText.length) {
-      _seekTtsTo(s.currentStart);
-    } else {
-      final page = _currentPage > 0 ? _currentPage - 1 : 0;
-      _speakCurrentPage(page);
-    }
+    // Restart from the current page so the new rate takes effect on the
+    // next sentence (sentence mode is always active).
+    final page = _currentPage > 0 ? _currentPage - 1 : 0;
+    _speakCurrentPage(page);
   }
 
   /// Karaoke pane mounted as a direct Stack child so Positioned works.

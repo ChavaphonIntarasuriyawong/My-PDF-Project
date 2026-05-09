@@ -14,7 +14,7 @@ OcrDataSource createOcrDataSource() => MobileOcrDataSource();
 
 /// Mobile (Android + iOS) implementation backed by the `tesseract_ocr`
 /// plugin. The plugin's API takes a file path on disk, so we materialise
-/// the JPEG bytes to the OS temp dir, run recognition, and clean up.
+/// the PNG bytes to the OS temp dir, run recognition, and clean up.
 ///
 /// Trained data: the plugin auto-copies `assets/tessdata/*.traineddata`
 /// to `${appDocs}/tessdata/` on first call. The user must drop the
@@ -25,7 +25,7 @@ class MobileOcrDataSource implements OcrDataSource {
 
   @override
   Future<String> recognize(
-    Uint8List jpegBytes, {
+    Uint8List imageBytes, {
     String langs = 'eng+tha',
   }) async {
     if (kIsWeb) {
@@ -37,8 +37,10 @@ class MobileOcrDataSource implements OcrDataSource {
     }
 
     final tempDir = await getTemporaryDirectory();
+    // Use .png extension so Tesseract selects its lossless PNG decoder;
+    // the file header is authoritative but some plugin versions key off ext.
     final filename =
-        'ocr_${DateTime.now().millisecondsSinceEpoch}_${_rand.nextInt(1 << 32)}.jpg';
+        'ocr_${DateTime.now().millisecondsSinceEpoch}_${_rand.nextInt(1 << 32)}.png';
     final tempFile = File('${tempDir.path}/$filename');
 
     try {
@@ -46,13 +48,13 @@ class MobileOcrDataSource implements OcrDataSource {
       // hitching the UI thread (per CLAUDE.md performance gate). Tesseract
       // recognition itself runs on a native worker thread inside the plugin,
       // so we don't need to wrap the whole pipeline.
-      if (jpegBytes.lengthInBytes > 2 * 1024 * 1024) {
+      if (imageBytes.lengthInBytes > 2 * 1024 * 1024) {
         await compute(
           _writeBytesIsolate,
-          _WriteBytesArgs(tempFile.path, jpegBytes),
+          _WriteBytesArgs(tempFile.path, imageBytes),
         );
       } else {
-        await tempFile.writeAsBytes(jpegBytes, flush: true);
+        await tempFile.writeAsBytes(imageBytes, flush: true);
       }
 
       try {
