@@ -60,6 +60,8 @@ dependencies:
 
   # Per-book PIN lock — bcrypt hashing (pure Dart, no native deps)
   crypt: ^4.3.1
+  flutter_pdf_text: ^0.9.0
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:
