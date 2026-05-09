@@ -251,7 +251,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
                     sliver: SliverToBoxAdapter(
-                      child: Text('Recently Read', style: AppTypography.titleMedium),
+                      child: Text(
+                        'Recently Read',
+                        style: AppTypography.titleMedium,
+                      ),
                     ),
                   ),
                   if (allBooks.isLoading)
@@ -283,7 +286,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               child: PdfCard(
                                 book: recentlyReadBooks[i],
                                 onTap: () => context.push(
-                                    '/book/${recentlyReadBooks[i].id}'),
+                                  '/book/${recentlyReadBooks[i].id}',
+                                ),
                               ),
                             ),
                           ),
