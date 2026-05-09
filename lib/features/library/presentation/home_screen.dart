@@ -99,7 +99,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         if (db == null) return -1;
         return db.compareTo(da);
       });
-    final recentReadingsTop5 = recentReadings.take(5).toList(growable: false);
+    final recentlyReadBooks = recentReadings
+        .where((b) => b.lastReadAt != null)
+        .take(5)
+        .toList(growable: false);
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
@@ -241,65 +244,19 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               style: AppTypography.bodySmall,
                             ),
                           ),
-                          const SizedBox(height: 32),
-                          Text(
-                            'Recently Read',
-                            style: AppTypography.titleMedium,
-                          ),
-                          const SizedBox(height: 16),
                         ],
                       ),
                     ),
                   ),
-                  // Recently Read horizontal rail (top-5 by lastReadAt).
-                  // Hidden when empty so the home screen stays minimal.
-                  if (allBooks.isLoading)
-                    const SliverToBoxAdapter(
-                      child: Padding(
-                        padding: EdgeInsets.symmetric(horizontal: 24),
-                        child: _ShimmerList(count: 1),
-                      ),
-                    )
-                  else if (recentReadingsTop5.isEmpty)
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 24),
-                        child: Text(
-                          'No recent reading yet',
-                          style: AppTypography.bodyMedium,
-                        ),
-                      ),
-                    )
-                  else
-                    SliverToBoxAdapter(
-                      child: SizedBox(
-                        height: 320,
-                        child: ListView.separated(
-                          scrollDirection: Axis.horizontal,
-                          padding: const EdgeInsets.symmetric(horizontal: 24),
-                          itemCount: recentReadingsTop5.length,
-                          separatorBuilder: (_, _) => const SizedBox(width: 16),
-                          itemBuilder: (ctx, i) => SizedBox(
-                            width: 220,
-                            child: PdfCard(
-                              book: recentReadingsTop5[i],
-                              onTap: () => context.push(
-                                '/book/${recentReadingsTop5[i].id}',
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(24, 32, 24, 16),
                     sliver: SliverToBoxAdapter(
-                      child: Text('All PDF', style: AppTypography.titleMedium),
+                      child: Text('Recently Read', style: AppTypography.titleMedium),
                     ),
                   ),
                   if (allBooks.isLoading)
                     const SliverToBoxAdapter(child: _ShimmerList(count: 2))
-                  else if (books.isEmpty)
+                  else if (recentlyReadBooks.isEmpty)
                     SliverToBoxAdapter(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -308,7 +265,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ),
                         child: Center(
                           child: Text(
-                            'No books yet. Tap Create to add one.',
+                            'No recently read books yet.',
                             style: AppTypography.bodyMedium,
                           ),
                         ),
@@ -324,13 +281,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             child: SizedBox(
                               height: 548,
                               child: PdfCard(
-                                book: books[i],
-                                onTap: () =>
-                                    context.push('/book/${books[i].id}'),
+                                book: recentlyReadBooks[i],
+                                onTap: () => context.push(
+                                    '/book/${recentlyReadBooks[i].id}'),
                               ),
                             ),
                           ),
-                          childCount: books.length,
+                          childCount: recentlyReadBooks.length,
                         ),
                       ),
                     ),
