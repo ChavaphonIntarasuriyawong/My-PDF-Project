@@ -115,6 +115,22 @@ bool _looksLikePdf(List<int> bytes) {
   return false;
 }
 
+// PDF spec requires %%EOF in the final 1024 bytes. Absence means the download
+// was interrupted — the file has a valid header but a missing/truncated trailer,
+// which causes InvalidPDFException at render time even though _looksLikePdf passes.
+bool _hasEofMarker(List<int> bytes) {
+  for (var i = bytes.length - 5; i >= 0; i--) {
+    if (bytes[i] == 0x25 &&
+        bytes[i + 1] == 0x25 &&
+        bytes[i + 2] == 0x45 &&
+        bytes[i + 3] == 0x4F &&
+        bytes[i + 4] == 0x46) {
+      return true;
+    }
+  }
+  return false;
+}
+
 /// Writes already-fetched PDF bytes to the same cache location `pdfPathProvider`
 /// would later download to. Lets the link-import flow reuse the bytes it
 /// already pulled for the bitmap probe, so the very first reader open finds the
@@ -172,10 +188,18 @@ final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
 
   if (await file.exists()) {
     if (await file.length() > 100) {
+      final length = await file.length();
       final raf = await file.open();
       try {
         final head = await raf.read(1100);
-        if (_looksLikePdf(head)) return file.absolute.path;
+        if (_looksLikePdf(head)) {
+          // Also check the trailer — a truncated download has a valid %PDF-
+          // header but no %%EOF, causing InvalidPDFException at render time.
+          final tailOffset = length > 1024 ? length - 1024 : 0;
+          await raf.setPosition(tailOffset);
+          final tail = await raf.read(1024);
+          if (_hasEofMarker(tail)) return file.absolute.path;
+        }
       } finally {
         await raf.close();
       }

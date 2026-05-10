@@ -1067,9 +1067,17 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                       const SizedBox(height: 8),
                       Text(
                         '$e',
+                        textAlign: TextAlign.center,
                         style: AppTypography.bodySmall.copyWith(
                           color: AppColors.textSecondary,
                         ),
+                      ),
+                      const SizedBox(height: 16),
+                      TextButton.icon(
+                        onPressed: () =>
+                            ref.invalidate(pdfPathProvider(book!.link)),
+                        icon: const Icon(Icons.refresh),
+                        label: const Text('Retry'),
                       ),
                     ],
                   ),
@@ -1212,8 +1220,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                                 Semantics(
                                   button: true,
                                   label: karaokeState.isVisible
-                                      ? 'Hide karaoke captions'
-                                      : 'Show karaoke captions',
+                                      ? 'Hide closed captions'
+                                      : 'Show closed captions',
                                   child: GestureDetector(
                                     onTap: () => ref
                                         .read(
@@ -1518,9 +1526,23 @@ class _WebPdfReaderState extends State<_WebPdfReader> {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
-          child: Text(
-            'Failed to load PDF: $_error',
-            textAlign: TextAlign.center,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Failed to load PDF: $_error',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              TextButton.icon(
+                onPressed: () {
+                  setState(() => _error = null);
+                  _load();
+                },
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
           ),
         ),
       );

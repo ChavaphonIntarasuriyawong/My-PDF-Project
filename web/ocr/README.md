@@ -11,7 +11,7 @@ plugin — see `assets/tessdata/README.md` for that side.
 web/ocr/
 ├── tesseract.min.js                <-- Tesseract.js v5 main script
 ├── worker.min.js                   <-- Web Worker entry point
-├── tesseract-core-simd.wasm        <-- WASM core (SIMD build)
+├── tesseract-core-simd-lstm.wasm.js  <-- Emscripten JS core (SIMD + LSTM)
 ├── lang/
 │   ├── eng.traineddata.gz          <-- English (gzipped)
 │   └── tha.traineddata.gz          <-- Thai (gzipped)
@@ -28,11 +28,12 @@ From the Tesseract.js v5 distribution on jsDelivr:
 - https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js
 - https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/worker.min.js
 
-### `tesseract-core-simd.wasm`
+### `tesseract-core-simd-lstm.wasm.js`
 
-From the `tesseract.js-core` package on jsDelivr:
+From the `tesseract.js-core` package on jsDelivr (this is an emscripten-generated
+JS file, not a raw `.wasm` binary — the `.js` extension is required):
 
-- https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core-simd.wasm
+- https://cdn.jsdelivr.net/npm/tesseract.js-core@5/tesseract-core-simd-lstm.wasm.js
 
 ### Trained data (`lang/*.traineddata.gz`)
 

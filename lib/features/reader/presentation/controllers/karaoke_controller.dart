@@ -120,12 +120,18 @@ class KaraokeController extends StateNotifier<KaraokeState> {
 
   /// Fallback path: highlight a whole sentence span. Called from the sentence
   /// queue in the reader screen when [fallbackSentenceMode] is true.
+  ///
+  /// Also updates [baseOffset] to [sentenceStart] so that word-boundary
+  /// progress events fired during this sentence are re-anchored to full-page
+  /// coordinates (engine reports offsets relative to the sentence slice, not
+  /// the full page text).
   void onSentenceTick(int sentenceStart, int sentenceEnd) {
     if (!state.isSpeaking) return;
     if (sentenceStart < 0 || sentenceEnd <= sentenceStart) return;
     state = state.copyWith(
       currentStart: sentenceStart,
       currentEnd: sentenceEnd,
+      baseOffset: sentenceStart,
     );
   }
 

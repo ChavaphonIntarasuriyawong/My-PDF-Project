@@ -248,7 +248,7 @@ class _KaraokeTextPaneState extends ConsumerState<KaraokeTextPane> {
           // When the speed slider is mounted, we tighten the title to just
           // "Karaoke" — the 412dp phone-frame leaves ~140 dp for the slider
           // after the icon + mode pill + close button.
-          Text('Karaoke', style: AppTypography.titleMedium),
+          Text('Closed Caption', style: AppTypography.titleMedium),
           const SizedBox(width: 6),
           // Hide the mode pill once the slider is mounted on phone-frame
           // widths to avoid overflow. The pill is informational only — the
@@ -276,7 +276,7 @@ class _KaraokeTextPaneState extends ConsumerState<KaraokeTextPane> {
             const SizedBox(width: 4),
           ],
           Semantics(
-            label: 'Hide karaoke captions',
+            label: 'Hide closed captions',
             button: true,
             child: IconButton(
               splashRadius: 18,
@@ -466,7 +466,7 @@ class _ResumeFollowPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Resume karaoke follow',
+      label: 'Resume closed caption follow',
       child: Material(
         color: AppColors.iconBlueTint,
         borderRadius: BorderRadius.circular(999),
