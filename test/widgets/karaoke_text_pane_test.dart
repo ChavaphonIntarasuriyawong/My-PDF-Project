@@ -56,7 +56,7 @@ void main() {
       final r = _build();
       await tester.pumpWidget(r.widget);
       await tester.pump();
-      expect(find.text('Press Read to start karaoke captions'), findsOneWidget);
+      expect(find.text('Press Read to start closed captions'), findsOneWidget);
       expect(
         find.text('The current word lights up as TTS speaks'),
         findsOneWidget,
@@ -64,11 +64,11 @@ void main() {
       await _settleAndDispose(tester, r.container);
     });
 
-    testWidgets('renders Karaoke header and close button', (tester) async {
+    testWidgets('renders Closed Caption header and close button', (tester) async {
       final r = _build();
       await tester.pumpWidget(r.widget);
       await tester.pump();
-      expect(find.text('Karaoke'), findsOneWidget);
+      expect(find.text('Closed Caption'), findsOneWidget);
       expect(find.byIcon(Icons.keyboard_arrow_down), findsOneWidget);
       await _settleAndDispose(tester, r.container);
     });
@@ -252,13 +252,13 @@ void main() {
         await tester.pump();
         // Idle: empty-state copy visible.
         expect(
-          find.text('Press Read to start karaoke captions'),
+          find.text('Press Read to start closed captions'),
           findsOneWidget,
         );
 
         ctrl.onTtsStart('alpha beta gamma');
         await tester.pump();
-        expect(find.text('Press Read to start karaoke captions'), findsNothing);
+        expect(find.text('Press Read to start closed captions'), findsNothing);
         expect(find.text('alpha'), findsOneWidget);
 
         ctrl.onProgress('alpha beta gamma', 0, 5, 'alpha');

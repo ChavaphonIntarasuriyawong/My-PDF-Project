@@ -245,10 +245,13 @@ class _KaraokeTextPaneState extends ConsumerState<KaraokeTextPane> {
             color: AppColors.primary,
           ),
           const SizedBox(width: 8),
-          // When the speed slider is mounted, we tighten the title to just
-          // "Karaoke" — the 412dp phone-frame leaves ~140 dp for the slider
-          // after the icon + mode pill + close button.
-          Text('Closed Caption', style: AppTypography.titleMedium),
+          Flexible(
+            child: Text(
+              'Closed Caption',
+              style: AppTypography.titleMedium,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
           const SizedBox(width: 6),
           // Hide the mode pill once the slider is mounted on phone-frame
           // widths to avoid overflow. The pill is informational only — the
@@ -305,7 +308,7 @@ class _KaraokeTextPaneState extends ConsumerState<KaraokeTextPane> {
           Icon(Icons.graphic_eq, size: 36, color: AppColors.textMuted),
           const SizedBox(height: 12),
           Text(
-            'Press Read to start karaoke captions',
+            'Press Read to start closed captions',
             textAlign: TextAlign.center,
             style: AppTypography.bodyMedium.copyWith(
               color: AppColors.textSecondary,
@@ -398,8 +401,8 @@ class _KaraokeTextPaneState extends ConsumerState<KaraokeTextPane> {
     }
 
     final liveLabel = activeWord != null
-        ? 'Karaoke captions, current word: $activeWord'
-        : 'Karaoke captions';
+        ? 'Closed captions, current word: $activeWord'
+        : 'Closed captions';
 
     // Pill is only meaningful while there's an active span to jump to AND
     // the user has scrolled away. It hides itself the moment follow is re-
