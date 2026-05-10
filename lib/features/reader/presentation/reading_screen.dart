@@ -1529,10 +1529,7 @@ class _WebPdfReaderState extends State<_WebPdfReader> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Failed to load PDF: $_error',
-                textAlign: TextAlign.center,
-              ),
+              Text('Failed to load PDF: $_error', textAlign: TextAlign.center),
               const SizedBox(height: 16),
               TextButton.icon(
                 onPressed: () {
