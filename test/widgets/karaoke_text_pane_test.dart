@@ -64,7 +64,9 @@ void main() {
       await _settleAndDispose(tester, r.container);
     });
 
-    testWidgets('renders Closed Caption header and close button', (tester) async {
+    testWidgets('renders Closed Caption header and close button', (
+      tester,
+    ) async {
       final r = _build();
       await tester.pumpWidget(r.widget);
       await tester.pump();
