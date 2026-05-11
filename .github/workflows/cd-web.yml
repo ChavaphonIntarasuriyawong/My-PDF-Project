@@ -14,9 +14,8 @@
 #
 # Flutter pinned to 3.38.7 (matches local + CI).
 #
-# Note: web/ocr/ Tesseract.js binaries are NOT committed (.gitkeep only).
-# The CD step "Download missing Tesseract.js OCR assets" fetches them at
-# build time via tool/setup_web_ocr.dart (cached by asset hash).
+# Note: web/ocr/ Tesseract.js binaries ARE committed to the repo (~23 MB).
+# No download step is needed; they are present after checkout.
 
 name: CD - Web (Firebase Hosting)
 
@@ -55,20 +54,6 @@ jobs:
 
       - name: Install dependencies
         run: flutter pub get
-
-      - name: Cache Tesseract.js OCR assets
-        uses: actions/cache@v4
-        with:
-          path: |
-            web/ocr/tesseract.min.js
-            web/ocr/worker.min.js
-            web/ocr/tesseract-core-simd.wasm
-            web/ocr/lang/eng.traineddata.gz
-            web/ocr/lang/tha.traineddata.gz
-          key: ocr-assets-${{ hashFiles('tool/setup_web_ocr.dart') }}
-
-      - name: Download missing Tesseract.js OCR assets
-        run: dart run tool/setup_web_ocr.dart
 
       - name: Build web (release)
         run: flutter build web --release

@@ -33,7 +33,7 @@ extension type _TesseractGlobal._(JSObject _) implements JSObject {
 /// Methods we call on the resolved worker handle.
 extension type _TesseractWorker._(JSObject _) implements JSObject {
   /// Returns a `Promise[RecognizeResult]`. The result has `.data.text`.
-  external JSPromise<JSObject> recognize(JSAny image);
+  external JSPromise<JSObject?> recognize(JSAny image);
   external JSPromise<JSAny?> terminate();
 
   /// Sets Tesseract engine parameters (e.g. `tessedit_pageseg_mode`).
@@ -80,8 +80,11 @@ class WebOcrDataSource implements OcrDataSource {
 
     try {
       final resultJs = await worker.recognize(url.toJS).toDart;
-      // Walk `result.data.text` - both layers are plain JS objects.
-      final data = resultJs.getProperty<JSObject>('data'.toJS);
+      if (resultJs == null) return '';
+      // Walk `result.data.text`. Use nullable getProperty to guard against
+      // undefined — Tesseract.js can resolve with an empty result object.
+      final data = resultJs.getProperty<JSObject?>('data'.toJS);
+      if (data == null) return '';
       final textJs = data.getProperty<JSString?>('text'.toJS);
       if (textJs == null) return '';
       return textJs.toDart;
@@ -146,11 +149,23 @@ class WebOcrDataSource implements OcrDataSource {
     final jsLangs = langArray.map((l) => l.toJS).toList().toJS;
 
     // OEM=1 -> LSTM-only (best accuracy on modern traineddata).
-    // workerPath / corePath / langPath are relative to the served web root.
+    // workerPath is relative to the page (main thread resolves it).
+    // corePath / langPath are resolved by the worker relative to its own
+    // script URL (/ocr/worker.min.js), so they must be absolute paths.
+    //
+    // corePath must end with ".js": the worker detects SIMD at runtime and
+    // appends a variant name only when corePath is a bare directory.  Since
+    // we only ship tesseract-core-simd-lstm.wasm.js, we pass the full path so
+    // the worker uses it directly and skips variant auto-selection entirely.
+    // lstmOnly=true is a redundant belt-and-suspenders flag for the same reason.
     final options = JSObject();
     options.setProperty('workerPath'.toJS, 'ocr/worker.min.js'.toJS);
-    options.setProperty('corePath'.toJS, 'ocr/'.toJS);
-    options.setProperty('langPath'.toJS, 'ocr/lang/'.toJS);
+    options.setProperty(
+      'corePath'.toJS,
+      '/ocr/tesseract-core-simd-lstm.wasm.js'.toJS,
+    );
+    options.setProperty('langPath'.toJS, '/ocr/lang/'.toJS);
+    options.setProperty('lstmOnly'.toJS, true.toJS);
 
     final workerJs = await _tesseract.createWorker(jsLangs, 1, options).toDart;
     final worker = _TesseractWorker._(workerJs);
