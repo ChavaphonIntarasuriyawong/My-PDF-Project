@@ -58,6 +58,7 @@ class _LockSetupSheetState extends ConsumerState<LockSetupSheet> {
   final _currentCtrl = TextEditingController();
   final _newCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
+  final _confirmFocus = FocusNode();
 
   late _LockStep _step;
   bool _busy = false;
@@ -80,6 +81,7 @@ class _LockSetupSheetState extends ConsumerState<LockSetupSheet> {
     _currentCtrl.dispose();
     _newCtrl.dispose();
     _confirmCtrl.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 
@@ -249,6 +251,7 @@ class _LockSetupSheetState extends ConsumerState<LockSetupSheet> {
         return _EnterAndConfirmForm(
           newCtrl: _newCtrl,
           confirmCtrl: _confirmCtrl,
+          confirmFocus: _confirmFocus,
           errorText: _formError,
           busy: _busy,
           onSubmit: _saveNewPin,
@@ -300,6 +303,8 @@ class _VerifyCurrentForm extends StatelessWidget {
           controller: controller,
           errorText: errorText,
           autofocus: true,
+          textInputAction: TextInputAction.done,
+          onSubmitted: onSubmit,
         ),
         const SizedBox(height: 24),
         GradientButton(
@@ -316,6 +321,7 @@ class _VerifyCurrentForm extends StatelessWidget {
 class _EnterAndConfirmForm extends StatelessWidget {
   final TextEditingController newCtrl;
   final TextEditingController confirmCtrl;
+  final FocusNode confirmFocus;
   final String? errorText;
   final bool busy;
   final Future<void> Function() onSubmit;
@@ -323,6 +329,7 @@ class _EnterAndConfirmForm extends StatelessWidget {
   const _EnterAndConfirmForm({
     required this.newCtrl,
     required this.confirmCtrl,
+    required this.confirmFocus,
     required this.errorText,
     required this.busy,
     required this.onSubmit,
@@ -337,12 +344,17 @@ class _EnterAndConfirmForm extends StatelessWidget {
           label: 'ENTER 6-DIGIT PIN',
           controller: newCtrl,
           autofocus: true,
+          textInputAction: TextInputAction.next,
+          onSubmitted: () async => confirmFocus.requestFocus(),
         ),
         const SizedBox(height: 16),
         _PinTextField(
           label: 'CONFIRM PIN',
           controller: confirmCtrl,
+          focusNode: confirmFocus,
           errorText: errorText,
+          textInputAction: TextInputAction.done,
+          onSubmitted: onSubmit,
         ),
         const SizedBox(height: 24),
         GradientButton(
@@ -453,12 +465,18 @@ class _PinTextField extends StatelessWidget {
   final TextEditingController controller;
   final String? errorText;
   final bool autofocus;
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
+  final Future<void> Function()? onSubmitted;
 
   const _PinTextField({
     required this.label,
     required this.controller,
     this.errorText,
     this.autofocus = false,
+    this.focusNode,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -482,6 +500,9 @@ class _PinTextField extends StatelessWidget {
             obscureText: true,
             autofocus: autofocus,
             keyboardType: TextInputType.number,
+            focusNode: focusNode,
+            textInputAction: textInputAction,
+            onSubmitted: onSubmitted != null ? (_) => onSubmitted!() : null,
             inputFormatters: [
               FilteringTextInputFormatter.digitsOnly,
               LengthLimitingTextInputFormatter(6),

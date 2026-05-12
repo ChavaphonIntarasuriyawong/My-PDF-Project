@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
+import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../../library/presentation/library_providers.dart';
 
@@ -69,143 +70,149 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _initialized = true;
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      bottomNavigationBar: AppBottomNavBar(
-        onTap: (tab) {
-          if (tab == NavTab.library) context.go('/home');
-          if (tab == NavTab.create) context.push('/book/new');
-          if (tab == NavTab.profile) context.go('/profile');
-        },
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            // ── Header ─────────────────────────────────────────────
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () => context.canPop()
-                        ? context.pop()
-                        : context.go('/profile'),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.primary,
-                        size: 18,
-                      ),
-                    ),
-                  ),
-                  const Spacer(),
-                  const Text(
-                    'Edit Profile',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w600,
-                      fontSize: 18,
-                      letterSpacing: -0.45,
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const Spacer(),
-                  GestureDetector(
-                    onTap: _saving ? null : _save,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 8,
-                      ),
-                      child: _saving
-                          ? const SizedBox(
-                              width: 18,
-                              height: 18,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: AppColors.primary,
-                              ),
-                            )
-                          : const Text(
-                              'Save',
-                              style: TextStyle(
-                                fontFamily: 'Inter',
-                                fontWeight: FontWeight.w600,
-                                fontSize: 16,
-                                color: AppColors.primary,
-                              ),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Container(height: 1, color: AppColors.surfaceMuted),
-
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return EscapePopScope(
+      onEscape: () => context.canPop() ? context.pop() : context.go('/profile'),
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        bottomNavigationBar: AppBottomNavBar(
+          onTap: (tab) {
+            if (tab == NavTab.library) context.go('/home');
+            if (tab == NavTab.create) context.push('/book/new');
+            if (tab == NavTab.profile) context.go('/profile');
+          },
+        ),
+        body: SafeArea(
+          child: Column(
+            children: [
+              // ── Header ─────────────────────────────────────────────
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
+                child: Row(
                   children: [
-                    // ── Username ────────────────────────────────────
-                    _ProfileFieldLabel('USERNAME'),
-                    const SizedBox(height: 8),
-                    _ProfileInputBox(
-                      child: TextField(
-                        controller: _nameCtrl,
-                        style: const TextStyle(
-                          fontFamily: 'Inter',
-                          fontSize: 18,
-                          color: AppColors.textPrimary,
-                        ),
-                        decoration: const InputDecoration(
-                          border: InputBorder.none,
-                          enabledBorder: InputBorder.none,
-                          focusedBorder: InputBorder.none,
-                          contentPadding: EdgeInsets.symmetric(
-                            vertical: 12,
-                            horizontal: 16,
-                          ),
+                    GestureDetector(
+                      onTap: () => context.canPop()
+                          ? context.pop()
+                          : context.go('/profile'),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: AppColors.primary,
+                          size: 18,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 24),
-
-                    // ── Email (read-only) ────────────────────────────
-                    _ProfileFieldLabel('EMAIL ADDRESS'),
-                    const SizedBox(height: 8),
-                    _ProfileInputBox(
-                      child: Padding(
+                    const Spacer(),
+                    const Text(
+                      'Edit Profile',
+                      style: TextStyle(
+                        fontFamily: 'Inter',
+                        fontWeight: FontWeight.w600,
+                        fontSize: 18,
+                        letterSpacing: -0.45,
+                        color: AppColors.primary,
+                      ),
+                    ),
+                    const Spacer(),
+                    GestureDetector(
+                      onTap: _saving ? null : _save,
+                      child: Container(
                         padding: const EdgeInsets.symmetric(
-                          vertical: 16,
                           horizontal: 16,
+                          vertical: 8,
                         ),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                user?.email ?? '',
+                        child: _saving
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: AppColors.primary,
+                                ),
+                              )
+                            : const Text(
+                                'Save',
                                 style: TextStyle(
                                   fontFamily: 'Inter',
+                                  fontWeight: FontWeight.w600,
                                   fontSize: 16,
-                                  color: AppColors.textMuted.withValues(
-                                    alpha: 0.5,
-                                  ),
+                                  color: AppColors.primary,
                                 ),
-                                overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                          ],
-                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+              Container(height: 1, color: AppColors.surfaceMuted),
+
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 40, 24, 40),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // ── Username ────────────────────────────────────
+                      _ProfileFieldLabel('USERNAME'),
+                      const SizedBox(height: 8),
+                      _ProfileInputBox(
+                        child: TextField(
+                          controller: _nameCtrl,
+                          style: const TextStyle(
+                            fontFamily: 'Inter',
+                            fontSize: 18,
+                            color: AppColors.textPrimary,
+                          ),
+                          decoration: const InputDecoration(
+                            border: InputBorder.none,
+                            enabledBorder: InputBorder.none,
+                            focusedBorder: InputBorder.none,
+                            contentPadding: EdgeInsets.symmetric(
+                              vertical: 12,
+                              horizontal: 16,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // ── Email (read-only) ────────────────────────────
+                      _ProfileFieldLabel('EMAIL ADDRESS'),
+                      const SizedBox(height: 8),
+                      _ProfileInputBox(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            vertical: 16,
+                            horizontal: 16,
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  user?.email ?? '',
+                                  style: TextStyle(
+                                    fontFamily: 'Inter',
+                                    fontSize: 16,
+                                    color: AppColors.textMuted.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

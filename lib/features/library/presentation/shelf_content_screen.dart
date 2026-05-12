@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
@@ -140,121 +141,130 @@ class ShelfContentScreen extends ConsumerWidget {
         ? ref.watch(allBooksProvider)
         : ref.watch(booksByShelfProvider(shelfId));
 
-    return Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        bottom: false,
-        child: Column(
-          children: [
-            // Header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-              child: Row(
-                children: [
-                  GestureDetector(
-                    onTap: () =>
-                        context.canPop() ? context.pop() : context.go('/home'),
-                    child: Container(
-                      width: 40,
-                      height: 40,
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: const Icon(
-                        Icons.arrow_back,
-                        color: AppColors.primary,
-                        size: 16,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Text(
-                      _isAll ? 'All books' : (shelf?.name ?? 'Collection'),
-                      style: AppTypography.titleLarge,
-                    ),
-                  ),
-                  // No rename/delete menu for the "All" shelf — it's synthetic.
-                  if (!_isAll)
-                    Builder(
-                      builder: (btnCtx) => IconButton(
-                        icon: const Icon(
-                          Icons.more_vert,
-                          color: AppColors.primary,
+    return EscapePopScope(
+      onEscape: () => context.canPop() ? context.pop() : context.go('/home'),
+      child: Scaffold(
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              // Header
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 16,
+                ),
+                child: Row(
+                  children: [
+                    GestureDetector(
+                      onTap: () => context.canPop()
+                          ? context.pop()
+                          : context.go('/home'),
+                      child: Container(
+                        width: 40,
+                        height: 40,
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(12),
                         ),
-                        onPressed: shelf == null
-                            ? null
-                            : () {
-                                final box =
-                                    btnCtx.findRenderObject() as RenderBox?;
-                                final anchor = box != null
-                                    ? box.localToGlobal(
-                                        Offset(box.size.width, 0),
-                                      )
-                                    : Offset.zero;
-                                _showShelfMenu(
-                                  context,
-                                  ref,
-                                  shelf.name,
-                                  anchor,
-                                );
-                              },
+                        child: const Icon(
+                          Icons.arrow_back,
+                          color: AppColors.primary,
+                          size: 16,
+                        ),
                       ),
                     ),
-                ],
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        _isAll ? 'All books' : (shelf?.name ?? 'Collection'),
+                        style: AppTypography.titleLarge,
+                      ),
+                    ),
+                    // No rename/delete menu for the "All" shelf — it's synthetic.
+                    if (!_isAll)
+                      Builder(
+                        builder: (btnCtx) => IconButton(
+                          icon: const Icon(
+                            Icons.more_vert,
+                            color: AppColors.primary,
+                          ),
+                          onPressed: shelf == null
+                              ? null
+                              : () {
+                                  final box =
+                                      btnCtx.findRenderObject() as RenderBox?;
+                                  final anchor = box != null
+                                      ? box.localToGlobal(
+                                          Offset(box.size.width, 0),
+                                        )
+                                      : Offset.zero;
+                                  _showShelfMenu(
+                                    context,
+                                    ref,
+                                    shelf.name,
+                                    anchor,
+                                  );
+                                },
+                        ),
+                      ),
+                  ],
+                ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'COLLECTION',
-                  style: AppTypography.labelSmall.copyWith(
-                    letterSpacing: 1.1,
-                    color: AppColors.textSecondary,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'COLLECTION',
+                    style: AppTypography.labelSmall.copyWith(
+                      letterSpacing: 1.1,
+                      color: AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ),
-            ),
-            Expanded(
-              child: books.when(
-                data: (list) => list.isEmpty
-                    ? Center(
-                        child: Text(
-                          _isAll
-                              ? 'No books yet. Tap Create to add one.'
-                              : 'No books in this shelf.',
-                          style: AppTypography.bodyMedium,
-                        ),
-                      )
-                    : ListView.builder(
-                        padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),
-                        itemCount: list.length,
-                        itemBuilder: (_, i) => Padding(
-                          padding: const EdgeInsets.only(bottom: 24),
-                          child: SizedBox(
-                            height: 548,
-                            child: PdfCard(
-                              book: list[i],
-                              onTap: () => context.push('/book/${list[i].id}'),
+              Expanded(
+                child: books.when(
+                  data: (list) => list.isEmpty
+                      ? Center(
+                          child: Text(
+                            _isAll
+                                ? 'No books yet. Tap Create to add one.'
+                                : 'No books in this shelf.',
+                            style: AppTypography.bodyMedium,
+                          ),
+                        )
+                      : ListView.builder(
+                          padding: const EdgeInsets.fromLTRB(24, 24, 24, 128),
+                          itemCount: list.length,
+                          itemBuilder: (_, i) => Padding(
+                            padding: const EdgeInsets.only(bottom: 24),
+                            child: SizedBox(
+                              height: 548,
+                              child: PdfCard(
+                                book: list[i],
+                                onTap: () =>
+                                    context.push('/book/${list[i].id}'),
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(child: Text('Error: $e')),
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(child: Text('Error: $e')),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
-      bottomNavigationBar: AppBottomNavBar(
-        onTap: (tab) {
-          if (tab == NavTab.library) context.go('/home');
-          if (tab == NavTab.create) context.push('/book/new');
-          if (tab == NavTab.profile) context.push('/profile');
-        },
+        bottomNavigationBar: AppBottomNavBar(
+          onTap: (tab) {
+            if (tab == NavTab.library) context.go('/home');
+            if (tab == NavTab.create) context.push('/book/new');
+            if (tab == NavTab.profile) context.push('/profile');
+          },
+        ),
       ),
     );
   }

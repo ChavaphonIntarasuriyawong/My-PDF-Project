@@ -146,6 +146,7 @@ Future<void> primePdfCache(String url, List<int> bytes) async {
   if (url.startsWith('local://')) return;
   if (bytes.length < 100) return;
   if (!_looksLikePdf(bytes)) return;
+  if (!_hasEofMarker(bytes)) return;
   try {
     final docs = await getApplicationDocumentsDirectory();
     final file = File('${docs.path}/pdf_${url.hashCode.abs()}.pdf');
@@ -233,6 +234,11 @@ final pdfPathProvider = FutureProvider.family<String, String>((ref, url) async {
     final ct = response.headers['content-type'] ?? 'unknown';
     throw Exception(
       'URL did not return a PDF (content-type: $ct). For Google Drive use the direct download link, not the share preview.',
+    );
+  }
+  if (!_hasEofMarker(response.bodyBytes)) {
+    throw Exception(
+      'PDF download was incomplete (missing %%EOF marker). Check your connection and try again.',
     );
   }
   await file.writeAsBytes(response.bodyBytes, flush: true);
