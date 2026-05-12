@@ -110,16 +110,26 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
   }
 
   static final _keyToDigit = <LogicalKeyboardKey, String>{
-    LogicalKeyboardKey.digit0: '0', LogicalKeyboardKey.numpad0: '0',
-    LogicalKeyboardKey.digit1: '1', LogicalKeyboardKey.numpad1: '1',
-    LogicalKeyboardKey.digit2: '2', LogicalKeyboardKey.numpad2: '2',
-    LogicalKeyboardKey.digit3: '3', LogicalKeyboardKey.numpad3: '3',
-    LogicalKeyboardKey.digit4: '4', LogicalKeyboardKey.numpad4: '4',
-    LogicalKeyboardKey.digit5: '5', LogicalKeyboardKey.numpad5: '5',
-    LogicalKeyboardKey.digit6: '6', LogicalKeyboardKey.numpad6: '6',
-    LogicalKeyboardKey.digit7: '7', LogicalKeyboardKey.numpad7: '7',
-    LogicalKeyboardKey.digit8: '8', LogicalKeyboardKey.numpad8: '8',
-    LogicalKeyboardKey.digit9: '9', LogicalKeyboardKey.numpad9: '9',
+    LogicalKeyboardKey.digit0: '0',
+    LogicalKeyboardKey.numpad0: '0',
+    LogicalKeyboardKey.digit1: '1',
+    LogicalKeyboardKey.numpad1: '1',
+    LogicalKeyboardKey.digit2: '2',
+    LogicalKeyboardKey.numpad2: '2',
+    LogicalKeyboardKey.digit3: '3',
+    LogicalKeyboardKey.numpad3: '3',
+    LogicalKeyboardKey.digit4: '4',
+    LogicalKeyboardKey.numpad4: '4',
+    LogicalKeyboardKey.digit5: '5',
+    LogicalKeyboardKey.numpad5: '5',
+    LogicalKeyboardKey.digit6: '6',
+    LogicalKeyboardKey.numpad6: '6',
+    LogicalKeyboardKey.digit7: '7',
+    LogicalKeyboardKey.numpad7: '7',
+    LogicalKeyboardKey.digit8: '8',
+    LogicalKeyboardKey.numpad8: '8',
+    LogicalKeyboardKey.digit9: '9',
+    LogicalKeyboardKey.numpad9: '9',
   };
 
   Future<void> _probeBiometric() async {
@@ -252,59 +262,59 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
         return KeyEventResult.ignored;
       },
       child: Scaffold(
-      backgroundColor: AppColors.background,
-      body: SafeArea(
-        child: Column(
-          children: [
-            _TopBar(
-              onBack: () =>
-                  context.canPop() ? context.pop() : context.go('/home'),
-            ),
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(horizontal: 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    const SizedBox(height: 24),
-                    _LockHeader(),
-                    const SizedBox(height: 32),
-                    AnimatedBuilder(
-                      animation: _shake,
-                      builder: (_, child) => Transform.translate(
-                        offset: Offset(_shake.value, 0),
-                        child: child,
-                      ),
-                      child: _PinDots(filled: _pin.length, total: _pinLength),
-                    ),
-                    const SizedBox(height: 16),
-                    _StatusLine(
-                      errorText: _errorText,
-                      cooldownSecondsLeft: _cooldownSecondsLeft,
-                    ),
-                    const SizedBox(height: 24),
-                    _Numpad(
-                      disabled: _inputDisabled,
-                      onDigit: _onDigit,
-                      onBackspace: _onBackspace,
-                      highlightedDigit: _highlightedDigit,
-                      highlightBackspace: _highlightBackspace,
-                    ),
-                    if (showBiometric) ...[
+        backgroundColor: AppColors.background,
+        body: SafeArea(
+          child: Column(
+            children: [
+              _TopBar(
+                onBack: () =>
+                    context.canPop() ? context.pop() : context.go('/home'),
+              ),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
                       const SizedBox(height: 24),
-                      _BiometricButton(
-                        loading: _biometricInProgress,
-                        onTap: _useBiometric,
+                      _LockHeader(),
+                      const SizedBox(height: 32),
+                      AnimatedBuilder(
+                        animation: _shake,
+                        builder: (_, child) => Transform.translate(
+                          offset: Offset(_shake.value, 0),
+                          child: child,
+                        ),
+                        child: _PinDots(filled: _pin.length, total: _pinLength),
                       ),
+                      const SizedBox(height: 16),
+                      _StatusLine(
+                        errorText: _errorText,
+                        cooldownSecondsLeft: _cooldownSecondsLeft,
+                      ),
+                      const SizedBox(height: 24),
+                      _Numpad(
+                        disabled: _inputDisabled,
+                        onDigit: _onDigit,
+                        onBackspace: _onBackspace,
+                        highlightedDigit: _highlightedDigit,
+                        highlightBackspace: _highlightBackspace,
+                      ),
+                      if (showBiometric) ...[
+                        const SizedBox(height: 24),
+                        _BiometricButton(
+                          loading: _biometricInProgress,
+                          onTap: _useBiometric,
+                        ),
+                      ],
+                      const SizedBox(height: 24),
                     ],
-                    const SizedBox(height: 24),
-                  ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
       ),
     );
   }

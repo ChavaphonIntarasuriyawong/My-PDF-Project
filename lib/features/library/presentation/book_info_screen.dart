@@ -357,47 +357,46 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
     final bookAsync = ref.watch(bookByIdProvider(bookId));
 
     return EscapePopScope(
-      onEscape: () =>
-          context.canPop() ? context.pop() : context.go('/home'),
+      onEscape: () => context.canPop() ? context.pop() : context.go('/home'),
       child: PopScope(
-      // Back gesture exits selection mode first; only pops when not selecting.
-      canPop: !_inSelectionMode,
-      onPopInvokedWithResult: (didPop, _) {
-        if (didPop) return;
-        _exitSelectionMode();
-      },
-      child: Scaffold(
-        backgroundColor: AppColors.background,
-        bottomNavigationBar: AppBottomNavBar(
-          onTap: (tab) {
-            if (tab == NavTab.library) context.go('/home');
-            if (tab == NavTab.create) context.push('/book/new');
-            if (tab == NavTab.profile) context.push('/profile');
-          },
-        ),
-        // Figma 25:741 has no floating action button — entry to the reader
-        // moves to the inline pencil next to the cover card.
-        body: SafeArea(
-          bottom: false,
-          child: bookAsync.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) => Center(
-              child: Text('Error: $e', style: AppTypography.bodyMedium),
-            ),
-            data: (book) {
-              if (book == null) {
-                return Center(
-                  child: Text(
-                    'Book not found',
-                    style: AppTypography.bodyMedium,
-                  ),
-                );
-              }
-              return _buildBody(context, ref, book);
+        // Back gesture exits selection mode first; only pops when not selecting.
+        canPop: !_inSelectionMode,
+        onPopInvokedWithResult: (didPop, _) {
+          if (didPop) return;
+          _exitSelectionMode();
+        },
+        child: Scaffold(
+          backgroundColor: AppColors.background,
+          bottomNavigationBar: AppBottomNavBar(
+            onTap: (tab) {
+              if (tab == NavTab.library) context.go('/home');
+              if (tab == NavTab.create) context.push('/book/new');
+              if (tab == NavTab.profile) context.push('/profile');
             },
           ),
+          // Figma 25:741 has no floating action button — entry to the reader
+          // moves to the inline pencil next to the cover card.
+          body: SafeArea(
+            bottom: false,
+            child: bookAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Center(
+                child: Text('Error: $e', style: AppTypography.bodyMedium),
+              ),
+              data: (book) {
+                if (book == null) {
+                  return Center(
+                    child: Text(
+                      'Book not found',
+                      style: AppTypography.bodyMedium,
+                    ),
+                  );
+                }
+                return _buildBody(context, ref, book);
+              },
+            ),
+          ),
         ),
-      ),
       ),
     );
   }

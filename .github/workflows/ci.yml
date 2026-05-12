@@ -10,7 +10,7 @@
 #     the D1 deliverable.
 # Add them later if needed; keep CI lean.
 #
-# Flutter pinned to 3.38.7 (matches local; Dart SDK ^3.10.7 in pubspec.yaml).
+# Flutter pinned to 3.38.6 (matches local; Dart SDK ^3.10.7 in pubspec.yaml).
 
 name: CI
 
@@ -38,7 +38,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.7'
+          flutter-version: '3.38.6'
           channel: stable
           cache: true
 

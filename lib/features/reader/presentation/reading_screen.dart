@@ -1050,363 +1050,374 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           ? context.pop()
           : context.go('/book/${widget.bookId}'),
       child: Scaffold(
-      backgroundColor: const Color(0xFFD8DADB),
-      body: Stack(
-        children: [
-          // PDFView/loading must fill the stack — without Positioned.fill some
-          // platform-view embeds collapse to 0x0 and render a blank surface.
-          if (pdfAsync != null)
-            Positioned.fill(
-              child: pdfAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (e, _) => Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.error, size: 48, color: AppColors.error),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Failed to load PDF',
-                        style: AppTypography.bodyMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '$e',
-                        textAlign: TextAlign.center,
-                        style: AppTypography.bodySmall.copyWith(
-                          color: AppColors.textSecondary,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      TextButton.icon(
-                        onPressed: () =>
-                            ref.invalidate(pdfPathProvider(book!.link)),
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('Retry'),
-                      ),
-                    ],
-                  ),
-                ),
-                data: (path) => Padding(
-                  // Push PDF below the top bar overlay so the first line of
-                  // text isn't hidden behind it. Status bar + toolbar +
-                  // progress bar ≈ 56dp on top of the system inset.
-                  padding: EdgeInsets.only(
-                    top: MediaQuery.of(context).padding.top + 56,
-                  ),
-                  child: kIsWeb
-                      ? _WebPdfReader(
-                          key: ValueKey(path),
-                          url: path,
-                          initialPage: book?.currentPage ?? 0,
-                          controller: _webController,
-                          onPagesAndPageChanged: (page, total) =>
-                              _onPageChanged(page, total),
-                        )
-                      : buildMobilePdfReader(
-                          key: ValueKey(path),
-                          filePath: path,
-                          onRender: (pages) {
-                            if (pages != null) {
-                              setState(() => _totalPages = pages);
-                            }
-                            if (!_jumpedToSavedPage) {
-                              _jumpedToSavedPage = true;
-                              final savedPage = book?.currentPage ?? 0;
-                              if (savedPage > 1 && _pdfController != null) {
-                                _pdfController!.setPage(savedPage - 1);
-                              }
-                              if (savedPage > 0 && _currentPage == 0) {
-                                setState(() => _currentPage = savedPage);
-                              }
-                            }
-                          },
-                          onError: (e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('PDF render error: $e')),
-                              );
-                            }
-                          },
-                          onPageError: (page, e) {
-                            if (mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Page $page error: $e')),
-                              );
-                            }
-                          },
-                          onControllerReady: (controller) {
-                            _pdfController = controller;
-                          },
-                          onPageChanged: _onPageChanged,
-                        ),
-                ),
-              ),
-            )
-          else
-            const Center(child: CircularProgressIndicator()),
-
-          // Top bar overlay
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                child: Container(
-                  color: const Color(0xCCF8FAFB),
-                  child: SafeArea(
-                    bottom: false,
+        backgroundColor: const Color(0xFFD8DADB),
+        body: Stack(
+          children: [
+            // PDFView/loading must fill the stack — without Positioned.fill some
+            // platform-view embeds collapse to 0x0 and render a blank surface.
+            if (pdfAsync != null)
+              Positioned.fill(
+                child: pdfAsync.when(
+                  loading: () =>
+                      const Center(child: CircularProgressIndicator()),
+                  error: (e, _) => Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 12,
+                        const Icon(
+                          Icons.error,
+                          size: 48,
+                          color: AppColors.error,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Failed to load PDF',
+                          style: AppTypography.bodyMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '$e',
+                          textAlign: TextAlign.center,
+                          style: AppTypography.bodySmall.copyWith(
+                            color: AppColors.textSecondary,
                           ),
-                          child: Row(
-                            children: [
-                              Semantics(
-                                button: true,
-                                label: 'Back to book details',
-                                child: GestureDetector(
-                                  onTap: () => context.canPop()
-                                      ? context.pop()
-                                      : context.go('/book/${widget.bookId}'),
-                                  child: Container(
-                                    constraints: const BoxConstraints(
-                                      minWidth: 48,
-                                      minHeight: 48,
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: const Icon(
-                                      Icons.arrow_back,
-                                      color: AppColors.primary,
-                                      size: 20,
-                                    ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextButton.icon(
+                          onPressed: () =>
+                              ref.invalidate(pdfPathProvider(book!.link)),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                  data: (path) => Padding(
+                    // Push PDF below the top bar overlay so the first line of
+                    // text isn't hidden behind it. Status bar + toolbar +
+                    // progress bar ≈ 56dp on top of the system inset.
+                    padding: EdgeInsets.only(
+                      top: MediaQuery.of(context).padding.top + 56,
+                    ),
+                    child: kIsWeb
+                        ? _WebPdfReader(
+                            key: ValueKey(path),
+                            url: path,
+                            initialPage: book?.currentPage ?? 0,
+                            controller: _webController,
+                            onPagesAndPageChanged: (page, total) =>
+                                _onPageChanged(page, total),
+                          )
+                        : buildMobilePdfReader(
+                            key: ValueKey(path),
+                            filePath: path,
+                            onRender: (pages) {
+                              if (pages != null) {
+                                setState(() => _totalPages = pages);
+                              }
+                              if (!_jumpedToSavedPage) {
+                                _jumpedToSavedPage = true;
+                                final savedPage = book?.currentPage ?? 0;
+                                if (savedPage > 1 && _pdfController != null) {
+                                  _pdfController!.setPage(savedPage - 1);
+                                }
+                                if (savedPage > 0 && _currentPage == 0) {
+                                  setState(() => _currentPage = savedPage);
+                                }
+                              }
+                            },
+                            onError: (e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('PDF render error: $e'),
                                   ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  book?.title ?? '',
-                                  style: AppTypography.titleMedium,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              if (pdfAsync?.hasValue == true) ...[
+                                );
+                              }
+                            },
+                            onPageError: (page, e) {
+                              if (mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text('Page $page error: $e'),
+                                  ),
+                                );
+                              }
+                            },
+                            onControllerReady: (controller) {
+                              _pdfController = controller;
+                            },
+                            onPageChanged: _onPageChanged,
+                          ),
+                  ),
+                ),
+              )
+            else
+              const Center(child: CircularProgressIndicator()),
+
+            // Top bar overlay
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: ClipRect(
+                child: BackdropFilter(
+                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                  child: Container(
+                    color: const Color(0xCCF8FAFB),
+                    child: SafeArea(
+                      bottom: false,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 12,
+                            ),
+                            child: Row(
+                              children: [
                                 Semantics(
                                   button: true,
-                                  label: 'Voice settings: speed and pitch',
+                                  label: 'Back to book details',
                                   child: GestureDetector(
-                                    onTap: _showVoiceSettings,
+                                    onTap: () => context.canPop()
+                                        ? context.pop()
+                                        : context.go('/book/${widget.bookId}'),
                                     child: Container(
                                       constraints: const BoxConstraints(
                                         minWidth: 48,
                                         minHeight: 48,
                                       ),
                                       alignment: Alignment.center,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                      ),
-                                      child: Icon(
-                                        Icons.tune,
-                                        size: 18,
-                                        color: _ttsActive
-                                            ? AppColors.primary
-                                            : AppColors.textMuted,
+                                      child: const Icon(
+                                        Icons.arrow_back,
+                                        color: AppColors.primary,
+                                        size: 20,
                                       ),
                                     ),
                                   ),
                                 ),
-                                Semantics(
-                                  button: true,
-                                  label: karaokeState.isVisible
-                                      ? 'Hide closed captions'
-                                      : 'Show closed captions',
-                                  child: GestureDetector(
-                                    onTap: () => ref
-                                        .read(
-                                          karaokeControllerProvider.notifier,
-                                        )
-                                        .toggleVisible(),
-                                    child: Container(
-                                      constraints: const BoxConstraints(
-                                        minWidth: 48,
-                                        minHeight: 48,
-                                      ),
-                                      alignment: Alignment.center,
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 8,
-                                      ),
-                                      child: Icon(
-                                        karaokeState.isVisible
-                                            ? Icons.subtitles
-                                            : Icons.subtitles_outlined,
-                                        size: 18,
-                                        color: karaokeState.isVisible
-                                            ? AppColors.primary
-                                            : AppColors.textMuted,
-                                      ),
-                                    ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    book?.title ?? '',
+                                    style: AppTypography.titleMedium,
+                                    overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                Semantics(
-                                  button: true,
-                                  label: _ttsActive
-                                      ? 'Stop reading aloud'
-                                      : 'Start reading this page aloud',
-                                  child: GestureDetector(
-                                    onTap: _toggleTts,
-                                    child: AnimatedContainer(
-                                      duration: const Duration(
-                                        milliseconds: 200,
-                                      ),
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 10,
-                                        vertical: 6,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: _ttsActive
-                                            ? AppColors.primary
-                                            : Colors.transparent,
-                                        borderRadius: BorderRadius.circular(20),
-                                        border: Border.all(
+                                if (pdfAsync?.hasValue == true) ...[
+                                  Semantics(
+                                    button: true,
+                                    label: 'Voice settings: speed and pitch',
+                                    child: GestureDetector(
+                                      onTap: _showVoiceSettings,
+                                      child: Container(
+                                        constraints: const BoxConstraints(
+                                          minWidth: 48,
+                                          minHeight: 48,
+                                        ),
+                                        alignment: Alignment.center,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                        ),
+                                        child: Icon(
+                                          Icons.tune,
+                                          size: 18,
                                           color: _ttsActive
                                               ? AppColors.primary
                                               : AppColors.textMuted,
                                         ),
                                       ),
-                                      child: Row(
-                                        mainAxisSize: MainAxisSize.min,
-                                        children: [
-                                          Icon(
-                                            _ttsSpeaking
-                                                ? Icons.volume_up
-                                                : Icons.volume_up_outlined,
-                                            size: 16,
-                                            color: _ttsActive
-                                                ? Colors.white
-                                                : AppColors.textMuted,
-                                          ),
-                                          const SizedBox(width: 4),
-                                          Text(
-                                            _ttsActive ? 'Stop' : 'Read',
-                                            style: AppTypography.bodySmall
-                                                .copyWith(
-                                                  color: _ttsActive
-                                                      ? Colors.white
-                                                      : AppColors.textMuted,
-                                                  fontWeight: FontWeight.w600,
-                                                ),
-                                          ),
-                                        ],
+                                    ),
+                                  ),
+                                  Semantics(
+                                    button: true,
+                                    label: karaokeState.isVisible
+                                        ? 'Hide closed captions'
+                                        : 'Show closed captions',
+                                    child: GestureDetector(
+                                      onTap: () => ref
+                                          .read(
+                                            karaokeControllerProvider.notifier,
+                                          )
+                                          .toggleVisible(),
+                                      child: Container(
+                                        constraints: const BoxConstraints(
+                                          minWidth: 48,
+                                          minHeight: 48,
+                                        ),
+                                        alignment: Alignment.center,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 8,
+                                        ),
+                                        child: Icon(
+                                          karaokeState.isVisible
+                                              ? Icons.subtitles
+                                              : Icons.subtitles_outlined,
+                                          size: 18,
+                                          color: karaokeState.isVisible
+                                              ? AppColors.primary
+                                              : AppColors.textMuted,
+                                        ),
                                       ),
                                     ),
                                   ),
-                                ),
+                                  Semantics(
+                                    button: true,
+                                    label: _ttsActive
+                                        ? 'Stop reading aloud'
+                                        : 'Start reading this page aloud',
+                                    child: GestureDetector(
+                                      onTap: _toggleTts,
+                                      child: AnimatedContainer(
+                                        duration: const Duration(
+                                          milliseconds: 200,
+                                        ),
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 10,
+                                          vertical: 6,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: _ttsActive
+                                              ? AppColors.primary
+                                              : Colors.transparent,
+                                          borderRadius: BorderRadius.circular(
+                                            20,
+                                          ),
+                                          border: Border.all(
+                                            color: _ttsActive
+                                                ? AppColors.primary
+                                                : AppColors.textMuted,
+                                          ),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(
+                                              _ttsSpeaking
+                                                  ? Icons.volume_up
+                                                  : Icons.volume_up_outlined,
+                                              size: 16,
+                                              color: _ttsActive
+                                                  ? Colors.white
+                                                  : AppColors.textMuted,
+                                            ),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              _ttsActive ? 'Stop' : 'Read',
+                                              style: AppTypography.bodySmall
+                                                  .copyWith(
+                                                    color: _ttsActive
+                                                        ? Colors.white
+                                                        : AppColors.textMuted,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ],
-                            ],
+                            ),
                           ),
-                        ),
-                        LinearProgressIndicator(
-                          value: progress.clamp(0.0, 1.0),
-                          backgroundColor: AppColors.progressTrack,
-                          valueColor: const AlwaysStoppedAnimation(
-                            AppColors.primary,
-                          ),
-                          minHeight: 2,
-                        ),
-                        // OCR foreground progress strip — only present while
-                        // the current page's text is being recovered. Sits
-                        // beneath the existing reading-progress bar so layout
-                        // doesn't shift when it appears/disappears.
-                        if (_ocrInProgress) ...[
-                          const LinearProgressIndicator(
+                          LinearProgressIndicator(
+                            value: progress.clamp(0.0, 1.0),
                             backgroundColor: AppColors.progressTrack,
-                            valueColor: AlwaysStoppedAnimation(
+                            valueColor: const AlwaysStoppedAnimation(
                               AppColors.primary,
                             ),
                             minHeight: 2,
                           ),
-                          Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 4,
+                          // OCR foreground progress strip — only present while
+                          // the current page's text is being recovered. Sits
+                          // beneath the existing reading-progress bar so layout
+                          // doesn't shift when it appears/disappears.
+                          if (_ocrInProgress) ...[
+                            const LinearProgressIndicator(
+                              backgroundColor: AppColors.progressTrack,
+                              valueColor: AlwaysStoppedAnimation(
+                                AppColors.primary,
+                              ),
+                              minHeight: 2,
                             ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.text_snippet_outlined,
-                                  size: 12,
-                                  color: AppColors.textSecondary,
-                                ),
-                                const SizedBox(width: 6),
-                                Expanded(
-                                  child: Text(
-                                    'Extracting text from scanned page...',
-                                    style: AppTypography.bodySmall.copyWith(
-                                      color: AppColors.textSecondary,
+                            Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 4,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.text_snippet_outlined,
+                                    size: 12,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Extracting text from scanned page...',
+                                      style: AppTypography.bodySmall.copyWith(
+                                        color: AppColors.textSecondary,
+                                      ),
                                     ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                         ],
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-          ),
 
-          if (_totalPages > 0)
-            Positioned(
-              bottom: 32,
-              left: 0,
-              right: 0,
-              child: Center(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(12),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 13,
-                        vertical: 5,
-                      ),
-                      decoration: BoxDecoration(
-                        color: const Color(0xCCF8FAFB),
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0x33BFC8CC)),
-                      ),
-                      child: Text(
-                        'Page $_currentPage of $_totalPages',
-                        style: const TextStyle(
-                          fontFamily: 'Manrope',
-                          fontWeight: FontWeight.w800,
-                          fontSize: 12,
-                          color: AppColors.primary,
+            if (_totalPages > 0)
+              Positioned(
+                bottom: 32,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(12),
+                    child: BackdropFilter(
+                      filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 13,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: const Color(0xCCF8FAFB),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: const Color(0x33BFC8CC)),
+                        ),
+                        child: Text(
+                          'Page $_currentPage of $_totalPages',
+                          style: const TextStyle(
+                            fontFamily: 'Manrope',
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                            color: AppColors.primary,
+                          ),
                         ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
 
-          // Karaoke captions pane: slide-up from the bottom edge. Animates
-          // off when the user collapses it; off-screen sits at -paneHeight
-          // so the pane doesn't intercept taps while hidden. Height ~42%
-          // gives enough room for ~10 lines on a 412×896 phone frame.
-          _buildKaraokePane(context, isVisible: karaokeState.isVisible),
-        ],
-      ),
+            // Karaoke captions pane: slide-up from the bottom edge. Animates
+            // off when the user collapses it; off-screen sits at -paneHeight
+            // so the pane doesn't intercept taps while hidden. Height ~42%
+            // gives enough room for ~10 lines on a 412×896 phone frame.
+            _buildKaraokePane(context, isVisible: karaokeState.isVisible),
+          ],
+        ),
       ),
     );
   }
