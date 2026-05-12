@@ -662,6 +662,9 @@ class _AnnotatedInsightsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final session = ref.watch(bookUnlockSessionProvider);
+    final notesLocked = book.isLocked && !session.isUnlocked(book.id);
+
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -669,13 +672,71 @@ class _AnnotatedInsightsSheet extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
       ),
       padding: const EdgeInsets.fromLTRB(24, 33, 24, 48 + 80 /* nav bar gap */),
-      child: _NotesSection(
-        bookId: book.id,
-        selectedNoteIds: selectedNoteIds,
-        inSelectionMode: inSelectionMode,
-        onToggleNote: onToggleNote,
-        onPruneSelection: onPruneSelection,
-      ),
+      child: notesLocked
+          ? _LockedNotesPlaceholder(bookId: book.id)
+          : _NotesSection(
+              bookId: book.id,
+              selectedNoteIds: selectedNoteIds,
+              inSelectionMode: inSelectionMode,
+              onToggleNote: onToggleNote,
+              onPruneSelection: onPruneSelection,
+            ),
+    );
+  }
+}
+
+class _LockedNotesPlaceholder extends StatelessWidget {
+  final String bookId;
+  const _LockedNotesPlaceholder({required this.bookId});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const SizedBox(height: 24),
+        const Icon(Icons.lock, color: AppColors.primary, size: 40),
+        const SizedBox(height: 12),
+        Text('Notes are locked', style: AppTypography.titleMedium),
+        const SizedBox(height: 8),
+        Text(
+          'Unlock this book to view or add notes.',
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 20),
+        DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: AppColors.primaryGradient,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.1),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => context.push(
+                '/book/$bookId/lock?redirect=${Uri.encodeComponent('/book/$bookId')}',
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                child: Text('Unlock', style: AppTypography.labelButton),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
+      ],
     );
   }
 }

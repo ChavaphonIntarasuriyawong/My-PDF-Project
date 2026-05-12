@@ -247,7 +247,7 @@ class _KaraokeTextPaneState extends ConsumerState<KaraokeTextPane> {
           const SizedBox(width: 8),
           Flexible(
             child: Text(
-              'Closed Caption',
+              'Subtitle',
               style: AppTypography.titleMedium,
               overflow: TextOverflow.ellipsis,
             ),
