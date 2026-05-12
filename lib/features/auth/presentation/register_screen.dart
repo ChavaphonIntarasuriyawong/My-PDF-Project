@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../../shared/widgets/gradient_button.dart';
 import '../../../shared/widgets/labeled_text_field.dart';
 import 'auth_controller.dart';
@@ -20,6 +21,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
   final _confirmCtrl = TextEditingController();
+  final _nameFocus = FocusNode();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
+  final _confirmFocus = FocusNode();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
 
@@ -29,6 +34,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
     _confirmCtrl.dispose();
+    _nameFocus.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
+    _confirmFocus.dispose();
     super.dispose();
   }
 
@@ -70,7 +79,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       }
     });
 
-    return Scaffold(
+    return EscapePopScope(
+      onEscape: () =>
+          context.canPop() ? context.pop() : context.go(AppRoutes.login),
+      child: Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
@@ -160,6 +172,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             label: 'Username',
                             hint: 'Johnathan',
                             controller: _nameCtrl,
+                            focusNode: _nameFocus,
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: () => _emailFocus.requestFocus(),
                           ),
                           const SizedBox(height: 20),
                           LabeledTextField(
@@ -167,6 +182,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             hint: 'johnathan@gmail.com',
                             controller: _emailCtrl,
                             keyboardType: TextInputType.emailAddress,
+                            focusNode: _emailFocus,
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: () => _passwordFocus.requestFocus(),
                           ),
                           const SizedBox(height: 20),
                           LabeledTextField(
@@ -174,6 +192,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             hint: '••••••••',
                             controller: _passwordCtrl,
                             obscureText: _obscurePassword,
+                            focusNode: _passwordFocus,
+                            textInputAction: TextInputAction.next,
+                            onSubmitted: () => _confirmFocus.requestFocus(),
                             suffix: IconButton(
                               tooltip: _obscurePassword
                                   ? 'Show password'
@@ -196,6 +217,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                             hint: '••••••••',
                             controller: _confirmCtrl,
                             obscureText: _obscureConfirm,
+                            focusNode: _confirmFocus,
+                            textInputAction: TextInputAction.done,
+                            onSubmitted: _submit,
                             suffix: IconButton(
                               tooltip: _obscureConfirm
                                   ? 'Show password'
@@ -257,6 +281,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

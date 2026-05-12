@@ -18,12 +18,16 @@ class LoginScreen extends ConsumerStatefulWidget {
 class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailCtrl = TextEditingController();
   final _passwordCtrl = TextEditingController();
+  final _emailFocus = FocusNode();
+  final _passwordFocus = FocusNode();
   bool _obscurePassword = true;
 
   @override
   void dispose() {
     _emailCtrl.dispose();
     _passwordCtrl.dispose();
+    _emailFocus.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
@@ -95,6 +99,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     hint: 'example@gmail.com',
                     controller: _emailCtrl,
                     keyboardType: TextInputType.emailAddress,
+                    focusNode: _emailFocus,
+                    textInputAction: TextInputAction.next,
+                    onSubmitted: () => _passwordFocus.requestFocus(),
                   ),
                   const SizedBox(height: 24),
                   LabeledTextField(
@@ -102,6 +109,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     hint: '••••••••',
                     controller: _passwordCtrl,
                     obscureText: _obscurePassword,
+                    focusNode: _passwordFocus,
+                    textInputAction: TextInputAction.done,
+                    onSubmitted: _submit,
                     suffix: IconButton(
                       tooltip: _obscurePassword
                           ? 'Show password'

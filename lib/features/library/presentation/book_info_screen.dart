@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
@@ -355,7 +356,10 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
   Widget build(BuildContext context) {
     final bookAsync = ref.watch(bookByIdProvider(bookId));
 
-    return PopScope(
+    return EscapePopScope(
+      onEscape: () =>
+          context.canPop() ? context.pop() : context.go('/home'),
+      child: PopScope(
       // Back gesture exits selection mode first; only pops when not selecting.
       canPop: !_inSelectionMode,
       onPopInvokedWithResult: (didPop, _) {
@@ -393,6 +397,7 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
             },
           ),
         ),
+      ),
       ),
     );
   }

@@ -7,6 +7,7 @@ import '../../../core/logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/widgets/escape_pop_scope.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
 import '../../../core/config/feature_flags.dart';
@@ -1044,7 +1045,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     // Karaoke state drives the toolbar toggle icon and the slide-up pane.
     final karaokeState = ref.watch(karaokeControllerProvider);
 
-    return Scaffold(
+    return EscapePopScope(
+      onEscape: () => context.canPop()
+          ? context.pop()
+          : context.go('/book/${widget.bookId}'),
+      child: Scaffold(
       backgroundColor: const Color(0xFFD8DADB),
       body: Stack(
         children: [
@@ -1401,6 +1406,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           // gives enough room for ~10 lines on a 412×896 phone frame.
           _buildKaraokePane(context, isVisible: karaokeState.isVisible),
         ],
+      ),
       ),
     );
   }

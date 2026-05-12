@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
+import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../auth/presentation/auth_providers.dart';
 import '../../library/presentation/library_providers.dart';
 
@@ -69,7 +70,10 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
       _initialized = true;
     }
 
-    return Scaffold(
+    return EscapePopScope(
+      onEscape: () =>
+          context.canPop() ? context.pop() : context.go('/profile'),
+      child: Scaffold(
       backgroundColor: AppColors.background,
       bottomNavigationBar: AppBottomNavBar(
         onTap: (tab) {
@@ -207,6 +211,7 @@ class _EditProfileScreenState extends ConsumerState<EditProfileScreen> {
             ),
           ],
         ),
+      ),
       ),
     );
   }

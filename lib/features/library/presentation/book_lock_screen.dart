@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -51,6 +52,10 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
   int _cooldownSecondsLeft = 0;
   Timer? _cooldownTicker;
 
+  // Keyboard highlight — which key is briefly "pressed" by a keyboard event.
+  String? _highlightedDigit;
+  bool _highlightBackspace = false;
+
   // Shake animation on bad PIN.
   late final AnimationController _shakeController;
   late final Animation<double> _shake;
@@ -89,6 +94,33 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
     _shakeController.dispose();
     super.dispose();
   }
+
+  void _flashDigit(String digit) {
+    setState(() => _highlightedDigit = digit);
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) setState(() => _highlightedDigit = null);
+    });
+  }
+
+  void _flashBackspace() {
+    setState(() => _highlightBackspace = true);
+    Future.delayed(const Duration(milliseconds: 150), () {
+      if (mounted) setState(() => _highlightBackspace = false);
+    });
+  }
+
+  static final _keyToDigit = <LogicalKeyboardKey, String>{
+    LogicalKeyboardKey.digit0: '0', LogicalKeyboardKey.numpad0: '0',
+    LogicalKeyboardKey.digit1: '1', LogicalKeyboardKey.numpad1: '1',
+    LogicalKeyboardKey.digit2: '2', LogicalKeyboardKey.numpad2: '2',
+    LogicalKeyboardKey.digit3: '3', LogicalKeyboardKey.numpad3: '3',
+    LogicalKeyboardKey.digit4: '4', LogicalKeyboardKey.numpad4: '4',
+    LogicalKeyboardKey.digit5: '5', LogicalKeyboardKey.numpad5: '5',
+    LogicalKeyboardKey.digit6: '6', LogicalKeyboardKey.numpad6: '6',
+    LogicalKeyboardKey.digit7: '7', LogicalKeyboardKey.numpad7: '7',
+    LogicalKeyboardKey.digit8: '8', LogicalKeyboardKey.numpad8: '8',
+    LogicalKeyboardKey.digit9: '9', LogicalKeyboardKey.numpad9: '9',
+  };
 
   Future<void> _probeBiometric() async {
     final svc = BiometricAuthService();
@@ -194,7 +226,32 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
     final showBiometric =
         _biometricChecked && _biometricSupported && _biometricEnabled;
 
-    return Scaffold(
+    return Focus(
+      autofocus: true,
+      onKeyEvent: (_, event) {
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey == LogicalKeyboardKey.backspace) {
+          _onBackspace();
+          _flashBackspace();
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.escape) {
+          if (context.canPop()) {
+            context.pop();
+          } else {
+            context.go('/home');
+          }
+          return KeyEventResult.handled;
+        }
+        final digit = _keyToDigit[event.logicalKey];
+        if (digit != null) {
+          _onDigit(digit);
+          _flashDigit(digit);
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         child: Column(
@@ -230,6 +287,8 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
                       disabled: _inputDisabled,
                       onDigit: _onDigit,
                       onBackspace: _onBackspace,
+                      highlightedDigit: _highlightedDigit,
+                      highlightBackspace: _highlightBackspace,
                     ),
                     if (showBiometric) ...[
                       const SizedBox(height: 24),
@@ -245,6 +304,7 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -423,11 +483,15 @@ class _Numpad extends StatelessWidget {
   final bool disabled;
   final void Function(String digit) onDigit;
   final VoidCallback onBackspace;
+  final String? highlightedDigit;
+  final bool highlightBackspace;
 
   const _Numpad({
     required this.disabled,
     required this.onDigit,
     required this.onBackspace,
+    this.highlightedDigit,
+    this.highlightBackspace = false,
   });
 
   @override
@@ -451,11 +515,16 @@ class _Numpad extends StatelessWidget {
                   label: '0',
                   onTap: () => onDigit('0'),
                   disabled: disabled,
+                  isPressed: highlightedDigit == '0',
                 ),
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _BackspaceKey(onTap: onBackspace, disabled: disabled),
+                child: _BackspaceKey(
+                  onTap: onBackspace,
+                  disabled: disabled,
+                  isPressed: highlightBackspace,
+                ),
               ),
             ],
           ),
@@ -474,6 +543,7 @@ class _Numpad extends StatelessWidget {
               label: digits[i],
               onTap: () => onDigit(digits[i]),
               disabled: disabled,
+              isPressed: highlightedDigit == digits[i],
             ),
           ),
         ],
@@ -486,11 +556,13 @@ class _DigitKey extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool disabled;
+  final bool isPressed;
 
   const _DigitKey({
     required this.label,
     required this.onTap,
     required this.disabled,
+    this.isPressed = false,
   });
 
   @override
@@ -502,7 +574,9 @@ class _DigitKey extends StatelessWidget {
       child: SizedBox(
         height: 64,
         child: Material(
-          color: AppColors.surface,
+          color: isPressed
+              ? AppColors.primary.withValues(alpha: 0.15)
+              : AppColors.surface,
           borderRadius: BorderRadius.circular(32),
           child: InkWell(
             borderRadius: BorderRadius.circular(32),
@@ -530,8 +604,13 @@ class _DigitKey extends StatelessWidget {
 class _BackspaceKey extends StatelessWidget {
   final VoidCallback onTap;
   final bool disabled;
+  final bool isPressed;
 
-  const _BackspaceKey({required this.onTap, required this.disabled});
+  const _BackspaceKey({
+    required this.onTap,
+    required this.disabled,
+    this.isPressed = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -542,7 +621,10 @@ class _BackspaceKey extends StatelessWidget {
       child: SizedBox(
         height: 64,
         child: Material(
-          color: Colors.transparent,
+          color: isPressed
+              ? AppColors.primary.withValues(alpha: 0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(32),
           child: InkWell(
             borderRadius: BorderRadius.circular(32),
             onTap: disabled ? null : onTap,

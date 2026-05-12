@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
@@ -140,7 +141,10 @@ class ShelfContentScreen extends ConsumerWidget {
         ? ref.watch(allBooksProvider)
         : ref.watch(booksByShelfProvider(shelfId));
 
-    return Scaffold(
+    return EscapePopScope(
+      onEscape: () =>
+          context.canPop() ? context.pop() : context.go('/home'),
+      child: Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
         bottom: false,
@@ -255,6 +259,7 @@ class ShelfContentScreen extends ConsumerWidget {
           if (tab == NavTab.create) context.push('/book/new');
           if (tab == NavTab.profile) context.push('/profile');
         },
+      ),
       ),
     );
   }

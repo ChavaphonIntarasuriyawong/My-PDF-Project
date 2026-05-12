@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
@@ -40,7 +41,10 @@ class NoteScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notesAsync = ref.watch(notesByBookProvider(bookId));
 
-    return Scaffold(
+    return EscapePopScope(
+      onEscape: () =>
+          context.canPop() ? context.pop() : context.go('/book/$bookId'),
+      child: Scaffold(
       backgroundColor: AppColors.background,
       bottomNavigationBar: AppBottomNavBar(
         onTap: (tab) {
@@ -219,6 +223,7 @@ class NoteScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }

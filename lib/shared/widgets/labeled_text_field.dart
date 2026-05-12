@@ -10,6 +10,9 @@ class LabeledTextField extends StatelessWidget {
   final TextInputType keyboardType;
   final String? errorText;
   final Widget? suffix;
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
+  final VoidCallback? onSubmitted;
 
   const LabeledTextField({
     super.key,
@@ -20,6 +23,9 @@ class LabeledTextField extends StatelessWidget {
     this.keyboardType = TextInputType.text,
     this.errorText,
     this.suffix,
+    this.focusNode,
+    this.textInputAction,
+    this.onSubmitted,
   });
 
   @override
@@ -39,6 +45,9 @@ class LabeledTextField extends StatelessWidget {
           controller: controller,
           obscureText: obscureText,
           keyboardType: keyboardType,
+          focusNode: focusNode,
+          textInputAction: textInputAction,
+          onSubmitted: onSubmitted != null ? (_) => onSubmitted!() : null,
           style: AppTypography.bodyLarge.copyWith(color: AppColors.textPrimary),
           decoration: InputDecoration(
             hintText: hint,
