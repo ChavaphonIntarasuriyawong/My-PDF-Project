@@ -1,6 +1,8 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/layout/responsive.dart';
 import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
@@ -40,22 +42,28 @@ class NoteScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final notesAsync = ref.watch(notesByBookProvider(bookId));
+    final desktop = kIsWeb && isDesktop(context);
 
     return EscapePopScope(
       onEscape: () =>
           context.canPop() ? context.pop() : context.go('/book/$bookId'),
       child: Scaffold(
         backgroundColor: AppColors.background,
-        bottomNavigationBar: AppBottomNavBar(
-          onTap: (tab) {
-            if (tab == NavTab.library) context.go('/home');
-            if (tab == NavTab.create) context.push('/book/new');
-            if (tab == NavTab.profile) context.push('/profile');
-          },
-        ),
+        bottomNavigationBar: desktop
+            ? null
+            : AppBottomNavBar(
+                onTap: (tab) {
+                  if (tab == NavTab.library) context.go('/home');
+                  if (tab == NavTab.create) context.push('/book/new');
+                  if (tab == NavTab.profile) context.push('/profile');
+                },
+              ),
         body: SafeArea(
           bottom: false,
-          child: Column(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: desktop ? 720 : 9999),
+              child: Column(
             children: [
               Padding(
                 padding: const EdgeInsets.symmetric(
@@ -228,6 +236,8 @@ class NoteScreen extends ConsumerWidget {
                 ),
               ),
             ],
+          ),
+            ),
           ),
         ),
       ),

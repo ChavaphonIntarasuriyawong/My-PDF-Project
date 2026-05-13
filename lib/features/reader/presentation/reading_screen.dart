@@ -7,6 +7,7 @@ import '../../../core/logging/app_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/layout/responsive.dart';
 import '../../../shared/widgets/escape_pop_scope.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
@@ -15,12 +16,14 @@ import '../../../core/network/pdf_fetcher.dart';
 import '../../../core/text/tts_text_cleaner.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../library/domain/note_model.dart';
 import '../../library/presentation/library_controller.dart';
 import '../../library/presentation/library_providers.dart';
 import '../data/pdf_text_extractor.dart';
 import '../data/tts_engine.dart';
 import '../widgets/mobile_pdf_reader.dart';
 import 'controllers/karaoke_controller.dart';
+import 'note_edit_screen.dart';
 import 'widgets/karaoke_text_pane.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
@@ -996,6 +999,23 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     _speakCurrentPage(page);
   }
 
+  /// Pitch counterpart to [_setSpeechRate]. Same pattern: clamp, persist,
+  /// push to engine, restart speaking page so the new pitch is audible.
+  void _setPitch(double next) {
+    final clamped = next.clamp(0.5, 2.0);
+    if (mounted) {
+      setState(() => _pitch = clamped);
+    } else {
+      _pitch = clamped;
+    }
+    _tts.setPitch(_pitch);
+    if (!_ttsActive || !_ttsSpeaking) return;
+    final s = ref.read(karaokeControllerProvider);
+    if (s.fullText.isEmpty) return;
+    final page = _currentPage > 0 ? _currentPage - 1 : 0;
+    _speakCurrentPage(page);
+  }
+
   /// Karaoke pane mounted as a direct Stack child so Positioned works.
   /// Sliding-up panel rooted to the bottom of the reader area. Pane height
   /// is ~42% of the reader, clamped to a sensible band so the top bar stays
@@ -1044,6 +1064,46 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
 
     // Karaoke state drives the toolbar toggle icon and the slide-up pane.
     final karaokeState = ref.watch(karaokeControllerProvider);
+
+    if (kIsWeb && isDesktop(context) && book != null) {
+      return EscapePopScope(
+        onEscape: () => context.canPop()
+            ? context.pop()
+            : context.go('/book/${widget.bookId}'),
+        child: Scaffold(
+          backgroundColor: AppColors.background,
+          body: _DesktopReadingBody(
+            book: book,
+            pdfAsync: pdfAsync,
+            currentPage: _currentPage,
+            totalPages: _totalPages,
+            webController: _webController,
+            onWebPageChange: (page, total) => _onPageChanged(page, total),
+            ttsActive: _ttsActive,
+            ttsSpeaking: _ttsSpeaking,
+            onToggleTts: _toggleTts,
+            onToggleKaraoke: () => ref
+                .read(karaokeControllerProvider.notifier)
+                .toggleVisible(),
+            karaokeVisible: karaokeState.isVisible,
+            currentSpeed: _speechRate,
+            currentPitch: _pitch,
+            onSpeedChange: _setSpeechRate,
+            onPitchChange: _setPitch,
+            onAddNote: () =>
+                showNoteEditSheet(context, bookId: widget.bookId),
+            onOpenNote: (noteId) => showNoteEditSheet(
+              context,
+              bookId: widget.bookId,
+              noteId: noteId,
+            ),
+            onExit: () => context.canPop()
+                ? context.pop()
+                : context.go('/book/${widget.bookId}'),
+          ),
+        ),
+      );
+    }
 
     return EscapePopScope(
       onEscape: () => context.canPop()
@@ -1435,6 +1495,686 @@ class _KaraokeSentence {
     required this.end,
     required this.text,
   });
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Desktop reading body — Figma "PDF Reader & Progress - Desktop".
+//
+// 2-column inside the existing desktop shell sidebar:
+//   left  : CHAPTER label + book title + PAGE X OF Y header → web pdfx
+//           viewport (mobile-native never hits this code path)
+//   right : Annotated Insights + MY NOTE / SPEECH tabs + note cards +
+//           bottom "Add Note" + "Exit" buttons
+// All TTS / OCR controls remain available via the existing mobile body
+// when it's the active branch — desktop scope here is layout-only.
+// ──────────────────────────────────────────────────────────────────────────
+
+class _DesktopReadingBody extends ConsumerStatefulWidget {
+  final dynamic book; // BookModel — typed as dynamic to avoid extra import nesting.
+  final AsyncValue<String?>? pdfAsync;
+  final int currentPage;
+  final int totalPages;
+  final WebPdfReaderController webController;
+  final void Function(int page, int total) onWebPageChange;
+  final bool ttsActive;
+  final bool ttsSpeaking;
+  final VoidCallback onToggleTts;
+  final VoidCallback onToggleKaraoke;
+  final bool karaokeVisible;
+  final double currentSpeed;
+  final double currentPitch;
+  final ValueChanged<double> onSpeedChange;
+  final ValueChanged<double> onPitchChange;
+  final VoidCallback onAddNote;
+  final ValueChanged<String> onOpenNote;
+  final VoidCallback onExit;
+
+  const _DesktopReadingBody({
+    required this.book,
+    required this.pdfAsync,
+    required this.currentPage,
+    required this.totalPages,
+    required this.webController,
+    required this.onWebPageChange,
+    required this.ttsActive,
+    required this.ttsSpeaking,
+    required this.onToggleTts,
+    required this.onToggleKaraoke,
+    required this.karaokeVisible,
+    required this.currentSpeed,
+    required this.currentPitch,
+    required this.onSpeedChange,
+    required this.onPitchChange,
+    required this.onAddNote,
+    required this.onOpenNote,
+    required this.onExit,
+  });
+
+  @override
+  ConsumerState<_DesktopReadingBody> createState() =>
+      _DesktopReadingBodyState();
+}
+
+class _DesktopReadingBodyState extends ConsumerState<_DesktopReadingBody> {
+  // Local view toggle for the right panel: false = MY NOTE, true = SPEECH.
+  // Switching is purely visual — neither tab toggles TTS. Read button in the
+  // speech view is what fires onToggleTts.
+  bool _speechView = false;
+
+  /// Switch the right panel to SPEECH view. Auto-shows the karaoke pane via a
+  /// post-frame callback so the speech panel renders first and the karaoke
+  /// pane animates in afterward (avoids a same-frame layout shift).
+  void _enterSpeechView() {
+    if (_speechView) return;
+    setState(() => _speechView = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (!widget.karaokeVisible) widget.onToggleKaraoke();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final notes =
+        ref.watch(notesByBookProvider(widget.book.id)).valueOrNull ?? [];
+    // Karaoke state drives the caption block inside _SpeechPanel. We forward
+    // the text + visibility flag so the panel can render the caption only when
+    // captions are active AND there's prose to show.
+    final karaokeState = ref.watch(karaokeControllerProvider);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(32, 16, 32, 24),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Center: title header + PDF viewport
+          Expanded(
+            flex: 3,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'CHAPTER ${(widget.currentPage / 10).ceil().toString().padLeft(2, '0')}',
+                            style: AppTypography.labelSmall.copyWith(
+                              letterSpacing: 1.0,
+                              color: AppColors.textMuted,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            widget.book.title.toString(),
+                            style: AppTypography.headlineMedium.copyWith(
+                              color: AppColors.primary,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      widget.totalPages > 0
+                          ? 'PAGE ${widget.currentPage} OF ${widget.totalPages}'
+                          : 'PAGE -- OF --',
+                      style: AppTypography.sectionMeta.copyWith(
+                        color: AppColors.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                Expanded(
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x14191C1D),
+                          blurRadius: 24,
+                          offset: Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: widget.pdfAsync == null
+                        ? const Center(child: CircularProgressIndicator())
+                        : widget.pdfAsync!.when(
+                            loading: () => const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                            error: (e, _) => Center(
+                              child: Padding(
+                                padding: const EdgeInsets.all(24),
+                                child: Text(
+                                  'Failed to load PDF: $e',
+                                  textAlign: TextAlign.center,
+                                  style: AppTypography.bodyMedium,
+                                ),
+                              ),
+                            ),
+                            data: (path) => _WebPdfReader(
+                              key: ValueKey(path),
+                              url: path!,
+                              initialPage:
+                                  (widget.book.currentPage as int?) ?? 0,
+                              controller: widget.webController,
+                              onPagesAndPageChanged: widget.onWebPageChange,
+                            ),
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 24),
+          // Right side panel: header + tab row + (notes view OR speech view)
+          SizedBox(
+            width: 320,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  _speechView
+                      ? 'Text-to-Speech'
+                      : 'Annotated Insights (${notes.length})',
+                  style: AppTypography.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    _DesktopReadingTab(
+                      label: 'MY NOTE',
+                      active: !_speechView,
+                      onTap: () => setState(() => _speechView = false),
+                    ),
+                    const SizedBox(width: 8),
+                    _DesktopReadingTab(
+                      label: 'SPEECH',
+                      active: _speechView,
+                      onTap: _enterSpeechView,
+                    ),
+                    const Spacer(),
+                    if (_speechView)
+                      Semantics(
+                        button: true,
+                        label: 'Close speech panel',
+                        child: IconButton(
+                          tooltip: 'Close',
+                          icon: const Icon(
+                            Icons.close,
+                            color: AppColors.primary,
+                            size: 18,
+                          ),
+                          onPressed: () =>
+                              setState(() => _speechView = false),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: _speechView
+                      ? _SpeechPanel(
+                          speed: widget.currentSpeed,
+                          pitch: widget.currentPitch,
+                          onSpeedChange: widget.onSpeedChange,
+                          onPitchChange: widget.onPitchChange,
+                          karaokeVisible: widget.karaokeVisible,
+                          karaokeText: karaokeState.fullText,
+                        )
+                      : notes.isEmpty
+                      ? Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppColors.borderHairline,
+                            ),
+                          ),
+                          child: Text(
+                            'No notes yet for this book.',
+                            style: AppTypography.bodyMedium,
+                          ),
+                        )
+                      : ListView.separated(
+                          itemCount: notes.length,
+                          separatorBuilder: (_, _) =>
+                              const SizedBox(height: 12),
+                          itemBuilder: (ctx, i) {
+                            final NoteModel n = notes[i];
+                            return _DesktopReadingNoteCard(
+                              note: n,
+                              onTap: () => widget.onOpenNote(n.id),
+                            );
+                          },
+                        ),
+                ),
+                const SizedBox(height: 12),
+                if (_speechView) ...[
+                  // Speech view: single compact Read/Stop pill, right-aligned.
+                  // Full-width Read/Stop — toggles like a MY NOTE / SPEECH
+                  // tab: outlined when inactive, solid primary when active.
+                  _DesktopReadingButton(
+                    label: widget.ttsActive ? 'Stop' : 'Read',
+                    icon: widget.ttsActive
+                        ? Icons.stop_rounded
+                        : Icons.play_arrow_rounded,
+                    onTap: widget.onToggleTts,
+                    semanticLabel: widget.ttsActive ? 'Stop' : 'Read aloud',
+                    active: widget.ttsActive,
+                  ),
+                ] else ...[
+                  _DesktopReadingButton(
+                    label: 'Add Note',
+                    icon: Icons.add_comment_outlined,
+                    onTap: widget.onAddNote,
+                  ),
+                  const SizedBox(height: 8),
+                  _DesktopReadingButton(
+                    label: 'Exit',
+                    icon: Icons.close,
+                    onTap: widget.onExit,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Right-panel speech body: voice settings header, Speed + Pitch sliders, and
+/// (when captions are visible AND there's spoken text) an inline Caption
+/// block. The Read / Stop button lives in the parent so it stays pinned to
+/// the bottom of the side panel.
+class _SpeechPanel extends StatelessWidget {
+  final double speed;
+  final double pitch;
+  final ValueChanged<double> onSpeedChange;
+  final ValueChanged<double> onPitchChange;
+  /// Whether the karaoke pane is currently active. Renders the inline caption
+  /// block below the sliders only when this is true AND [karaokeText] is
+  /// non-empty.
+  final bool karaokeVisible;
+  /// Current karaoke full-page text. Empty string while idle (no speak has
+  /// run since the panel opened).
+  final String karaokeText;
+
+  const _SpeechPanel({
+    required this.speed,
+    required this.pitch,
+    required this.onSpeedChange,
+    required this.onPitchChange,
+    required this.karaokeVisible,
+    required this.karaokeText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final showCaption = karaokeVisible && karaokeText.trim().isNotEmpty;
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          // Voice Settings card — surface bg, content centered vertically
+          // inside a taller body so the sliders breathe.
+          Container(
+            decoration: BoxDecoration(
+              color: AppColors.surface,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.borderHairline),
+            ),
+            padding: const EdgeInsets.all(20),
+            constraints: const BoxConstraints(minHeight: 460),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Text(
+                  'Voice Settings',
+                  style: AppTypography.titleMedium.copyWith(
+                    color: AppColors.primary,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Change any time to make it as you like.',
+                  style: AppTypography.bodyMedium.copyWith(
+                    color: AppColors.textMuted,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _SpeechSliderColumn(
+                      label: 'Speed',
+                      value: speed,
+                      onChanged: onSpeedChange,
+                    ),
+                    const SizedBox(width: 24),
+                    _SpeechSliderColumn(
+                      label: 'Pitch',
+                      value: pitch,
+                      onChanged: onPitchChange,
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          if (showCaption) ...[
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: AppColors.surface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderHairline),
+              ),
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Caption',
+                    style: AppTypography.titleMedium.copyWith(
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 200),
+                    child: SingleChildScrollView(
+                      child: Text(
+                        karaokeText.trim(),
+                        style: AppTypography.bodyMedium.copyWith(
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// One labeled slider column inside the speech panel. Range 0.5–1.5 step 0.1.
+/// Layout: row label on top (textSecondary), big primary numeric current
+/// value centered above the slider, slider, then min/max under it. Internal
+/// clamp keeps the slider invariant safe — the parent setter has its own
+/// clamp logic (0.5–2.0) which we intentionally don't disturb.
+class _SpeechSliderColumn extends StatelessWidget {
+  final String label;
+  final double value;
+  final ValueChanged<double> onChanged;
+
+  const _SpeechSliderColumn({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final clamped = value.clamp(0.5, 1.5).toDouble();
+    // Display value as 0-100 — bottom = 0, top = 100.
+    final percent = ((clamped - 0.5) * 100).round();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          label,
+          style: AppTypography.bodyMedium.copyWith(
+            color: AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '$percent',
+          style: AppTypography.titleLarge.copyWith(
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Vertical slider — top = 1.5 (100), bottom = 0.5 (0). Compact height.
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '100',
+                  style: AppTypography.captionRegular.copyWith(
+                    color: AppColors.textMuted,
+                    letterSpacing: 0,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                SizedBox(
+                  height: 220,
+                  width: 32,
+                  child: RotatedBox(
+                    quarterTurns: 3,
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        activeTrackColor: AppColors.primary,
+                        inactiveTrackColor: AppColors.progressTrack,
+                        thumbColor: AppColors.primary,
+                        overlayColor:
+                            AppColors.primary.withValues(alpha: 0.12),
+                        trackHeight: 4,
+                      ),
+                      child: Slider(
+                        value: clamped,
+                        min: 0.5,
+                        max: 1.5,
+                        divisions: 10,
+                        onChanged: onChanged,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  '0',
+                  style: AppTypography.captionRegular.copyWith(
+                    color: AppColors.textMuted,
+                    letterSpacing: 0,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopReadingTab extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+  const _DesktopReadingTab({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          decoration: BoxDecoration(
+            color: active ? AppColors.primary : Colors.transparent,
+            border: active
+                ? null
+                : Border.all(color: AppColors.primary),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            label,
+            style: AppTypography.labelSmall.copyWith(
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+              color: active ? Colors.white : AppColors.primary,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopReadingNoteCard extends StatelessWidget {
+  final NoteModel note;
+  final VoidCallback onTap;
+  const _DesktopReadingNoteCard({required this.note, required this.onTap});
+
+  String _formatDate(DateTime d) {
+    final diff = DateTime.now().difference(d);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${d.day}/${d.month}/${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = note.title.trim().isEmpty ? 'Untitled' : note.title.trim();
+    final preview = note.content.trim().isEmpty
+        ? '(empty note)'
+        : note.content.trim();
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderHairline),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: AppTypography.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _formatDate(note.updatedAt),
+                    style: AppTypography.captionRegular.copyWith(
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                preview,
+                style: AppTypography.bodyMedium,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopReadingButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  /// Optional override for the Semantics label.
+  final String? semanticLabel;
+  /// When false, button renders as an outlined pill (transparent fill + primary
+  /// border + primary text/icon) — mirrors the MY NOTE / SPEECH tab pair so the
+  /// Read button visually toggles like a tab between active / inactive.
+  final bool active;
+  const _DesktopReadingButton({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.semanticLabel,
+    this.active = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final Color fg = active ? Colors.white : AppColors.primary;
+    final body = Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 14),
+      decoration: BoxDecoration(
+        color: active ? AppColors.primary : Colors.transparent,
+        border: active
+            ? null
+            : Border.all(color: AppColors.primary, width: 1.5),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.max,
+        children: [
+          Icon(icon, size: 18, color: fg),
+          const SizedBox(width: 8),
+          Text(
+            label,
+            style: AppTypography.labelButton.copyWith(
+              fontSize: 14,
+              height: 1.0,
+              color: fg,
+            ),
+          ),
+        ],
+      ),
+    );
+    return Semantics(
+      button: true,
+      label: semanticLabel ?? label,
+      child: GestureDetector(onTap: onTap, child: body),
+    );
+  }
 }
 
 class WebPdfReaderController {

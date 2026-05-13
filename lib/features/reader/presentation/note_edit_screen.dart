@@ -1,9 +1,11 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/layout/responsive.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/gradient_button.dart';
 import '../../library/presentation/library_controller.dart';
@@ -149,13 +151,18 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
         ? (book.currentPage / book.totalPages).clamp(0.0, 1.0)
         : 0.0;
 
+    final desktop = kIsWeb && isDesktop(context);
+
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
       child: Material(
         color: AppColors.background,
         child: !_initialized
             ? const Center(child: CircularProgressIndicator())
-            : Column(
+            : Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(maxWidth: desktop ? 720 : 9999),
+                  child: Column(
                 children: [
                   // ── Sticky top bar — Figma 25:847 ────────────────────
                   // Delete UX is now multi-select on the book info screen,
@@ -197,17 +204,20 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
                   ),
 
                   // ── Bottom nav — visible per Figma ──────────────────
-                  AppBottomNavBar(
-                    onTap: (tab) {
-                      // Pop the sheet first so navigation lands on the
-                      // root navigator, not stacked under it.
-                      Navigator.of(context).pop();
-                      if (tab == NavTab.library) context.go('/home');
-                      if (tab == NavTab.create) context.push('/book/new');
-                      if (tab == NavTab.profile) context.push('/profile');
-                    },
-                  ),
+                  if (!desktop)
+                    AppBottomNavBar(
+                      onTap: (tab) {
+                        // Pop the sheet first so navigation lands on the
+                        // root navigator, not stacked under it.
+                        Navigator.of(context).pop();
+                        if (tab == NavTab.library) context.go('/home');
+                        if (tab == NavTab.create) context.push('/book/new');
+                        if (tab == NavTab.profile) context.push('/profile');
+                      },
+                    ),
                 ],
+              ),
+                ),
               ),
       ),
     );

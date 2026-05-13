@@ -3,15 +3,20 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config/feature_flags.dart';
 import 'core/constants/app_router.dart';
+import 'core/constants/app_routes.dart';
 import 'core/local/recent_books_service.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
 import 'firebase_options.dart';
+import 'shared/layout/responsive.dart';
+import 'shared/widgets/desktop_shell.dart';
+import 'package:go_router/go_router.dart' show GoRouter;
 
 // this works
 void main() async {
@@ -83,13 +88,75 @@ class MyPdfApp extends ConsumerWidget {
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       builder: (context, child) {
-        // Web only: clamp the app to a phone-shaped frame on wide viewports
-        // so the mobile-first layout doesn't stretch across desktop monitors.
-        // Below 600px (real mobile browser / narrow), pass through full-width.
+        // Web only: pick a layout shell based on viewport width.
+        //   < 600           pass-through (mobile)
+        //   600 – 1023      existing 412×896 phone frame (tablet preview)
+        //   >= 1024 (web)   new desktop shell — sidebar + main content,
+        //                   except `/login` and `/register` which render
+        //                   their own centered split-card via DesktopAuthShell.
+        // Native mobile / desktop builds always pass through.
         if (!kIsWeb || child == null) return child ?? const SizedBox.shrink();
-        return _PhoneFrame(child: child);
+        final width = MediaQuery.of(context).size.width;
+        if (width < 600) return child;
+        if (width < kDesktopBreakpoint) return _PhoneFrame(child: child);
+        return _DesktopRouteAwareShell(router: router, child: child);
       },
     );
+  }
+}
+
+
+/// Listens to the captured GoRouter's route stream and swaps the desktop
+/// shell when the active path is an auth route. Using the captured `router`
+/// (not `GoRouter.of(context)`) avoids the InheritedGoRouter lookup that
+/// fails inside `MaterialApp.router.builder` — the builder's context sits
+/// above the Router widget that installs the inherited.
+class _DesktopRouteAwareShell extends StatefulWidget {
+  final GoRouter router;
+  final Widget child;
+  const _DesktopRouteAwareShell({required this.router, required this.child});
+
+  @override
+  State<_DesktopRouteAwareShell> createState() =>
+      _DesktopRouteAwareShellState();
+}
+
+class _DesktopRouteAwareShellState extends State<_DesktopRouteAwareShell> {
+  @override
+  void initState() {
+    super.initState();
+    // The routerDelegate is a ChangeNotifier that fires AFTER redirect logic
+    // resolves, so `currentConfiguration.uri.path` is the authoritative source.
+    // `routeInformationProvider` lags pre-redirect values and broke the gate.
+    widget.router.routerDelegate.addListener(_onRouteChanged);
+  }
+
+  @override
+  void dispose() {
+    widget.router.routerDelegate.removeListener(_onRouteChanged);
+    super.dispose();
+  }
+
+  void _onRouteChanged() {
+    if (!mounted) return;
+    // The delegate fires this notification during the first build phase
+    // (`setInitialRoutePath` → `notifyListeners`), so calling setState
+    // synchronously crashes with "setState during build". Defer to the next
+    // frame — by then the redirect has already settled.
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final path =
+        widget.router.routerDelegate.currentConfiguration.uri.path;
+    if (path == AppRoutes.login || path == AppRoutes.register) {
+      // Auth screens render their own DesktopAuthShell.
+      return widget.child;
+    }
+    return DesktopShell(router: widget.router, child: widget.child);
   }
 }
 

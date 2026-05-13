@@ -12,6 +12,7 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 import '../../../core/network/pdf_fetcher.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/layout/responsive.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/app_drawer.dart';
 import '../../../shared/widgets/app_modal.dart';
@@ -406,6 +407,167 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
   @override
   Widget build(BuildContext context) {
     final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
+
+    if (kIsWeb && isDesktop(context)) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.fromLTRB(48, 48, 48, 48),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'KNOWLEDGE ACQUISITION',
+                style: AppTypography.labelSmall.copyWith(
+                  letterSpacing: 1.2,
+                  color: AppColors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Curate your local library',
+                style: AppTypography.headlineLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Transform raw data into meaningful intelligence. Connect your cloud-stored documents directly to our editorial environment.',
+                style: AppTypography.bodyLarge.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 40),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: _DesktopImportSection(
+                      icon: Icons.link,
+                      title: 'Import PDF via Link',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const _FieldLabel('PUBLIC PDF URL'),
+                          const SizedBox(height: 8),
+                          _InputContainer(
+                            // Match the file-side display height for symmetry.
+                            child: SizedBox(
+                              height: 52,
+                              child: TextField(
+                                controller: _urlCtrl,
+                                keyboardType: TextInputType.url,
+                                style: AppTypography.bodyLarge.copyWith(
+                                  color: AppColors.textPrimary,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'https://example.com/document.pdf',
+                                  hintStyle: AppTypography.bodyLarge.copyWith(
+                                    color: AppColors.textMuted.withValues(
+                                      alpha: 0.5,
+                                    ),
+                                  ),
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const _FieldHelper(
+                            'Paste a direct public PDF URL here to add it to your library.',
+                          ),
+                          const SizedBox(height: 20),
+                          _ShelfDropdown(
+                            shelves: shelves,
+                            value: _urlShelfId,
+                            onChanged: (v) =>
+                                setState(() => _urlShelfId = v),
+                            fontSize: 16,
+                          ),
+                          const _FieldHelper(
+                            'Choose a shelf to store your PDF file link.',
+                          ),
+                          const SizedBox(height: 24),
+                          _DesktopGradientButton(
+                            label: 'Create PDF',
+                            loading: _loadingUrl,
+                            onTap: _createFromUrl,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 32),
+                  Expanded(
+                    child: _DesktopImportSection(
+                      icon: Icons.upload,
+                      title: 'Upload PDF File',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const _FieldLabel('PDF FILE'),
+                          const SizedBox(height: 8),
+                          _InputContainer(
+                            // Height matches the TextField on the URL side so
+                            // both inputs visually align across the two cards.
+                            child: SizedBox(
+                              height: 52,
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: Align(
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    _pickedFile?.name ?? 'example.pdf',
+                                    style: AppTypography.bodyLarge.copyWith(
+                                      color: _pickedFile != null
+                                          ? AppColors.textPrimary
+                                          : AppColors.textMuted.withValues(
+                                              alpha: 0.5,
+                                            ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const _FieldHelper(
+                            'Open your browser to upload the PDF file.',
+                          ),
+                          const SizedBox(height: 16),
+                          _DesktopGradientButton(
+                            label: 'Browse',
+                            onTap: _pickFile,
+                          ),
+                          const SizedBox(height: 20),
+                          _ShelfDropdown(
+                            shelves: shelves,
+                            value: _fileShelfId,
+                            onChanged: (v) =>
+                                setState(() => _fileShelfId = v),
+                            fontSize: 16,
+                          ),
+                          const _FieldHelper(
+                            'Choose a shelf to store your PDF file link.',
+                          ),
+                          const SizedBox(height: 24),
+                          _DesktopGradientButton(
+                            label: 'Create PDF',
+                            loading: _loadingFile,
+                            onTap: _createFromFile,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       key: _scaffoldKey,
@@ -883,15 +1045,25 @@ class _ShelfDropdown extends StatelessWidget {
   final List<BookshelfModel> shelves;
   final String? value;
   final ValueChanged<String?> onChanged;
+  // Desktop branch overrides the 18→16 size; mobile keeps 18.
+  final double fontSize;
 
   const _ShelfDropdown({
     required this.shelves,
     required this.value,
     required this.onChanged,
+    this.fontSize = 18,
   });
 
   @override
   Widget build(BuildContext context) {
+    final textStyle = TextStyle(
+      fontFamily: 'Inter',
+      fontWeight: FontWeight.w400,
+      fontSize: fontSize,
+      height: 1.5,
+      color: AppColors.textPrimary,
+    );
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -907,51 +1079,18 @@ class _ShelfDropdown extends StatelessWidget {
             child: DropdownButton<String?>(
               value: value,
               isExpanded: true,
-              style: const TextStyle(
-                fontFamily: 'Inter',
-                fontWeight: FontWeight.w400,
-                fontSize: 18,
-                height: 1.5,
-                color: AppColors.textPrimary,
-              ),
+              style: textStyle,
               dropdownColor: AppColors.surface,
-              hint: const Text(
-                'All',
-                style: TextStyle(
-                  fontFamily: 'Inter',
-                  fontWeight: FontWeight.w400,
-                  fontSize: 18,
-                  height: 1.5,
-                  color: AppColors.textPrimary,
-                ),
-              ),
+              hint: Text('All', style: textStyle),
               items: [
-                const DropdownMenuItem<String?>(
+                DropdownMenuItem<String?>(
                   value: null,
-                  child: Text(
-                    'All',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w400,
-                      fontSize: 18,
-                      height: 1.5,
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
+                  child: Text('All', style: textStyle),
                 ),
                 ...shelves.map(
                   (s) => DropdownMenuItem<String?>(
                     value: s.id,
-                    child: Text(
-                      s.name,
-                      style: const TextStyle(
-                        fontFamily: 'Inter',
-                        fontWeight: FontWeight.w400,
-                        fontSize: 18,
-                        height: 1.5,
-                        color: AppColors.textPrimary,
-                      ),
-                    ),
+                    child: Text(s.name, style: textStyle),
                   ),
                 ),
               ],
@@ -960,6 +1099,107 @@ class _ShelfDropdown extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ── Desktop helpers ────────────────────────────────────────────────────────
+// Used only by the `kIsWeb && isDesktop(context)` branch — mobile layout
+// continues to use `_ImportCard` above.
+
+class _DesktopImportSection extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final Widget child;
+  const _DesktopImportSection({
+    required this.icon,
+    required this.title,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Container(
+          width: 64,
+          height: 64,
+          decoration: BoxDecoration(
+            color: AppColors.primary,
+            borderRadius: BorderRadius.circular(16),
+          ),
+          alignment: Alignment.center,
+          child: Icon(icon, color: Colors.white, size: 28),
+        ),
+        const SizedBox(height: 16),
+        Text(title, style: AppTypography.headlineMedium),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderHairline),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.04),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopGradientButton extends StatelessWidget {
+  final String label;
+  final bool loading;
+  final VoidCallback onTap;
+  const _DesktopGradientButton({
+    required this.label,
+    required this.onTap,
+    this.loading = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: double.infinity,
+      child: GestureDetector(
+        onTap: loading ? null : onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          decoration: BoxDecoration(
+            gradient: AppColors.primaryGradient,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: loading
+              ? const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: Colors.white,
+                      strokeWidth: 2,
+                    ),
+                  ),
+                )
+              : Center(
+                  child: Text(
+                    label,
+                    style: AppTypography.labelButton.copyWith(
+                      fontSize: 16,
+                      height: 1.0,
+                    ),
+                  ),
+                ),
+        ),
+      ),
     );
   }
 }

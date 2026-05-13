@@ -33,7 +33,11 @@ class _AppModalState extends State<AppModal> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       clipBehavior: Clip.antiAlias,
-      child: Column(
+      // Cap modal width on wide viewports — Dialog would otherwise grow to
+      // its parent constraints and look gigantic on desktop.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Padding(
@@ -145,6 +149,7 @@ class _AppModalState extends State<AppModal> {
             ),
           ),
         ],
+        ),
       ),
     );
   }
