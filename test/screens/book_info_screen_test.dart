@@ -171,23 +171,23 @@ void main() {
       expect(find.text('Cosmos'), findsAtLeastNWidgets(1));
     });
 
-    testWidgets('inline pencil read button navigates to reading screen', (
+    testWidgets('inline read button navigates to reading screen', (
       tester,
     ) async {
       await _setPhoneViewport(tester);
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
 
-      // Inline pencil sits inside the cover Stack — find by icon. The
-      // 3-dot menu uses Icons.more_vert, so Icons.edit_outlined uniquely
-      // identifies the pencil. Confirm "Reading" placeholder is not yet
+      // Inline read button sits inside the cover Stack — find by icon. The
+      // 3-dot menu uses Icons.more_vert, so Icons.menu_book_outlined uniquely
+      // identifies the read button. Confirm "Reading" placeholder is not yet
       // visible (we're still on /book/b1).
-      final pencil = find.byIcon(Icons.edit_outlined);
-      expect(pencil, findsOneWidget);
+      final readBtn = find.byIcon(Icons.menu_book_outlined);
+      expect(readBtn, findsOneWidget);
       expect(find.text('Reading'), findsNothing);
 
-      // Tap the pencil — production calls context.push('/book/b1/reading').
-      await tester.tap(pencil);
+      // Tap the button — production calls context.push('/book/b1/reading').
+      await tester.tap(readBtn);
       // Let the new route build and the cover thumbnail provider settle.
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
