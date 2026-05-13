@@ -372,17 +372,37 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
       ],
     );
     if (!context.mounted) return;
+    final session = ref.read(bookUnlockSessionProvider);
+    final bookLocked = book.isLocked && !session.isUnlocked(book.id);
     switch (selected) {
       case 'edit':
+        if (bookLocked) {
+          context.push(
+            '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
+          );
+          break;
+        }
         _showRenameModal(context, ref, book);
         break;
       case 'delete':
         _showDeleteModal(context, ref);
         break;
       case 'move':
+        if (bookLocked) {
+          context.push(
+            '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
+          );
+          break;
+        }
         _showMoveShelfModal(context, ref, book, shelves);
         break;
       case 'status':
+        if (bookLocked) {
+          context.push(
+            '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
+          );
+          break;
+        }
         _showStatusModal(context, ref, book);
         break;
     }
@@ -421,13 +441,38 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
                     ref.watch(notesByBookProvider(book.id)).valueOrNull ?? [],
                 onBack: () =>
                     context.canPop() ? context.pop() : context.go('/home'),
-                onEdit: () => _showRenameModal(context, ref, book),
+                onEdit: () {
+                  final s = ref.read(bookUnlockSessionProvider);
+                  if (book.isLocked && !s.isUnlocked(book.id)) {
+                    context.push(
+                      '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
+                    );
+                    return;
+                  }
+                  _showRenameModal(context, ref, book);
+                },
                 onMoveShelf: (sid) async {
+                  final s = ref.read(bookUnlockSessionProvider);
+                  if (book.isLocked && !s.isUnlocked(book.id)) {
+                    context.push(
+                      '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
+                    );
+                    return;
+                  }
                   await ref
                       .read(libraryControllerProvider.notifier)
                       .moveBook(book.id, sid ?? '');
                 },
-                onShowStatusModal: () => _showStatusModal(context, ref, book),
+                onShowStatusModal: () {
+                  final s = ref.read(bookUnlockSessionProvider);
+                  if (book.isLocked && !s.isUnlocked(book.id)) {
+                    context.push(
+                      '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
+                    );
+                    return;
+                  }
+                  _showStatusModal(context, ref, book);
+                },
                 onDeleteNote: (noteId) =>
                     _confirmDeleteNote(context, ref, noteId),
                 onDeleteBook: () => _showDeleteModal(context, ref),
@@ -721,7 +766,11 @@ class _InlineReadButton extends StatelessWidget {
           child: const SizedBox(
             width: 40,
             height: 40,
-            child: Icon(Icons.edit_outlined, color: Colors.white, size: 18),
+            child: Icon(
+              Icons.menu_book_outlined,
+              color: Colors.white,
+              size: 18,
+            ),
           ),
         ),
       ),
@@ -1301,6 +1350,8 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
         ? (book.currentPage / book.totalPages).clamp(0.0, 1.0)
         : 0.0;
     final pct = (progress * 100).round();
+    final session = ref.watch(bookUnlockSessionProvider);
+    final notesLocked = book.isLocked && !session.isUnlocked(book.id);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(48, 24, 48, 32),
@@ -1463,35 +1514,46 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                 ),
-                                child: DropdownButtonHideUnderline(
-                                  child: DropdownButton<String?>(
-                                    value: book.shelfId.isEmpty
-                                        ? null
-                                        : book.shelfId,
-                                    isExpanded: true,
-                                    hint: Text(
-                                      'No Shelf',
-                                      style: AppTypography.bodyLarge,
-                                    ),
-                                    items: [
-                                      DropdownMenuItem<String?>(
-                                        value: null,
-                                        child: Text(
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.translucent,
+                                  onTap: notesLocked
+                                      ? () => context.push(
+                                          '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
+                                        )
+                                      : null,
+                                  child: AbsorbPointer(
+                                    absorbing: notesLocked,
+                                    child: DropdownButtonHideUnderline(
+                                      child: DropdownButton<String?>(
+                                        value: book.shelfId.isEmpty
+                                            ? null
+                                            : book.shelfId,
+                                        isExpanded: true,
+                                        hint: Text(
                                           'No Shelf',
                                           style: AppTypography.bodyLarge,
                                         ),
-                                      ),
-                                      ...shelves.map(
-                                        (s) => DropdownMenuItem<String?>(
-                                          value: s.id,
-                                          child: Text(
-                                            s.name,
-                                            style: AppTypography.bodyLarge,
+                                        items: [
+                                          DropdownMenuItem<String?>(
+                                            value: null,
+                                            child: Text(
+                                              'No Shelf',
+                                              style: AppTypography.bodyLarge,
+                                            ),
                                           ),
-                                        ),
+                                          ...shelves.map(
+                                            (s) => DropdownMenuItem<String?>(
+                                              value: s.id,
+                                              child: Text(
+                                                s.name,
+                                                style: AppTypography.bodyLarge,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                        onChanged: widget.onMoveShelf,
                                       ),
-                                    ],
-                                    onChanged: widget.onMoveShelf,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1592,7 +1654,9 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                 // editor mode based on _editingNoteId.
                 SizedBox(
                   width: 320,
-                  child: _editingNoteId == null
+                  child: notesLocked
+                      ? _LockedNotesPlaceholder(bookId: book.id)
+                      : _editingNoteId == null
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
