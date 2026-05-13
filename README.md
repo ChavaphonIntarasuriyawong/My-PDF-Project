@@ -153,14 +153,14 @@ firebase deploy --only hosting
 
 Smoke builds are intentionally omitted: the web build is exercised end-to-end by CD, and the Android toolchain has flaked on hosted runners and is outside the D1 deliverable.
 
-Flutter pinned to `3.38.7`.
+Flutter pinned to `3.38.6`.
 
 ### CD
 
 `.github/workflows/cd-web.yml` automates web deploys to Firebase Hosting (project `readtrack-8262c`):
 
 - **Trigger:** push to `main` (live channel) and pull requests targeting `main` (preview channel, auto-expires after 7 days).
-- **Steps:** checkout, Flutter `3.38.7`, `flutter pub get`, `flutter build web --release`, then `FirebaseExtended/action-hosting-deploy@v0`.
+- **Steps:** checkout, Flutter `3.38.6`, `flutter pub get`, `flutter build web --release`, then `FirebaseExtended/action-hosting-deploy@v0`.
 
 #### Required GitHub secret
 
