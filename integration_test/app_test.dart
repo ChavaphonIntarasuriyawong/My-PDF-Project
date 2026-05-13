@@ -69,13 +69,8 @@ Widget _harness() {
     ],
   );
   return ProviderScope(
-    overrides: [
-      authRepositoryProvider.overrideWithValue(_StubAuthRepo()),
-    ],
-    child: MaterialApp.router(
-      theme: AppTheme.light,
-      routerConfig: router,
-    ),
+    overrides: [authRepositoryProvider.overrideWithValue(_StubAuthRepo())],
+    child: MaterialApp.router(theme: AppTheme.light, routerConfig: router),
   );
 }
 
@@ -83,7 +78,9 @@ void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
   group('App integration (Wave 3)', () {
-    testWidgets('1. unauthenticated launch lands on LoginScreen', (tester) async {
+    testWidgets('1. unauthenticated launch lands on LoginScreen', (
+      tester,
+    ) async {
       await tester.pumpWidget(_harness());
       await tester.pumpAndSettle();
       expect(find.text('Welcome Back'), findsOneWidget);
@@ -119,7 +116,9 @@ void main() {
       expect(find.text('Please enter email and password'), findsOneWidget);
     });
 
-    testWidgets('4. PhoneFrame skipped on native, exercised on web', (tester) async {
+    testWidgets('4. PhoneFrame skipped on native, exercised on web', (
+      tester,
+    ) async {
       // _PhoneFrame is private to main.dart, so we assert only the platform
       // flag wiring contract — kIsWeb decides whether the frame applies.
       // On non-web this is a no-op smoke check; on web it confirms the test

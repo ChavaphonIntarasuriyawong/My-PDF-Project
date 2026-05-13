@@ -1,12 +1,15 @@
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import '../../../shared/layout/responsive.dart';
 import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/app_modal.dart';
+import '../../../shared/widgets/desktop_note_editor_panel.dart';
 import '../../../shared/widgets/labeled_text_field.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../reader/presentation/note_edit_screen.dart';
@@ -69,6 +72,41 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
       if (!mounted) return;
       setState(() => _selectedNoteIds.removeAll(stale));
     });
+  }
+
+  void _confirmDeleteNote(BuildContext context, WidgetRef ref, String noteId) {
+    showAppModal(
+      context: context,
+      builder: (ctx) => AppModal(
+        title: 'Delete Note',
+        titleIcon: Icons.delete_outline,
+        confirmLabel: 'Delete',
+        confirmDestructive: true,
+        body: Text(
+          'This note will be permanently deleted. This action cannot be undone.',
+          style: AppTypography.bodyMedium,
+        ),
+        onConfirm: () async {
+          final ok = await ref
+              .read(libraryControllerProvider.notifier)
+              .deleteNotes([noteId]);
+          if (ctx.mounted) Navigator.of(ctx).pop();
+          if (!ctx.mounted) return;
+          if (ok) {
+            ScaffoldMessenger.of(
+              ctx,
+            ).showSnackBar(const SnackBar(content: Text('1 note deleted')));
+          } else {
+            final err = ref.read(libraryControllerProvider).error;
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(err?.toString() ?? 'Could not delete note'),
+              ),
+            );
+          }
+        },
+      ),
+    );
   }
 
   void _confirmDeleteSelected() {
@@ -314,7 +352,7 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       items: [
         for (final entry in const [
-          ('edit', 'Edit'),
+          ('edit', 'Edit name'),
           ('delete', 'Delete'),
           ('move', 'Move to'),
           ('status', 'Status'),
@@ -355,6 +393,52 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
   @override
   Widget build(BuildContext context) {
     final bookAsync = ref.watch(bookByIdProvider(bookId));
+
+    if (kIsWeb && isDesktop(context)) {
+      return EscapePopScope(
+        onEscape: () => context.canPop() ? context.pop() : context.go('/home'),
+        child: Scaffold(
+          // Darker page surface so cover + notes cards pop against the bg.
+          backgroundColor: AppColors.surfaceMuted,
+          body: bookAsync.when(
+            loading: () => const Center(child: CircularProgressIndicator()),
+            error: (e, _) => Center(
+              child: Text('Error: $e', style: AppTypography.bodyMedium),
+            ),
+            data: (book) {
+              if (book == null) {
+                return Center(
+                  child: Text(
+                    'Book not found',
+                    style: AppTypography.bodyMedium,
+                  ),
+                );
+              }
+              return _DesktopBookInfoBody(
+                book: book,
+                shelves: ref.watch(shelvesProvider).valueOrNull ?? [],
+                notes:
+                    ref.watch(notesByBookProvider(book.id)).valueOrNull ?? [],
+                onBack: () =>
+                    context.canPop() ? context.pop() : context.go('/home'),
+                onEdit: () => _showRenameModal(context, ref, book),
+                onMoveShelf: (sid) async {
+                  await ref
+                      .read(libraryControllerProvider.notifier)
+                      .moveBook(book.id, sid ?? '');
+                },
+                onShowStatusModal: () => _showStatusModal(context, ref, book),
+                onDeleteNote: (noteId) =>
+                    _confirmDeleteNote(context, ref, noteId),
+                onDeleteBook: () => _showDeleteModal(context, ref),
+                onOpenReader: () => context.push('/book/${book.id}/reading'),
+                onLock: () => _showLockSetupSheet(book),
+              );
+            },
+          ),
+        ),
+      );
+    }
 
     return EscapePopScope(
       onEscape: () => context.canPop() ? context.pop() : context.go('/home'),
@@ -1147,6 +1231,647 @@ class _CoverPlaceholder extends StatelessWidget {
                 color: AppColors.primary,
               ),
             ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Desktop body — Figma "Full PDF Reader & Notes - Desktop" frame.
+// 3-column row inside the shell: [back+title], [cover + edit + progress +
+// settings card], [annotated insights list + Add Note + Delete buttons].
+// All controllers / providers reused from the mobile path — only layout
+// changes.
+// ──────────────────────────────────────────────────────────────────────────
+
+class _DesktopBookInfoBody extends ConsumerStatefulWidget {
+  final BookModel book;
+  final List<BookshelfModel> shelves;
+  final List<NoteModel> notes;
+  final VoidCallback onBack;
+  final VoidCallback onEdit;
+  final ValueChanged<String?> onMoveShelf;
+  final VoidCallback onShowStatusModal;
+  final ValueChanged<String> onDeleteNote;
+  final VoidCallback onDeleteBook;
+  final VoidCallback onOpenReader;
+  final VoidCallback onLock;
+
+  const _DesktopBookInfoBody({
+    required this.book,
+    required this.shelves,
+    required this.notes,
+    required this.onBack,
+    required this.onEdit,
+    required this.onMoveShelf,
+    required this.onShowStatusModal,
+    required this.onDeleteNote,
+    required this.onDeleteBook,
+    required this.onOpenReader,
+    required this.onLock,
+  });
+
+  @override
+  ConsumerState<_DesktopBookInfoBody> createState() =>
+      _DesktopBookInfoBodyState();
+}
+
+class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
+  /// `null` = list view, `''` = creating new, real id = editing existing.
+  /// UI-local state (CLAUDE.md allows setState for non-shared UI flags).
+  String? _editingNoteId;
+
+  void _openEditor(String? noteId) {
+    setState(() => _editingNoteId = noteId ?? '');
+  }
+
+  void _closeEditor() {
+    if (_editingNoteId == null) return;
+    setState(() => _editingNoteId = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final book = widget.book;
+    final shelves = widget.shelves;
+    final notes = widget.notes;
+    final thumbAsync = book.link.isNotEmpty
+        ? ref.watch(pdfThumbnailProvider(book.link))
+        : const AsyncValue<Uint8List?>.data(null);
+    final progress = book.totalPages > 0
+        ? (book.currentPage / book.totalPages).clamp(0.0, 1.0)
+        : 0.0;
+    final pct = (progress * 100).round();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(48, 24, 48, 32),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Top bar: back arrow only — title moves into the cover column below.
+          Row(
+            children: [
+              Semantics(
+                button: true,
+                label: 'Back',
+                child: GestureDetector(
+                  onTap: widget.onBack,
+                  child: Container(
+                    width: 40,
+                    height: 40,
+                    alignment: Alignment.center,
+                    child: const Icon(
+                      Icons.arrow_back,
+                      color: AppColors.primary,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+              const Spacer(),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Center: cover + pencil/lock + form — scrolls as one body.
+                Expanded(
+                  flex: 3,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        // Title sits above the cover, centered within this column.
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 480),
+                          child: Text(
+                            book.title,
+                            style: AppTypography.headlineMedium,
+                            textAlign: TextAlign.center,
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(
+                            maxWidth: 360,
+                            maxHeight: 480,
+                          ),
+                          child: AspectRatio(
+                            aspectRatio: 3 / 4,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: AppColors.surface,
+                                borderRadius: BorderRadius.circular(8),
+                                boxShadow: const [
+                                  BoxShadow(
+                                    color: Color(0x14191C1D),
+                                    blurRadius: 32,
+                                    offset: Offset(0, 8),
+                                  ),
+                                ],
+                              ),
+                              clipBehavior: Clip.antiAlias,
+                              child: thumbAsync.when(
+                                loading: () =>
+                                    const _CoverPlaceholder(loading: true),
+                                error: (_, _) => const _CoverPlaceholder(),
+                                data: (bytes) => bytes != null
+                                    ? Image.memory(bytes, fit: BoxFit.cover)
+                                    : const _CoverPlaceholder(),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        // Progress strip — bar + percent on one row.
+                        ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 360),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(2),
+                                  child: LinearProgressIndicator(
+                                    value: progress,
+                                    minHeight: 3,
+                                    backgroundColor: AppColors.progressTrack,
+                                    valueColor: const AlwaysStoppedAnimation(
+                                      AppColors.primary,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Text(
+                                '$pct%',
+                                style: AppTypography.labelSmall.copyWith(
+                                  color: AppColors.primary,
+                                  letterSpacing: 0.8,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        // Settings card
+                        Container(
+                          decoration: BoxDecoration(
+                            color: AppColors.surface,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.borderHairline),
+                          ),
+                          padding: const EdgeInsets.all(24),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'PDF LINK NAME',
+                                style: AppTypography.sectionMeta,
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                width: double.infinity,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  book.title,
+                                  style: AppTypography.bodyLarge.copyWith(
+                                    color: AppColors.textPrimary,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text('SHELF', style: AppTypography.sectionMeta),
+                              const SizedBox(height: 8),
+                              Container(
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceMuted,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String?>(
+                                    value: book.shelfId.isEmpty
+                                        ? null
+                                        : book.shelfId,
+                                    isExpanded: true,
+                                    hint: Text(
+                                      'No Shelf',
+                                      style: AppTypography.bodyLarge,
+                                    ),
+                                    items: [
+                                      DropdownMenuItem<String?>(
+                                        value: null,
+                                        child: Text(
+                                          'No Shelf',
+                                          style: AppTypography.bodyLarge,
+                                        ),
+                                      ),
+                                      ...shelves.map(
+                                        (s) => DropdownMenuItem<String?>(
+                                          value: s.id,
+                                          child: Text(
+                                            s.name,
+                                            style: AppTypography.bodyLarge,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: widget.onMoveShelf,
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              Text('STATUS', style: AppTypography.sectionMeta),
+                              const SizedBox(height: 8),
+                              Semantics(
+                                button: true,
+                                label: 'Change status',
+                                child: GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: widget.onShowStatusModal,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: AppColors.surfaceMuted,
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 16,
+                                      vertical: 12,
+                                    ),
+                                    child: Row(
+                                      children: [
+                                        StatusBadge(book.status),
+                                        const Spacer(),
+                                        const Icon(
+                                          Icons.expand_more,
+                                          color: AppColors.textSecondary,
+                                          size: 20,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 24),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: Semantics(
+                                  button: true,
+                                  label: 'Edit book name',
+                                  child: GestureDetector(
+                                    onTap: widget.onEdit,
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 24,
+                                        vertical: 10,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        gradient: AppColors.primaryGradient,
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Text(
+                                        'Edit name',
+                                        style: AppTypography.labelButton
+                                            .copyWith(
+                                              fontSize: 14,
+                                              height: 1.0,
+                                            ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Fixed action column between cover and notes — pencil
+                // (open reader) + lock toggle. Doesn't scroll with the page.
+                Padding(
+                  padding: const EdgeInsets.only(top: 96),
+                  child: Column(
+                    children: [
+                      _DesktopCircleAction(
+                        icon: Icons.menu_book_outlined,
+                        label: 'Open reader',
+                        onTap: widget.onOpenReader,
+                      ),
+                      const SizedBox(height: 16),
+                      _DesktopCircleAction(
+                        icon: book.isLocked
+                            ? Icons.lock
+                            : Icons.lock_open_outlined,
+                        label: book.isLocked ? 'Manage lock' : 'Set up lock',
+                        onTap: widget.onLock,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                // Right: notes side panel — fixed beside the scrolling
+                // center column. Branches between list mode and inline
+                // editor mode based on _editingNoteId.
+                SizedBox(
+                  width: 320,
+                  child: _editingNoteId == null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Annotated Insights (${notes.length})',
+                              style: AppTypography.titleLarge,
+                            ),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: notes.isEmpty
+                                  ? Container(
+                                      padding: const EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surface,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: AppColors.borderHairline,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'No notes yet. Tap "Add Note" to start.',
+                                        style: AppTypography.bodyMedium,
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      itemCount: notes.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(height: 12),
+                                      itemBuilder: (ctx, i) => _DesktopNoteCard(
+                                        note: notes[i],
+                                        onTap: () => _openEditor(notes[i].id),
+                                        onMenuSelected: (action) {
+                                          if (action == 'edit') {
+                                            _openEditor(notes[i].id);
+                                          } else if (action == 'delete') {
+                                            widget.onDeleteNote(notes[i].id);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(height: 16),
+                            _DesktopActionButton(
+                              label: 'Add Note',
+                              icon: Icons.add_comment_outlined,
+                              color: AppColors.primary,
+                              onTap: () => _openEditor(null),
+                            ),
+                            const SizedBox(height: 8),
+                            _DesktopActionButton(
+                              label: 'Delete PDF',
+                              icon: Icons.delete_outline,
+                              color: AppColors.primary,
+                              onTap: widget.onDeleteBook,
+                            ),
+                          ],
+                        )
+                      : DesktopNoteEditorPanel(
+                          // Re-key on id swap so init reloads controllers
+                          // when the user taps a different card while the
+                          // editor is already open.
+                          key: ValueKey(_editingNoteId ?? 'new'),
+                          bookId: book.id,
+                          noteId: _editingNoteId!.isEmpty
+                              ? null
+                              : _editingNoteId,
+                          onClose: _closeEditor,
+                        ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopNoteCard extends StatelessWidget {
+  final NoteModel note;
+  final VoidCallback onTap;
+  final ValueChanged<String>? onMenuSelected;
+  const _DesktopNoteCard({
+    required this.note,
+    required this.onTap,
+    this.onMenuSelected,
+  });
+
+  String _formatDate(DateTime d) {
+    final diff = DateTime.now().difference(d);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
+    if (diff.inDays < 1) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    return '${d.day}/${d.month}/${d.year}';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final title = note.title.trim().isEmpty ? 'Untitled' : note.title.trim();
+    final preview = note.content.trim().isEmpty
+        ? '(empty note)'
+        : note.content.trim();
+    return Material(
+      color: AppColors.surface,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderHairline),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: AppTypography.titleMedium,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _formatDate(note.updatedAt),
+                    style: AppTypography.captionRegular.copyWith(
+                      color: AppColors.textSecondary,
+                      letterSpacing: 0,
+                    ),
+                  ),
+                  if (onMenuSelected != null)
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: PopupMenuButton<String>(
+                        tooltip: 'Note options',
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(
+                          Icons.more_vert,
+                          size: 18,
+                          color: AppColors.textMuted,
+                        ),
+                        color: AppColors.surface,
+                        elevation: 8,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        onSelected: (v) => onMenuSelected!.call(v),
+                        itemBuilder: (_) => [
+                          PopupMenuItem<String>(
+                            value: 'edit',
+                            height: 44,
+                            child: Text(
+                              'Edit name',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'delete',
+                            height: 44,
+                            child: Text(
+                              'Delete',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.error,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                preview,
+                style: AppTypography.bodyMedium,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopCircleAction extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+  const _DesktopCircleAction({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: Tooltip(
+        message: label,
+        child: GestureDetector(
+          onTap: onTap,
+          child: Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x29191C1D),
+                  blurRadius: 12,
+                  offset: Offset(0, 4),
+                ),
+              ],
+            ),
+            alignment: Alignment.center,
+            child: Icon(icon, color: AppColors.surface, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopActionButton extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final Color color;
+  final VoidCallback onTap;
+  const _DesktopActionButton({
+    required this.label,
+    required this.icon,
+    required this.color,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: label,
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(vertical: 14),
+          decoration: BoxDecoration(
+            color: color,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon, size: 18, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: AppTypography.labelButton.copyWith(
+                  fontSize: 14,
+                  height: 1.0,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

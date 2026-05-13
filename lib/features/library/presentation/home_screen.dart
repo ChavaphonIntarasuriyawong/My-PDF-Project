@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
@@ -5,12 +6,14 @@ import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/layout/responsive.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/app_modal.dart';
 import '../../../shared/widgets/labeled_text_field.dart';
 import '../../../shared/widgets/pdf_card.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../auth/presentation/auth_providers.dart';
+import '../../auth/domain/user_model.dart';
 import '../domain/book_model.dart';
 import '../domain/bookshelf_model.dart';
 import 'library_controller.dart';
@@ -35,6 +38,67 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     if (h < 12) return 'Good Morning';
     if (h < 17) return 'Good Afternoon';
     return 'Good Evening';
+  }
+
+  void _showShelfMenu(String shelfId, String shelfName, String action) {
+    if (action == 'edit') {
+      _showRenameShelfModal(shelfId, shelfName);
+    } else if (action == 'delete') {
+      _showDeleteShelfModal(shelfId);
+    }
+  }
+
+  void _showRenameShelfModal(String shelfId, String current) {
+    final ctrl = TextEditingController(text: current);
+    showAppModal(
+      context: context,
+      builder: (ctx) => AppModal(
+        title: 'Edit shelf name',
+        confirmLabel: 'Confirm',
+        body: LabeledTextField(
+          label: 'Shelf Name',
+          hint: current,
+          controller: ctrl,
+        ),
+        onConfirm: () async {
+          if (ctrl.text.trim().isEmpty) return;
+          final ok = await ref
+              .read(libraryControllerProvider.notifier)
+              .updateShelfName(shelfId, ctrl.text.trim());
+          if (ok && ctx.mounted) {
+            Navigator.of(ctx).pop();
+          } else if (ctx.mounted) {
+            final err = ref.read(libraryControllerProvider).error;
+            ScaffoldMessenger.of(ctx).showSnackBar(
+              SnackBar(
+                content: Text(err?.toString() ?? 'Could not rename shelf'),
+              ),
+            );
+          }
+        },
+      ),
+    );
+  }
+
+  void _showDeleteShelfModal(String shelfId) {
+    showAppModal(
+      context: context,
+      builder: (ctx) => AppModal(
+        title: 'Delete shelf',
+        confirmLabel: 'Confirm',
+        confirmDestructive: true,
+        body: Text(
+          'Delete this shelf? Books inside will not be deleted — they will be moved out of the shelf and stay in your library.',
+          style: AppTypography.bodyMedium,
+        ),
+        onConfirm: () async {
+          await ref
+              .read(libraryControllerProvider.notifier)
+              .deleteShelf(shelfId);
+          if (ctx.mounted) Navigator.of(ctx).pop();
+        },
+      ),
+    );
   }
 
   void _showNewShelfModal() {
@@ -103,6 +167,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         .where((b) => b.lastReadAt != null)
         .take(5)
         .toList(growable: false);
+
+    if (kIsWeb && isDesktop(context)) {
+      return Scaffold(
+        backgroundColor: AppColors.background,
+        body: _DesktopBody(
+          greeting: _greeting(),
+          user: user,
+          books: books,
+          shelves: shelves.valueOrNull ?? [],
+          recentlyReadBooks: recentlyReadBooks,
+          onNewShelf: _showNewShelfModal,
+          onShelfMenu: _showShelfMenu,
+          loading: shelves.isLoading || allBooks.isLoading,
+        ),
+      );
+    }
+
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppColors.background,
@@ -687,6 +768,293 @@ class _ShimmerList extends StatelessWidget {
           decoration: BoxDecoration(
             color: AppColors.surfaceMuted,
             borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Desktop body — sidebar is supplied by `DesktopShell` in main.dart. Only
+// the main-pane content lives here. Mobile body is fully untouched above.
+// ──────────────────────────────────────────────────────────────────────────
+
+class _DesktopBody extends StatelessWidget {
+  final String greeting;
+  final UserModel? user;
+  final List<BookModel> books;
+  final List<BookshelfModel> shelves;
+  final List<BookModel> recentlyReadBooks;
+  final VoidCallback onNewShelf;
+  final void Function(String shelfId, String shelfName, String action)
+  onShelfMenu;
+  final bool loading;
+
+  const _DesktopBody({
+    required this.greeting,
+    required this.user,
+    required this.books,
+    required this.shelves,
+    required this.recentlyReadBooks,
+    required this.onNewShelf,
+    required this.onShelfMenu,
+    required this.loading,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final name = user?.name ?? '';
+    return SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(64, 32, 64, 48),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '$greeting, $name'.toUpperCase(),
+            style: AppTypography.labelSmall.copyWith(
+              letterSpacing: 1.0,
+              color: AppColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text('Your Digital Library', style: AppTypography.headlineLarge),
+          const SizedBox(height: 32),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  'Book Shelves',
+                  style: AppTypography.titleLarge.copyWith(
+                    color: AppColors.primary,
+                  ),
+                ),
+              ),
+              Semantics(
+                button: true,
+                label: 'Create new shelf',
+                child: InkWell(
+                  onTap: onNewShelf,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.add,
+                          size: 14,
+                          color: AppColors.primary,
+                        ),
+                        const SizedBox(width: 6),
+                        Text(
+                          'NEW SHELF',
+                          style: AppTypography.labelSmall.copyWith(
+                            color: AppColors.primary,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.8,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          LayoutBuilder(
+            builder: (ctx, constraints) {
+              // 4 cards per row at ~24% of the row width with 16px spacing.
+              const spacing = 16.0;
+              final available = constraints.maxWidth;
+              final cardWidth = ((available - spacing * 3) / 4).clamp(
+                160.0,
+                320.0,
+              );
+              final cards = <Widget>[
+                _DesktopShelfCard(
+                  name: 'All',
+                  count: books.length,
+                  width: cardWidth,
+                  onTap: () => context.push('/shelf/$kAllShelfId'),
+                  showMenu: false,
+                ),
+                ...shelves.map(
+                  (s) => _DesktopShelfCard(
+                    name: s.name,
+                    count: books.where((b) => b.shelfId == s.id).length,
+                    width: cardWidth,
+                    onTap: () => context.push('/shelf/${s.id}'),
+                    onMenuSelected: (action) =>
+                        onShelfMenu(s.id, s.name, action),
+                  ),
+                ),
+              ];
+              return Wrap(
+                spacing: spacing,
+                runSpacing: spacing,
+                children: cards,
+              );
+            },
+          ),
+          const SizedBox(height: 40),
+          Text(
+            'Recent Readings',
+            style: AppTypography.titleLarge.copyWith(color: AppColors.primary),
+          ),
+          const SizedBox(height: 16),
+          if (loading && recentlyReadBooks.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 48),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (recentlyReadBooks.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 48),
+              child: Text(
+                'No recently read books yet.',
+                style: AppTypography.bodyMedium,
+              ),
+            )
+          else
+            SizedBox(
+              height: 410,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: recentlyReadBooks.length,
+                separatorBuilder: (_, _) => const SizedBox(width: 16),
+                itemBuilder: (ctx, i) {
+                  final b = recentlyReadBooks[i];
+                  return SizedBox(
+                    width: 240,
+                    child: PdfCard(
+                      book: b,
+                      onTap: () => context.push('/book/${b.id}'),
+                    ),
+                  );
+                },
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DesktopShelfCard extends StatelessWidget {
+  final String name;
+  final int count;
+  final double width;
+  final VoidCallback onTap;
+  final bool showMenu;
+  final ValueChanged<String>? onMenuSelected;
+  const _DesktopShelfCard({
+    required this.name,
+    required this.count,
+    required this.width,
+    required this.onTap,
+    this.showMenu = true,
+    this.onMenuSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Shelf: $name, $count items',
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: width,
+          height: 88,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AppColors.surface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.borderHairline),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.folder_rounded,
+                    size: 18,
+                    color: AppColors.primary,
+                  ),
+                  const Spacer(),
+                  Text(
+                    '$count items',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const Spacer(),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: AppTypography.titleMedium.copyWith(
+                        color: AppColors.primary,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (showMenu)
+                    SizedBox(
+                      width: 28,
+                      height: 28,
+                      child: PopupMenuButton<String>(
+                        tooltip: 'Shelf options',
+                        padding: EdgeInsets.zero,
+                        icon: const Icon(
+                          Icons.more_vert,
+                          size: 16,
+                          color: AppColors.textMuted,
+                        ),
+                        color: AppColors.surface,
+                        elevation: 8,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        onSelected: (v) => onMenuSelected?.call(v),
+                        itemBuilder: (_) => [
+                          PopupMenuItem<String>(
+                            value: 'edit',
+                            height: 44,
+                            child: Text(
+                              'Edit',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                          PopupMenuItem<String>(
+                            value: 'delete',
+                            height: 44,
+                            child: Text(
+                              'Delete',
+                              style: AppTypography.bodyMedium.copyWith(
+                                color: AppColors.primary,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                ],
+              ),
+            ],
           ),
         ),
       ),

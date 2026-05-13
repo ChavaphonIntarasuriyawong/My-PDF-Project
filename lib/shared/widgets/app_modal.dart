@@ -33,118 +33,123 @@ class _AppModalState extends State<AppModal> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       clipBehavior: Clip.antiAlias,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (widget.titleIcon != null)
-                  Row(
-                    children: [
-                      Icon(
-                        widget.titleIcon,
-                        size: 22,
-                        color: widget.confirmDestructive
-                            ? AppColors.error
-                            : AppColors.primary,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          widget.title,
-                          style: AppTypography.headlineMedium.copyWith(
-                            color: widget.confirmDestructive
-                                ? AppColors.error
-                                : null,
+      // Cap modal width on wide viewports — Dialog would otherwise grow to
+      // its parent constraints and look gigantic on desktop.
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(32),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (widget.titleIcon != null)
+                    Row(
+                      children: [
+                        Icon(
+                          widget.titleIcon,
+                          size: 22,
+                          color: widget.confirmDestructive
+                              ? AppColors.error
+                              : AppColors.primary,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            widget.title,
+                            style: AppTypography.headlineMedium.copyWith(
+                              color: widget.confirmDestructive
+                                  ? AppColors.error
+                                  : null,
+                            ),
                           ),
                         ),
-                      ),
-                    ],
-                  )
-                else
-                  Text(widget.title, style: AppTypography.headlineMedium),
-                const SizedBox(height: 16),
-                widget.body,
-              ],
+                      ],
+                    )
+                  else
+                    Text(widget.title, style: AppTypography.headlineMedium),
+                  const SizedBox(height: 16),
+                  widget.body,
+                ],
+              ),
             ),
-          ),
-          Container(
-            width: double.infinity,
-            color: AppColors.surfaceMuted,
-            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
-            child: Row(
-              children: [
-                Expanded(
-                  child: SizedBox(
-                    height: 52,
-                    child: OutlinedButton(
-                      onPressed: _loading
-                          ? null
-                          : () => Navigator.of(context).pop(),
-                      style: OutlinedButton.styleFrom(
-                        side: const BorderSide(
-                          color: AppColors.primary,
-                          width: 1.5,
+            Container(
+              width: double.infinity,
+              color: AppColors.surfaceMuted,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 52,
+                      child: OutlinedButton(
+                        onPressed: _loading
+                            ? null
+                            : () => Navigator.of(context).pop(),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(
+                            color: AppColors.primary,
+                            width: 1.5,
+                          ),
+                          foregroundColor: AppColors.primary,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
                         ),
-                        foregroundColor: AppColors.primary,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: Text(
-                        'Cancel',
-                        style: AppTypography.labelButton.copyWith(
-                          color: AppColors.primary,
-                          height: 1.0,
+                        child: Text(
+                          'Cancel',
+                          style: AppTypography.labelButton.copyWith(
+                            color: AppColors.primary,
+                            height: 1.0,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: widget.confirmDestructive
-                      ? _DestructiveButton(
-                          label: widget.confirmLabel,
-                          loading: _loading,
-                          onPressed: _loading
-                              ? null
-                              : () async {
-                                  setState(() => _loading = true);
-                                  try {
-                                    await widget.onConfirm();
-                                  } finally {
-                                    if (mounted) {
-                                      setState(() => _loading = false);
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: widget.confirmDestructive
+                        ? _DestructiveButton(
+                            label: widget.confirmLabel,
+                            loading: _loading,
+                            onPressed: _loading
+                                ? null
+                                : () async {
+                                    setState(() => _loading = true);
+                                    try {
+                                      await widget.onConfirm();
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _loading = false);
+                                      }
                                     }
-                                  }
-                                },
-                        )
-                      : GradientButton(
-                          label: widget.confirmLabel,
-                          loading: _loading,
-                          onPressed: _loading
-                              ? null
-                              : () async {
-                                  setState(() => _loading = true);
-                                  try {
-                                    await widget.onConfirm();
-                                  } finally {
-                                    if (mounted) {
-                                      setState(() => _loading = false);
+                                  },
+                          )
+                        : GradientButton(
+                            label: widget.confirmLabel,
+                            loading: _loading,
+                            onPressed: _loading
+                                ? null
+                                : () async {
+                                    setState(() => _loading = true);
+                                    try {
+                                      await widget.onConfirm();
+                                    } finally {
+                                      if (mounted) {
+                                        setState(() => _loading = false);
+                                      }
                                     }
-                                  }
-                                },
-                          borderRadius: 12,
-                        ),
-                ),
-              ],
+                                  },
+                            borderRadius: 12,
+                          ),
+                  ),
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

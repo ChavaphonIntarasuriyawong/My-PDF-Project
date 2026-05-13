@@ -1,9 +1,12 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_routes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/layout/responsive.dart';
+import '../../../shared/widgets/desktop_auth_shell.dart';
 import '../../../shared/widgets/escape_pop_scope.dart';
 import '../../../shared/widgets/gradient_button.dart';
 import '../../../shared/widgets/labeled_text_field.dart';
@@ -78,6 +81,36 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         ref.read(authControllerProvider.notifier).clearError();
       }
     });
+
+    if (kIsWeb && isDesktop(context)) {
+      return EscapePopScope(
+        onEscape: () =>
+            context.canPop() ? context.pop() : context.go(AppRoutes.login),
+        child: Scaffold(
+          backgroundColor: AppColors.background,
+          body: _DesktopBody(
+            nameCtrl: _nameCtrl,
+            emailCtrl: _emailCtrl,
+            passwordCtrl: _passwordCtrl,
+            confirmCtrl: _confirmCtrl,
+            nameFocus: _nameFocus,
+            emailFocus: _emailFocus,
+            passwordFocus: _passwordFocus,
+            confirmFocus: _confirmFocus,
+            obscurePassword: _obscurePassword,
+            obscureConfirm: _obscureConfirm,
+            loading: isLoading,
+            onSubmit: _submit,
+            onTogglePassword: () =>
+                setState(() => _obscurePassword = !_obscurePassword),
+            onToggleConfirm: () =>
+                setState(() => _obscureConfirm = !_obscureConfirm),
+            onSignIn: () =>
+                context.canPop() ? context.pop() : context.go(AppRoutes.login),
+          ),
+        ),
+      );
+    }
 
     return EscapePopScope(
       onEscape: () =>
@@ -281,6 +314,156 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DesktopBody extends StatelessWidget {
+  final TextEditingController nameCtrl;
+  final TextEditingController emailCtrl;
+  final TextEditingController passwordCtrl;
+  final TextEditingController confirmCtrl;
+  final FocusNode nameFocus;
+  final FocusNode emailFocus;
+  final FocusNode passwordFocus;
+  final FocusNode confirmFocus;
+  final bool obscurePassword;
+  final bool obscureConfirm;
+  final bool loading;
+  final VoidCallback onSubmit;
+  final VoidCallback onTogglePassword;
+  final VoidCallback onToggleConfirm;
+  final VoidCallback onSignIn;
+
+  const _DesktopBody({
+    required this.nameCtrl,
+    required this.emailCtrl,
+    required this.passwordCtrl,
+    required this.confirmCtrl,
+    required this.nameFocus,
+    required this.emailFocus,
+    required this.passwordFocus,
+    required this.confirmFocus,
+    required this.obscurePassword,
+    required this.obscureConfirm,
+    required this.loading,
+    required this.onSubmit,
+    required this.onTogglePassword,
+    required this.onToggleConfirm,
+    required this.onSignIn,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DesktopAuthShell(
+      brandingOnLeft: false,
+      branding: const DesktopAuthBranding(
+        tagline:
+            'Every great insight begins with a single page. Curate your knowledge with us',
+      ),
+      form: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Join the Collection', style: AppTypography.headlineLarge),
+            const SizedBox(height: 24),
+            LabeledTextField(
+              label: 'Username',
+              hint: 'Johnathan',
+              controller: nameCtrl,
+              focusNode: nameFocus,
+              textInputAction: TextInputAction.next,
+              onSubmitted: () => emailFocus.requestFocus(),
+            ),
+            const SizedBox(height: 20),
+            LabeledTextField(
+              label: 'Email',
+              hint: 'johnathan@gmail.com',
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              focusNode: emailFocus,
+              textInputAction: TextInputAction.next,
+              onSubmitted: () => passwordFocus.requestFocus(),
+            ),
+            const SizedBox(height: 20),
+            LabeledTextField(
+              label: 'Password',
+              hint: '••••••••',
+              controller: passwordCtrl,
+              obscureText: obscurePassword,
+              focusNode: passwordFocus,
+              textInputAction: TextInputAction.next,
+              onSubmitted: () => confirmFocus.requestFocus(),
+              suffix: IconButton(
+                tooltip: obscurePassword ? 'Show password' : 'Hide password',
+                icon: Icon(
+                  obscurePassword
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: AppColors.textMuted,
+                  size: 20,
+                ),
+                onPressed: onTogglePassword,
+              ),
+            ),
+            const SizedBox(height: 20),
+            LabeledTextField(
+              label: 'Confirm Password',
+              hint: '••••••••',
+              controller: confirmCtrl,
+              obscureText: obscureConfirm,
+              focusNode: confirmFocus,
+              textInputAction: TextInputAction.done,
+              onSubmitted: onSubmit,
+              suffix: IconButton(
+                tooltip: obscureConfirm ? 'Show password' : 'Hide password',
+                icon: Icon(
+                  obscureConfirm
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  color: AppColors.textMuted,
+                  size: 20,
+                ),
+                onPressed: onToggleConfirm,
+              ),
+            ),
+            const SizedBox(height: 24),
+            GradientButton(
+              label: 'Sign Up',
+              loading: loading,
+              onPressed: onSubmit,
+            ),
+            const SizedBox(height: 48),
+            Center(
+              child: Semantics(
+                button: true,
+                label: 'Already have an account? Sign in',
+                child: GestureDetector(
+                  onTap: onSignIn,
+                  child: ExcludeSemantics(
+                    child: RichText(
+                      text: TextSpan(
+                        text: 'Already have an account? ',
+                        style: AppTypography.bodyMedium,
+                        children: [
+                          TextSpan(
+                            text: 'Sign in',
+                            style: AppTypography.bodyMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

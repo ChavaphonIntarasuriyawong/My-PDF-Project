@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +7,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
+import '../../../shared/layout/responsive.dart';
 import '../../auth/data/biometric_auth_service.dart';
 import 'library_controller.dart';
 import 'library_providers.dart';
@@ -63,7 +65,6 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
   // Biometric availability — probed once on mount, then cached.
   bool _biometricChecked = false;
   bool _biometricSupported = false;
-  bool _biometricEnabled = false;
   bool _biometricInProgress = false;
 
   bool get _inputDisabled => _cooldownSecondsLeft > 0;
@@ -135,11 +136,9 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
   Future<void> _probeBiometric() async {
     final svc = BiometricAuthService();
     final supported = await svc.isDeviceSupported();
-    final enabled = supported && await svc.isEnabledForUser();
     if (!mounted) return;
     setState(() {
       _biometricSupported = supported;
-      _biometricEnabled = enabled;
       _biometricChecked = true;
     });
   }
@@ -233,8 +232,7 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
 
   @override
   Widget build(BuildContext context) {
-    final showBiometric =
-        _biometricChecked && _biometricSupported && _biometricEnabled;
+    final showBiometric = _biometricChecked && _biometricSupported;
 
     return Focus(
       autofocus: true,
@@ -273,42 +271,52 @@ class _BookLockScreenState extends ConsumerState<BookLockScreen>
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: 24),
-                      _LockHeader(),
-                      const SizedBox(height: 32),
-                      AnimatedBuilder(
-                        animation: _shake,
-                        builder: (_, child) => Transform.translate(
-                          offset: Offset(_shake.value, 0),
-                          child: child,
-                        ),
-                        child: _PinDots(filled: _pin.length, total: _pinLength),
+                  child: Center(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        maxWidth: kIsWeb && isDesktop(context) ? 720 : 9999,
                       ),
-                      const SizedBox(height: 16),
-                      _StatusLine(
-                        errorText: _errorText,
-                        cooldownSecondsLeft: _cooldownSecondsLeft,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const SizedBox(height: 24),
+                          _LockHeader(),
+                          const SizedBox(height: 32),
+                          AnimatedBuilder(
+                            animation: _shake,
+                            builder: (_, child) => Transform.translate(
+                              offset: Offset(_shake.value, 0),
+                              child: child,
+                            ),
+                            child: _PinDots(
+                              filled: _pin.length,
+                              total: _pinLength,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _StatusLine(
+                            errorText: _errorText,
+                            cooldownSecondsLeft: _cooldownSecondsLeft,
+                          ),
+                          const SizedBox(height: 24),
+                          _Numpad(
+                            disabled: _inputDisabled,
+                            onDigit: _onDigit,
+                            onBackspace: _onBackspace,
+                            highlightedDigit: _highlightedDigit,
+                            highlightBackspace: _highlightBackspace,
+                          ),
+                          if (showBiometric) ...[
+                            const SizedBox(height: 24),
+                            _BiometricButton(
+                              loading: _biometricInProgress,
+                              onTap: _useBiometric,
+                            ),
+                          ],
+                          const SizedBox(height: 24),
+                        ],
                       ),
-                      const SizedBox(height: 24),
-                      _Numpad(
-                        disabled: _inputDisabled,
-                        onDigit: _onDigit,
-                        onBackspace: _onBackspace,
-                        highlightedDigit: _highlightedDigit,
-                        highlightBackspace: _highlightBackspace,
-                      ),
-                      if (showBiometric) ...[
-                        const SizedBox(height: 24),
-                        _BiometricButton(
-                          loading: _biometricInProgress,
-                          onTap: _useBiometric,
-                        ),
-                      ],
-                      const SizedBox(height: 24),
-                    ],
+                    ),
                   ),
                 ),
               ),
