@@ -1571,7 +1571,7 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                   child: Column(
                     children: [
                       _DesktopCircleAction(
-                        icon: Icons.edit_outlined,
+                        icon: Icons.menu_book_outlined,
                         label: 'Open reader',
                         onTap: widget.onOpenReader,
                       ),
