@@ -372,8 +372,7 @@ class _DesktopBody extends StatelessWidget {
           const SizedBox(height: 40),
           books.when(
             loading: () => const Center(child: CircularProgressIndicator()),
-            error: (e, _) =>
-                Text('Error: $e', style: AppTypography.bodyMedium),
+            error: (e, _) => Text('Error: $e', style: AppTypography.bodyMedium),
             data: (list) {
               // Books in a 4-up grid, then the "Add New Document" placeholder
               // ALWAYS on its own row below (matches Figma — it never inlines
@@ -387,11 +386,11 @@ class _DesktopBody extends StatelessWidget {
                       physics: const NeverScrollableScrollPhysics(),
                       gridDelegate:
                           const SliverGridDelegateWithMaxCrossAxisExtent(
-                        maxCrossAxisExtent: 240,
-                        mainAxisSpacing: 24,
-                        crossAxisSpacing: 24,
-                        childAspectRatio: 0.65,
-                      ),
+                            maxCrossAxisExtent: 240,
+                            mainAxisSpacing: 24,
+                            crossAxisSpacing: 24,
+                            childAspectRatio: 0.65,
+                          ),
                       itemCount: list.length,
                       itemBuilder: (ctx, i) {
                         final b = list[i];

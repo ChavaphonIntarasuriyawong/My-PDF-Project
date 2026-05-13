@@ -480,8 +480,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                           _ShelfDropdown(
                             shelves: shelves,
                             value: _urlShelfId,
-                            onChanged: (v) =>
-                                setState(() => _urlShelfId = v),
+                            onChanged: (v) => setState(() => _urlShelfId = v),
                             fontSize: 16,
                           ),
                           const _FieldHelper(
@@ -544,8 +543,7 @@ class _NewBookScreenState extends ConsumerState<NewBookScreen> {
                           _ShelfDropdown(
                             shelves: shelves,
                             value: _fileShelfId,
-                            onChanged: (v) =>
-                                setState(() => _fileShelfId = v),
+                            onChanged: (v) => setState(() => _fileShelfId = v),
                             fontSize: 16,
                           ),
                           const _FieldHelper(

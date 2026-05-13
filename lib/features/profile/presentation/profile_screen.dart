@@ -410,19 +410,13 @@ class _DesktopBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'STATS INTEGRATED',
-                      style: AppTypography.sectionMeta,
-                    ),
+                    Text('STATS INTEGRATED', style: AppTypography.sectionMeta),
                     const SizedBox(height: 12),
                     _DesktopStatCard(label: 'READ', value: '$readCount'),
                     const SizedBox(height: 12),
                     _DesktopStatCard(label: 'NOTES', value: '$notesCount'),
                     const SizedBox(height: 12),
-                    _DesktopStatCard(
-                      label: 'SHELVES',
-                      value: '$shelvesCount',
-                    ),
+                    _DesktopStatCard(label: 'SHELVES', value: '$shelvesCount'),
                   ],
                 ),
               ),
@@ -432,10 +426,7 @@ class _DesktopBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'ACCOUNT SETTINGS',
-                      style: AppTypography.sectionMeta,
-                    ),
+                    Text('ACCOUNT SETTINGS', style: AppTypography.sectionMeta),
                     const SizedBox(height: 12),
                     Container(
                       decoration: BoxDecoration(

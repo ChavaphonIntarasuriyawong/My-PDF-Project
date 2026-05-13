@@ -105,9 +105,8 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                 setState(() => _obscurePassword = !_obscurePassword),
             onToggleConfirm: () =>
                 setState(() => _obscureConfirm = !_obscureConfirm),
-            onSignIn: () => context.canPop()
-                ? context.pop()
-                : context.go(AppRoutes.login),
+            onSignIn: () =>
+                context.canPop() ? context.pop() : context.go(AppRoutes.login),
           ),
         ),
       );

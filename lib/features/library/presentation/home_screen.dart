@@ -870,8 +870,10 @@ class _DesktopBody extends StatelessWidget {
               // 4 cards per row at ~24% of the row width with 16px spacing.
               const spacing = 16.0;
               final available = constraints.maxWidth;
-              final cardWidth =
-                  ((available - spacing * 3) / 4).clamp(160.0, 320.0);
+              final cardWidth = ((available - spacing * 3) / 4).clamp(
+                160.0,
+                320.0,
+              );
               final cards = <Widget>[
                 _DesktopShelfCard(
                   name: 'All',

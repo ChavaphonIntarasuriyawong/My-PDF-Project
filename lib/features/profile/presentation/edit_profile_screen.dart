@@ -405,10 +405,7 @@ class _DesktopBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'STATS INTEGRATED',
-                      style: AppTypography.sectionMeta,
-                    ),
+                    Text('STATS INTEGRATED', style: AppTypography.sectionMeta),
                     const SizedBox(height: 12),
                     _DesktopStat(label: 'READ', value: '$readCount'),
                     const SizedBox(height: 12),
@@ -424,10 +421,7 @@ class _DesktopBody extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'ACCOUNT SETTINGS',
-                      style: AppTypography.sectionMeta,
-                    ),
+                    Text('ACCOUNT SETTINGS', style: AppTypography.sectionMeta),
                     const SizedBox(height: 12),
                     Container(
                       decoration: BoxDecoration(
@@ -442,9 +436,7 @@ class _DesktopBody extends StatelessWidget {
                           const SizedBox(height: 8),
                           Container(
                             decoration: BoxDecoration(
-                              border: Border.all(
-                                color: AppColors.borderSubtle,
-                              ),
+                              border: Border.all(color: AppColors.borderSubtle),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             padding: const EdgeInsets.symmetric(
@@ -480,9 +472,7 @@ class _DesktopBody extends StatelessWidget {
                               vertical: 14,
                             ),
                             decoration: BoxDecoration(
-                              border: Border.all(
-                                color: AppColors.borderSubtle,
-                              ),
+                              border: Border.all(color: AppColors.borderSubtle),
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
@@ -512,12 +502,11 @@ class _DesktopBody extends StatelessWidget {
                                     ),
                                     child: Text(
                                       'Cancel',
-                                      style: AppTypography.labelButton
-                                          .copyWith(
-                                            color: AppColors.textSecondary,
-                                            fontSize: 14,
-                                            height: 1.0,
-                                          ),
+                                      style: AppTypography.labelButton.copyWith(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 14,
+                                        height: 1.0,
+                                      ),
                                     ),
                                   ),
                                 ),

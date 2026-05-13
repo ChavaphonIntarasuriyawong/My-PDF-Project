@@ -18,15 +18,39 @@ import '../../features/auth/presentation/auth_providers.dart';
 /// The router is passed in explicitly because the sidebar renders OUTSIDE the
 /// InheritedGoRouter subtree (it lives in `MaterialApp.router.builder`, above
 /// the Navigator), so `GoRouter.of(context)` / `context.go` would assert.
-class DesktopNavSidebar extends ConsumerWidget {
+class DesktopNavSidebar extends ConsumerStatefulWidget {
   final GoRouter router;
   const DesktopNavSidebar({super.key, required this.router});
 
   static const double width = 220;
 
+  @override
+  ConsumerState<DesktopNavSidebar> createState() => _DesktopNavSidebarState();
+}
+
+class _DesktopNavSidebarState extends ConsumerState<DesktopNavSidebar> {
+  @override
+  void initState() {
+    super.initState();
+    widget.router.routerDelegate.addListener(_onRouteChange);
+  }
+
+  @override
+  void dispose() {
+    widget.router.routerDelegate.removeListener(_onRouteChange);
+    super.dispose();
+  }
+
+  void _onRouteChange() {
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() {});
+      });
+    }
+  }
+
   bool _isActive(String matched, String target) {
     if (target == AppRoutes.home) {
-      // Library tab also owns shelf, book info, and reading screens.
       return matched == AppRoutes.home ||
           matched.startsWith('/shelf/') ||
           (matched.startsWith('/book/') && matched != AppRoutes.newBook);
@@ -56,32 +80,17 @@ class DesktopNavSidebar extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final user = ref.watch(userProfileProvider).valueOrNull;
     final name = user?.name ?? '';
     final email = user?.email ?? '';
-
-    // Wrap in AnimatedBuilder so a route change repaints the active-item
-    // highlight — the router delegate notifies listeners on navigation.
-    return AnimatedBuilder(
-      animation: router.routerDelegate,
-      builder: (context, _) {
-        final matched =
-            router.routerDelegate.currentConfiguration.uri.path;
-        return _buildSidebar(context, ref, name, email, matched);
-      },
-    );
+    final matched = widget.router.routerDelegate.currentConfiguration.uri.path;
+    return _buildSidebar(name, email, matched);
   }
 
-  Widget _buildSidebar(
-    BuildContext context,
-    WidgetRef ref,
-    String name,
-    String email,
-    String matched,
-  ) {
+  Widget _buildSidebar(String name, String email, String matched) {
     return SizedBox(
-      width: width,
+      width: DesktopNavSidebar.width,
       child: DecoratedBox(
         decoration: const BoxDecoration(
           color: AppColors.surfaceMuted,
@@ -167,19 +176,19 @@ class DesktopNavSidebar extends ConsumerWidget {
                 icon: Icons.person_outline,
                 label: 'PROFILE',
                 active: _isActive(matched, AppRoutes.profile),
-                onTap: () => router.go(AppRoutes.profile),
+                onTap: () => widget.router.go(AppRoutes.profile),
               ),
               _NavItem(
                 icon: Icons.menu_book_outlined,
                 label: 'LIBRARY',
                 active: _isActive(matched, AppRoutes.home),
-                onTap: () => router.go(AppRoutes.home),
+                onTap: () => widget.router.go(AppRoutes.home),
               ),
               _NavItem(
                 icon: Icons.add,
                 label: 'CREATE',
                 active: _isActive(matched, AppRoutes.newBook),
-                onTap: () => router.go(AppRoutes.newBook),
+                onTap: () => widget.router.go(AppRoutes.newBook),
               ),
               const Spacer(),
               _NavItem(
@@ -188,7 +197,7 @@ class DesktopNavSidebar extends ConsumerWidget {
                 destructive: true,
                 onTap: () async {
                   await ref.read(authControllerProvider.notifier).logout();
-                  router.go(AppRoutes.login);
+                  widget.router.go(AppRoutes.login);
                 },
               ),
               const SizedBox(height: 16),

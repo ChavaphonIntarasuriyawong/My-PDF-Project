@@ -1130,9 +1130,8 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             ttsActive: _ttsActive,
             ttsSpeaking: _ttsSpeaking,
             onToggleTts: _toggleTts,
-            onToggleKaraoke: () => ref
-                .read(karaokeControllerProvider.notifier)
-                .toggleVisible(),
+            onToggleKaraoke: () =>
+                ref.read(karaokeControllerProvider.notifier).toggleVisible(),
             karaokeVisible: karaokeState.isVisible,
             currentSpeed: _speechRate,
             currentPitch: _pitch,
@@ -1552,7 +1551,8 @@ class _KaraokeSentence {
 // ──────────────────────────────────────────────────────────────────────────
 
 class _DesktopReadingBody extends ConsumerStatefulWidget {
-  final dynamic book; // BookModel — typed as dynamic to avoid extra import nesting.
+  final dynamic
+  book; // BookModel — typed as dynamic to avoid extra import nesting.
   final AsyncValue<String?>? pdfAsync;
   final int currentPage;
   final int totalPages;
@@ -1567,6 +1567,7 @@ class _DesktopReadingBody extends ConsumerStatefulWidget {
   final double currentPitch;
   final ValueChanged<double> onSpeedChange;
   final ValueChanged<double> onPitchChange;
+
   /// Click-to-seek hook forwarded to the SPEECH panel's karaoke pane. Tapping
   /// a word inside the caption invokes this with the char offset of the
   /// tapped word's leading character (in `KaraokeState.fullText` coords).
@@ -1877,13 +1878,16 @@ class _SpeechPanel extends StatelessWidget {
   final double pitch;
   final ValueChanged<double> onSpeedChange;
   final ValueChanged<double> onPitchChange;
+
   /// Whether the karaoke pane is currently active. Renders the inline caption
   /// block below the sliders only when this is true AND [karaokeText] is
   /// non-empty.
   final bool karaokeVisible;
+
   /// Current karaoke full-page text. Empty string while idle (no speak has
   /// run since the panel opened).
   final String karaokeText;
+
   /// Click-to-seek: char offset of the tapped word in `KaraokeState.fullText`.
   /// Wired to `_ReadingScreenState._seekTtsTo` so taps scrub TTS to that word
   /// and the active-word highlight in [KaraokeTextPane] follows along.
@@ -2010,9 +2014,7 @@ class _SpeechSliderColumn extends StatelessWidget {
         const SizedBox(height: 8),
         Text(
           '$percent',
-          style: AppTypography.titleLarge.copyWith(
-            color: AppColors.primary,
-          ),
+          style: AppTypography.titleLarge.copyWith(color: AppColors.primary),
         ),
         const SizedBox(height: 8),
         // Vertical slider — top = 1.5 (100), bottom = 0.5 (0). Compact height.
@@ -2041,8 +2043,7 @@ class _SpeechSliderColumn extends StatelessWidget {
                         activeTrackColor: AppColors.primary,
                         inactiveTrackColor: AppColors.progressTrack,
                         thumbColor: AppColors.primary,
-                        overlayColor:
-                            AppColors.primary.withValues(alpha: 0.12),
+                        overlayColor: AppColors.primary.withValues(alpha: 0.12),
                         trackHeight: 4,
                       ),
                       child: Slider(
@@ -2093,9 +2094,7 @@ class _DesktopReadingTab extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
           decoration: BoxDecoration(
             color: active ? AppColors.primary : Colors.transparent,
-            border: active
-                ? null
-                : Border.all(color: AppColors.primary),
+            border: active ? null : Border.all(color: AppColors.primary),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Text(
@@ -2186,8 +2185,10 @@ class _DesktopReadingButton extends StatelessWidget {
   final String label;
   final IconData icon;
   final VoidCallback onTap;
+
   /// Optional override for the Semantics label.
   final String? semanticLabel;
+
   /// When false, button renders as an outlined pill (transparent fill + primary
   /// border + primary text/icon) — mirrors the MY NOTE / SPEECH tab pair so the
   /// Read button visually toggles like a tab between active / inactive.

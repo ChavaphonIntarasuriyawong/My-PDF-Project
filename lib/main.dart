@@ -106,7 +106,6 @@ class MyPdfApp extends ConsumerWidget {
   }
 }
 
-
 /// Listens to the captured GoRouter's route stream and swaps the desktop
 /// shell when the active path is an auth route. Using the captured `router`
 /// (not `GoRouter.of(context)`) avoids the InheritedGoRouter lookup that
@@ -162,8 +161,7 @@ class _DesktopRouteAwareShellState
       return widget.child;
     }
 
-    final path =
-        widget.router.routerDelegate.currentConfiguration.uri.path;
+    final path = widget.router.routerDelegate.currentConfiguration.uri.path;
     if (path == AppRoutes.login || path == AppRoutes.register) {
       // Auth screens render their own DesktopAuthShell.
       return widget.child;

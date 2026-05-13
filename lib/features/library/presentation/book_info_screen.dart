@@ -74,11 +74,7 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
     });
   }
 
-  void _confirmDeleteNote(
-    BuildContext context,
-    WidgetRef ref,
-    String noteId,
-  ) {
+  void _confirmDeleteNote(BuildContext context, WidgetRef ref, String noteId) {
     showAppModal(
       context: context,
       builder: (ctx) => AppModal(
@@ -356,7 +352,7 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
       items: [
         for (final entry in const [
-          ('edit', 'Edit'),
+          ('edit', 'Edit name'),
           ('delete', 'Delete'),
           ('move', 'Move to'),
           ('status', 'Status'),
@@ -400,8 +396,7 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
 
     if (kIsWeb && isDesktop(context)) {
       return EscapePopScope(
-        onEscape: () =>
-            context.canPop() ? context.pop() : context.go('/home'),
+        onEscape: () => context.canPop() ? context.pop() : context.go('/home'),
         child: Scaffold(
           // Darker page surface so cover + notes cards pop against the bg.
           backgroundColor: AppColors.surfaceMuted,
@@ -422,7 +417,8 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
               return _DesktopBookInfoBody(
                 book: book,
                 shelves: ref.watch(shelvesProvider).valueOrNull ?? [],
-                notes: ref.watch(notesByBookProvider(book.id)).valueOrNull ?? [],
+                notes:
+                    ref.watch(notesByBookProvider(book.id)).valueOrNull ?? [],
                 onBack: () =>
                     context.canPop() ? context.pop() : context.go('/home'),
                 onEdit: () => _showRenameModal(context, ref, book),
@@ -435,8 +431,7 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
                 onDeleteNote: (noteId) =>
                     _confirmDeleteNote(context, ref, noteId),
                 onDeleteBook: () => _showDeleteModal(context, ref),
-                onOpenReader: () =>
-                    context.push('/book/${book.id}/reading'),
+                onOpenReader: () => context.push('/book/${book.id}/reading'),
                 onLock: () => _showLockSetupSheet(book),
               );
             },
@@ -1380,15 +1375,11 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                               ),
                               clipBehavior: Clip.antiAlias,
                               child: thumbAsync.when(
-                                loading: () => const _CoverPlaceholder(
-                                  loading: true,
-                                ),
+                                loading: () =>
+                                    const _CoverPlaceholder(loading: true),
                                 error: (_, _) => const _CoverPlaceholder(),
                                 data: (bytes) => bytes != null
-                                    ? Image.memory(
-                                        bytes,
-                                        fit: BoxFit.cover,
-                                      )
+                                    ? Image.memory(bytes, fit: BoxFit.cover)
                                     : const _CoverPlaceholder(),
                               ),
                             ),
@@ -1406,12 +1397,10 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                                   child: LinearProgressIndicator(
                                     value: progress,
                                     minHeight: 3,
-                                    backgroundColor:
-                                        AppColors.progressTrack,
-                                    valueColor:
-                                        const AlwaysStoppedAnimation(
-                                          AppColors.primary,
-                                        ),
+                                    backgroundColor: AppColors.progressTrack,
+                                    valueColor: const AlwaysStoppedAnimation(
+                                      AppColors.primary,
+                                    ),
                                   ),
                                 ),
                               ),
@@ -1556,7 +1545,7 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                                         borderRadius: BorderRadius.circular(8),
                                       ),
                                       child: Text(
-                                        'Edit',
+                                        'Edit name',
                                         style: AppTypography.labelButton
                                             .copyWith(
                                               fontSize: 14,
@@ -1591,9 +1580,7 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                         icon: book.isLocked
                             ? Icons.lock
                             : Icons.lock_open_outlined,
-                        label: book.isLocked
-                            ? 'Manage lock'
-                            : 'Set up lock',
+                        label: book.isLocked ? 'Manage lock' : 'Set up lock',
                         onTap: widget.onLock,
                       ),
                     ],
@@ -1765,7 +1752,7 @@ class _DesktopNoteCard extends StatelessWidget {
                             value: 'edit',
                             height: 44,
                             child: Text(
-                              'Edit',
+                              'Edit name',
                               style: AppTypography.bodyMedium.copyWith(
                                 color: AppColors.primary,
                               ),
