@@ -9,6 +9,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_typography.dart';
 import '../../../shared/widgets/app_bottom_nav_bar.dart';
 import '../../../shared/widgets/app_modal.dart';
+import '../../../shared/widgets/desktop_note_editor_panel.dart';
 import '../../../shared/widgets/labeled_text_field.dart';
 import '../../../shared/widgets/status_badge.dart';
 import '../../reader/presentation/note_edit_screen.dart';
@@ -431,12 +432,6 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
                       .moveBook(book.id, sid ?? '');
                 },
                 onShowStatusModal: () => _showStatusModal(context, ref, book),
-                onAddNote: () => showNoteEditSheet(context, bookId: book.id),
-                onOpenNote: (noteId) => showNoteEditSheet(
-                  context,
-                  bookId: book.id,
-                  noteId: noteId,
-                ),
                 onDeleteNote: (noteId) =>
                     _confirmDeleteNote(context, ref, noteId),
                 onDeleteBook: () => _showDeleteModal(context, ref),
@@ -1253,7 +1248,7 @@ class _CoverPlaceholder extends StatelessWidget {
 // changes.
 // ──────────────────────────────────────────────────────────────────────────
 
-class _DesktopBookInfoBody extends ConsumerWidget {
+class _DesktopBookInfoBody extends ConsumerStatefulWidget {
   final BookModel book;
   final List<BookshelfModel> shelves;
   final List<NoteModel> notes;
@@ -1261,8 +1256,6 @@ class _DesktopBookInfoBody extends ConsumerWidget {
   final VoidCallback onEdit;
   final ValueChanged<String?> onMoveShelf;
   final VoidCallback onShowStatusModal;
-  final VoidCallback onAddNote;
-  final ValueChanged<String> onOpenNote;
   final ValueChanged<String> onDeleteNote;
   final VoidCallback onDeleteBook;
   final VoidCallback onOpenReader;
@@ -1276,8 +1269,6 @@ class _DesktopBookInfoBody extends ConsumerWidget {
     required this.onEdit,
     required this.onMoveShelf,
     required this.onShowStatusModal,
-    required this.onAddNote,
-    required this.onOpenNote,
     required this.onDeleteNote,
     required this.onDeleteBook,
     required this.onOpenReader,
@@ -1285,7 +1276,29 @@ class _DesktopBookInfoBody extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DesktopBookInfoBody> createState() =>
+      _DesktopBookInfoBodyState();
+}
+
+class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
+  /// `null` = list view, `''` = creating new, real id = editing existing.
+  /// UI-local state (CLAUDE.md allows setState for non-shared UI flags).
+  String? _editingNoteId;
+
+  void _openEditor(String? noteId) {
+    setState(() => _editingNoteId = noteId ?? '');
+  }
+
+  void _closeEditor() {
+    if (_editingNoteId == null) return;
+    setState(() => _editingNoteId = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final book = widget.book;
+    final shelves = widget.shelves;
+    final notes = widget.notes;
     final thumbAsync = book.link.isNotEmpty
         ? ref.watch(pdfThumbnailProvider(book.link))
         : const AsyncValue<Uint8List?>.data(null);
@@ -1306,7 +1319,7 @@ class _DesktopBookInfoBody extends ConsumerWidget {
                 button: true,
                 label: 'Back',
                 child: GestureDetector(
-                  onTap: onBack,
+                  onTap: widget.onBack,
                   child: Container(
                     width: 40,
                     height: 40,
@@ -1489,7 +1502,7 @@ class _DesktopBookInfoBody extends ConsumerWidget {
                                         ),
                                       ),
                                     ],
-                                    onChanged: onMoveShelf,
+                                    onChanged: widget.onMoveShelf,
                                   ),
                                 ),
                               ),
@@ -1501,7 +1514,7 @@ class _DesktopBookInfoBody extends ConsumerWidget {
                                 label: 'Change status',
                                 child: GestureDetector(
                                   behavior: HitTestBehavior.opaque,
-                                  onTap: onShowStatusModal,
+                                  onTap: widget.onShowStatusModal,
                                   child: Container(
                                     decoration: BoxDecoration(
                                       color: AppColors.surfaceMuted,
@@ -1532,7 +1545,7 @@ class _DesktopBookInfoBody extends ConsumerWidget {
                                   button: true,
                                   label: 'Edit book name',
                                   child: GestureDetector(
-                                    onTap: onEdit,
+                                    onTap: widget.onEdit,
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(
                                         horizontal: 24,
@@ -1571,7 +1584,7 @@ class _DesktopBookInfoBody extends ConsumerWidget {
                       _DesktopCircleAction(
                         icon: Icons.edit_outlined,
                         label: 'Open reader',
-                        onTap: onOpenReader,
+                        onTap: widget.onOpenReader,
                       ),
                       const SizedBox(height: 16),
                       _DesktopCircleAction(
@@ -1581,73 +1594,86 @@ class _DesktopBookInfoBody extends ConsumerWidget {
                         label: book.isLocked
                             ? 'Manage lock'
                             : 'Set up lock',
-                        onTap: onLock,
+                        onTap: widget.onLock,
                       ),
                     ],
                   ),
                 ),
                 const SizedBox(width: 16),
                 // Right: notes side panel — fixed beside the scrolling
-                // center column; notes list scrolls inside its own bounds.
+                // center column. Branches between list mode and inline
+                // editor mode based on _editingNoteId.
                 SizedBox(
                   width: 320,
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      Text(
-                        'Annotated Insights (${notes.length})',
-                        style: AppTypography.titleLarge,
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: notes.isEmpty
-                            ? Container(
-                                padding: const EdgeInsets.all(20),
-                                decoration: BoxDecoration(
-                                  color: AppColors.surface,
-                                  borderRadius: BorderRadius.circular(12),
-                                  border: Border.all(
-                                    color: AppColors.borderHairline,
-                                  ),
-                                ),
-                                child: Text(
-                                  'No notes yet. Tap "Add Note" to start.',
-                                  style: AppTypography.bodyMedium,
-                                ),
-                              )
-                            : ListView.separated(
-                                itemCount: notes.length,
-                                separatorBuilder: (_, _) =>
-                                    const SizedBox(height: 12),
-                                itemBuilder: (ctx, i) => _DesktopNoteCard(
-                                  note: notes[i],
-                                  onTap: () => onOpenNote(notes[i].id),
-                                  onMenuSelected: (action) {
-                                    if (action == 'edit') {
-                                      onOpenNote(notes[i].id);
-                                    } else if (action == 'delete') {
-                                      onDeleteNote(notes[i].id);
-                                    }
-                                  },
-                                ),
-                              ),
-                      ),
-                      const SizedBox(height: 16),
-                      _DesktopActionButton(
-                        label: 'Add Note',
-                        icon: Icons.add_comment_outlined,
-                        color: AppColors.primary,
-                        onTap: onAddNote,
-                      ),
-                      const SizedBox(height: 8),
-                      _DesktopActionButton(
-                        label: 'Delete PDF',
-                        icon: Icons.delete_outline,
-                        color: AppColors.primary,
-                        onTap: onDeleteBook,
-                      ),
-                    ],
-                  ),
+                  child: _editingNoteId == null
+                      ? Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Text(
+                              'Annotated Insights (${notes.length})',
+                              style: AppTypography.titleLarge,
+                            ),
+                            const SizedBox(height: 16),
+                            Expanded(
+                              child: notes.isEmpty
+                                  ? Container(
+                                      padding: const EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surface,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: AppColors.borderHairline,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        'No notes yet. Tap "Add Note" to start.',
+                                        style: AppTypography.bodyMedium,
+                                      ),
+                                    )
+                                  : ListView.separated(
+                                      itemCount: notes.length,
+                                      separatorBuilder: (_, _) =>
+                                          const SizedBox(height: 12),
+                                      itemBuilder: (ctx, i) => _DesktopNoteCard(
+                                        note: notes[i],
+                                        onTap: () => _openEditor(notes[i].id),
+                                        onMenuSelected: (action) {
+                                          if (action == 'edit') {
+                                            _openEditor(notes[i].id);
+                                          } else if (action == 'delete') {
+                                            widget.onDeleteNote(notes[i].id);
+                                          }
+                                        },
+                                      ),
+                                    ),
+                            ),
+                            const SizedBox(height: 16),
+                            _DesktopActionButton(
+                              label: 'Add Note',
+                              icon: Icons.add_comment_outlined,
+                              color: AppColors.primary,
+                              onTap: () => _openEditor(null),
+                            ),
+                            const SizedBox(height: 8),
+                            _DesktopActionButton(
+                              label: 'Delete PDF',
+                              icon: Icons.delete_outline,
+                              color: AppColors.primary,
+                              onTap: widget.onDeleteBook,
+                            ),
+                          ],
+                        )
+                      : DesktopNoteEditorPanel(
+                          // Re-key on id swap so init reloads controllers
+                          // when the user taps a different card while the
+                          // editor is already open.
+                          key: ValueKey(_editingNoteId ?? 'new'),
+                          bookId: book.id,
+                          noteId: _editingNoteId!.isEmpty
+                              ? null
+                              : _editingNoteId,
+                          onClose: _closeEditor,
+                        ),
                 ),
               ],
             ),

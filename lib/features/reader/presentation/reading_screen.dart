@@ -8,6 +8,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../../shared/layout/responsive.dart';
+import '../../../shared/widgets/desktop_note_editor_panel.dart';
 import '../../../shared/widgets/escape_pop_scope.dart';
 import 'package:pdfx/pdfx.dart' as pdfx;
 import 'package:syncfusion_flutter_pdf/pdf.dart' as sf;
@@ -23,7 +24,6 @@ import '../data/pdf_text_extractor.dart';
 import '../data/tts_engine.dart';
 import '../widgets/mobile_pdf_reader.dart';
 import 'controllers/karaoke_controller.dart';
-import 'note_edit_screen.dart';
 import 'widgets/karaoke_text_pane.dart';
 
 class ReadingScreen extends ConsumerStatefulWidget {
@@ -884,11 +884,15 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
   /// Behavior:
   ///   - If currently speaking, stop and restart from [wordStart].
   ///   - If idle, start speaking from [wordStart] (auto-activates TTS).
-  ///   - In word-progress mode: speak `fullText.substring(wordStart)` and
-  ///     tell the controller `baseOffset = wordStart` so progress offsets
-  ///     re-anchor to the original full-text coord space.
-  ///   - In sentence-fallback mode: find the sentence containing
-  ///     [wordStart], point the queue at it, kick off the next sentence.
+  ///   - In sentence-fallback mode (the live path — `_speakCurrentPage`
+  ///     always installs a sentence queue): find the sentence containing
+  ///     [wordStart], speak `fullText.substring(wordStart, sentence.end)`
+  ///     so audio resumes at the tapped word (not the sentence start —
+  ///     that was the regression), then let the queue continue with the
+  ///     next sentence on completion. `baseOffset = wordStart` keeps the
+  ///     mobile per-word progress highlight aligned with full-text coords.
+  ///   - In word-progress fallback path (legacy / queue empty): speak
+  ///     `fullText.substring(wordStart)` for the rest of the page.
   Future<void> _seekTtsTo(int wordStart) async {
     final state = ref.read(karaokeControllerProvider);
     final fullText = state.fullText;
@@ -927,10 +931,49 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           break;
         }
       }
-      _karaokeSentenceIndex = matchIndex;
+      final matched = sentences[matchIndex];
+      // Slice the matched sentence at the tapped word so audio resumes
+      // mid-sentence rather than restarting from the sentence's start
+      // (which, for the first sentence on a page, sounds like "restart
+      // from page top" — the reported regression).
+      final sliceStart = wordStart.clamp(matched.start, matched.end);
+      final sliceText = fullText.substring(sliceStart, matched.end);
+      // Empty / whitespace-only slice (tapped at the punctuation tail):
+      // just advance to the next sentence — no point in queueing a
+      // silent utterance.
+      if (sliceText.trim().isEmpty) {
+        _karaokeSentenceIndex = matchIndex + 1;
+        ref
+            .read(karaokeControllerProvider.notifier)
+            .onTtsStart(fullText, baseOffset: 0);
+        if (mounted) {
+          setState(() {
+            _ttsActive = true;
+            _ttsSpeaking = true;
+          });
+        } else {
+          _ttsActive = true;
+          _ttsSpeaking = true;
+        }
+        _speakNextSentence();
+        return;
+      }
+      // The completion handler advances the queue using
+      // `_karaokeSentenceIndex`; point it at the sentence AFTER the one
+      // we just sliced so the queue resumes cleanly.
+      _karaokeSentenceIndex = matchIndex + 1;
+      // baseOffset = sliceStart so any per-word progress events fired by
+      // the engine (mobile flutter_tts; some web voices) are re-anchored
+      // to full-text coords for the karaoke highlight.
       ref
           .read(karaokeControllerProvider.notifier)
-          .onTtsStart(fullText, baseOffset: 0);
+          .onTtsStart(fullText, baseOffset: sliceStart);
+      // Sentence-span highlight covers [sliceStart, sentenceEnd] so the
+      // pane shows the active region even when boundary events are
+      // missing (web fallback mode).
+      ref
+          .read(karaokeControllerProvider.notifier)
+          .onSentenceTick(sliceStart, matched.end);
       if (mounted) {
         setState(() {
           _ttsActive = true;
@@ -940,7 +983,12 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         _ttsActive = true;
         _ttsSpeaking = true;
       }
-      _speakNextSentence();
+      AppLogger.debug(
+        'TTS',
+        'seek: sliced sentence $matchIndex from offset $sliceStart '
+            '(${sliceText.length} chars)',
+      );
+      unawaited(_tts.speak(sliceText));
       return;
     }
 
@@ -1090,13 +1138,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             currentPitch: _pitch,
             onSpeedChange: _setSpeechRate,
             onPitchChange: _setPitch,
-            onAddNote: () =>
-                showNoteEditSheet(context, bookId: widget.bookId),
-            onOpenNote: (noteId) => showNoteEditSheet(
-              context,
-              bookId: widget.bookId,
-              noteId: noteId,
-            ),
+            onWordTap: _seekTtsTo,
             onExit: () => context.canPop()
                 ? context.pop()
                 : context.go('/book/${widget.bookId}'),
@@ -1525,8 +1567,10 @@ class _DesktopReadingBody extends ConsumerStatefulWidget {
   final double currentPitch;
   final ValueChanged<double> onSpeedChange;
   final ValueChanged<double> onPitchChange;
-  final VoidCallback onAddNote;
-  final ValueChanged<String> onOpenNote;
+  /// Click-to-seek hook forwarded to the SPEECH panel's karaoke pane. Tapping
+  /// a word inside the caption invokes this with the char offset of the
+  /// tapped word's leading character (in `KaraokeState.fullText` coords).
+  final void Function(int wordStart) onWordTap;
   final VoidCallback onExit;
 
   const _DesktopReadingBody({
@@ -1545,8 +1589,7 @@ class _DesktopReadingBody extends ConsumerStatefulWidget {
     required this.currentPitch,
     required this.onSpeedChange,
     required this.onPitchChange,
-    required this.onAddNote,
-    required this.onOpenNote,
+    required this.onWordTap,
     required this.onExit,
   });
 
@@ -1560,6 +1603,22 @@ class _DesktopReadingBodyState extends ConsumerState<_DesktopReadingBody> {
   // Switching is purely visual — neither tab toggles TTS. Read button in the
   // speech view is what fires onToggleTts.
   bool _speechView = false;
+
+  /// Inline editor swap state. `null` = list view; `''` = creating a new note;
+  /// real id string = editing an existing note. Lives here (UI-local) per
+  /// CLAUDE.md exception for ephemeral panel state.
+  String? _editingNoteId;
+
+  /// Swap the right panel into inline-editor mode. Passing `null` creates a
+  /// new note; passing a real id edits that note. Force-exits speech view —
+  /// the two pane modes are visually mutually exclusive.
+  void _openEditor(String? id) => setState(() {
+    _editingNoteId = id ?? '';
+    _speechView = false;
+  });
+
+  /// Close the inline editor and return the panel to the notes-list view.
+  void _closeEditor() => setState(() => _editingNoteId = null);
 
   /// Switch the right panel to SPEECH view. Auto-shows the karaoke pane via a
   /// post-frame callback so the speech panel renders first and the karaoke
@@ -1674,118 +1733,134 @@ class _DesktopReadingBodyState extends ConsumerState<_DesktopReadingBody> {
             ),
           ),
           const SizedBox(width: 24),
-          // Right side panel: header + tab row + (notes view OR speech view)
+          // Right side panel: header + tab row + (notes view OR speech view),
+          // OR — when _editingNoteId is non-null — the inline note editor
+          // fills the entire 320px slot (no tabs / no buttons).
           SizedBox(
             width: 320,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  _speechView
-                      ? 'Text-to-Speech'
-                      : 'Annotated Insights (${notes.length})',
-                  style: AppTypography.titleLarge,
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _DesktopReadingTab(
-                      label: 'MY NOTE',
-                      active: !_speechView,
-                      onTap: () => setState(() => _speechView = false),
-                    ),
-                    const SizedBox(width: 8),
-                    _DesktopReadingTab(
-                      label: 'SPEECH',
-                      active: _speechView,
-                      onTap: _enterSpeechView,
-                    ),
-                    const Spacer(),
-                    if (_speechView)
-                      Semantics(
-                        button: true,
-                        label: 'Close speech panel',
-                        child: IconButton(
-                          tooltip: 'Close',
-                          icon: const Icon(
-                            Icons.close,
-                            color: AppColors.primary,
-                            size: 18,
-                          ),
-                          onPressed: () =>
-                              setState(() => _speechView = false),
-                        ),
+            child: _editingNoteId != null
+                ? DesktopNoteEditorPanel(
+                    // Re-key on id swap so init reloads controllers when the
+                    // editor target changes underneath us (defensive — list
+                    // is hidden while editing, but keeps future flows safe).
+                    key: ValueKey(_editingNoteId),
+                    bookId: widget.book.id as String,
+                    noteId: _editingNoteId!.isEmpty ? null : _editingNoteId,
+                    onClose: _closeEditor,
+                  )
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Text(
+                        _speechView
+                            ? 'Text-to-Speech'
+                            : 'Annotated Insights (${notes.length})',
+                        style: AppTypography.titleLarge,
                       ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Expanded(
-                  child: _speechView
-                      ? _SpeechPanel(
-                          speed: widget.currentSpeed,
-                          pitch: widget.currentPitch,
-                          onSpeedChange: widget.onSpeedChange,
-                          onPitchChange: widget.onPitchChange,
-                          karaokeVisible: widget.karaokeVisible,
-                          karaokeText: karaokeState.fullText,
-                        )
-                      : notes.isEmpty
-                      ? Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: AppColors.surface,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: AppColors.borderHairline,
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          _DesktopReadingTab(
+                            label: 'MY NOTE',
+                            active: !_speechView,
+                            onTap: () => setState(() => _speechView = false),
+                          ),
+                          const SizedBox(width: 8),
+                          _DesktopReadingTab(
+                            label: 'SPEECH',
+                            active: _speechView,
+                            onTap: _enterSpeechView,
+                          ),
+                          const Spacer(),
+                          if (_speechView)
+                            Semantics(
+                              button: true,
+                              label: 'Close speech panel',
+                              child: IconButton(
+                                tooltip: 'Close',
+                                icon: const Icon(
+                                  Icons.close,
+                                  color: AppColors.primary,
+                                  size: 18,
+                                ),
+                                onPressed: () =>
+                                    setState(() => _speechView = false),
+                              ),
                             ),
-                          ),
-                          child: Text(
-                            'No notes yet for this book.',
-                            style: AppTypography.bodyMedium,
-                          ),
-                        )
-                      : ListView.separated(
-                          itemCount: notes.length,
-                          separatorBuilder: (_, _) =>
-                              const SizedBox(height: 12),
-                          itemBuilder: (ctx, i) {
-                            final NoteModel n = notes[i];
-                            return _DesktopReadingNoteCard(
-                              note: n,
-                              onTap: () => widget.onOpenNote(n.id),
-                            );
-                          },
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Expanded(
+                        child: _speechView
+                            ? _SpeechPanel(
+                                speed: widget.currentSpeed,
+                                pitch: widget.currentPitch,
+                                onSpeedChange: widget.onSpeedChange,
+                                onPitchChange: widget.onPitchChange,
+                                karaokeVisible: widget.karaokeVisible,
+                                karaokeText: karaokeState.fullText,
+                                onWordTap: widget.onWordTap,
+                              )
+                            : notes.isEmpty
+                            ? Container(
+                                padding: const EdgeInsets.all(20),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surface,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: AppColors.borderHairline,
+                                  ),
+                                ),
+                                child: Text(
+                                  'No notes yet for this book.',
+                                  style: AppTypography.bodyMedium,
+                                ),
+                              )
+                            : ListView.separated(
+                                itemCount: notes.length,
+                                separatorBuilder: (_, _) =>
+                                    const SizedBox(height: 12),
+                                itemBuilder: (ctx, i) {
+                                  final NoteModel n = notes[i];
+                                  return _DesktopReadingNoteCard(
+                                    note: n,
+                                    onTap: () => _openEditor(n.id),
+                                  );
+                                },
+                              ),
+                      ),
+                      const SizedBox(height: 12),
+                      if (_speechView) ...[
+                        // Speech view: single compact Read/Stop pill,
+                        // right-aligned. Full-width Read/Stop — toggles like
+                        // a MY NOTE / SPEECH tab: outlined when inactive,
+                        // solid primary when active.
+                        _DesktopReadingButton(
+                          label: widget.ttsActive ? 'Stop' : 'Read',
+                          icon: widget.ttsActive
+                              ? Icons.stop_rounded
+                              : Icons.play_arrow_rounded,
+                          onTap: widget.onToggleTts,
+                          semanticLabel: widget.ttsActive
+                              ? 'Stop'
+                              : 'Read aloud',
+                          active: widget.ttsActive,
                         ),
-                ),
-                const SizedBox(height: 12),
-                if (_speechView) ...[
-                  // Speech view: single compact Read/Stop pill, right-aligned.
-                  // Full-width Read/Stop — toggles like a MY NOTE / SPEECH
-                  // tab: outlined when inactive, solid primary when active.
-                  _DesktopReadingButton(
-                    label: widget.ttsActive ? 'Stop' : 'Read',
-                    icon: widget.ttsActive
-                        ? Icons.stop_rounded
-                        : Icons.play_arrow_rounded,
-                    onTap: widget.onToggleTts,
-                    semanticLabel: widget.ttsActive ? 'Stop' : 'Read aloud',
-                    active: widget.ttsActive,
+                      ] else ...[
+                        _DesktopReadingButton(
+                          label: 'Add Note',
+                          icon: Icons.add_comment_outlined,
+                          onTap: () => _openEditor(null),
+                        ),
+                        const SizedBox(height: 8),
+                        _DesktopReadingButton(
+                          label: 'Exit',
+                          icon: Icons.close,
+                          onTap: widget.onExit,
+                        ),
+                      ],
+                    ],
                   ),
-                ] else ...[
-                  _DesktopReadingButton(
-                    label: 'Add Note',
-                    icon: Icons.add_comment_outlined,
-                    onTap: widget.onAddNote,
-                  ),
-                  const SizedBox(height: 8),
-                  _DesktopReadingButton(
-                    label: 'Exit',
-                    icon: Icons.close,
-                    onTap: widget.onExit,
-                  ),
-                ],
-              ],
-            ),
           ),
         ],
       ),
@@ -1809,6 +1884,10 @@ class _SpeechPanel extends StatelessWidget {
   /// Current karaoke full-page text. Empty string while idle (no speak has
   /// run since the panel opened).
   final String karaokeText;
+  /// Click-to-seek: char offset of the tapped word in `KaraokeState.fullText`.
+  /// Wired to `_ReadingScreenState._seekTtsTo` so taps scrub TTS to that word
+  /// and the active-word highlight in [KaraokeTextPane] follows along.
+  final void Function(int wordStart) onWordTap;
 
   const _SpeechPanel({
     required this.speed,
@@ -1817,6 +1896,7 @@ class _SpeechPanel extends StatelessWidget {
     required this.onPitchChange,
     required this.karaokeVisible,
     required this.karaokeText,
+    required this.onWordTap,
   });
 
   @override
@@ -1877,35 +1957,16 @@ class _SpeechPanel extends StatelessWidget {
           ),
           if (showCaption) ...[
             const SizedBox(height: 12),
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderHairline),
-              ),
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'Caption',
-                    style: AppTypography.titleMedium.copyWith(
-                      color: AppColors.primary,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 200),
-                    child: SingleChildScrollView(
-                      child: Text(
-                        karaokeText.trim(),
-                        style: AppTypography.bodyMedium.copyWith(
-                          color: AppColors.textPrimary,
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+            // Live karaoke pane: tap-to-seek + active-word highlight driven by
+            // [karaokeControllerProvider]. The pane brings its own surface
+            // chrome (border, handle, header) so no outer card needed. Bounded
+            // height keeps the inner `Flexible` scroll list happy.
+            SizedBox(
+              height: 320,
+              child: KaraokeTextPane(
+                onWordTap: onWordTap,
+                currentSpeed: speed,
+                onSpeedChange: onSpeedChange,
               ),
             ),
           ],

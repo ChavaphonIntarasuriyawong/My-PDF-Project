@@ -13,6 +13,7 @@ import 'core/constants/app_routes.dart';
 import 'core/local/recent_books_service.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
+import 'features/auth/presentation/auth_providers.dart';
 import 'firebase_options.dart';
 import 'shared/layout/responsive.dart';
 import 'shared/widgets/desktop_shell.dart';
@@ -111,17 +112,18 @@ class MyPdfApp extends ConsumerWidget {
 /// (not `GoRouter.of(context)`) avoids the InheritedGoRouter lookup that
 /// fails inside `MaterialApp.router.builder` — the builder's context sits
 /// above the Router widget that installs the inherited.
-class _DesktopRouteAwareShell extends StatefulWidget {
+class _DesktopRouteAwareShell extends ConsumerStatefulWidget {
   final GoRouter router;
   final Widget child;
   const _DesktopRouteAwareShell({required this.router, required this.child});
 
   @override
-  State<_DesktopRouteAwareShell> createState() =>
+  ConsumerState<_DesktopRouteAwareShell> createState() =>
       _DesktopRouteAwareShellState();
 }
 
-class _DesktopRouteAwareShellState extends State<_DesktopRouteAwareShell> {
+class _DesktopRouteAwareShellState
+    extends ConsumerState<_DesktopRouteAwareShell> {
   @override
   void initState() {
     super.initState();
@@ -150,6 +152,16 @@ class _DesktopRouteAwareShellState extends State<_DesktopRouteAwareShell> {
 
   @override
   Widget build(BuildContext context) {
+    // Auth gate first: if not definitively signed in (loading / error / null
+    // user), suppress the sidebar entirely. This closes the race between
+    // FirebaseAuth firing signOut and GoRouter's redirect landing on /login —
+    // the sidebar disappears on the same frame the auth stream flips.
+    final authState = ref.watch(authStateProvider);
+    final user = authState.valueOrNull;
+    if (user == null) {
+      return widget.child;
+    }
+
     final path =
         widget.router.routerDelegate.currentConfiguration.uri.path;
     if (path == AppRoutes.login || path == AppRoutes.register) {

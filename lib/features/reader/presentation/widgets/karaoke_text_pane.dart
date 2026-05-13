@@ -426,12 +426,19 @@ class _KaraokeTextPaneState extends ConsumerState<KaraokeTextPane> {
                 child: SingleChildScrollView(
                   controller: _scrollController,
                   padding: const EdgeInsets.fromLTRB(20, 14, 20, 24),
-                  child: SelectableRegion(
-                    selectionControls: MaterialTextSelectionControls(),
-                    child: RichText(
-                      text: TextSpan(children: spans),
-                      textAlign: TextAlign.left,
-                    ),
+                  // NOTE: previously wrapped in `SelectableRegion` for text
+                  // selection. On Flutter web `SelectableRegion` claims
+                  // pointer events on `pointerDown` (mouse drag-select),
+                  // which steals taps from the `_TappableWord` children
+                  // hosted inside `WidgetSpan`s and breaks click-to-seek
+                  // scrubbing on desktop web. Selection of the caption
+                  // pane is not part of this widget's public contract, so
+                  // we render `RichText` directly — tap-to-seek works on
+                  // every platform, and the user can still copy text from
+                  // the PDF surface above.
+                  child: RichText(
+                    text: TextSpan(children: spans),
+                    textAlign: TextAlign.left,
                   ),
                 ),
               ),
