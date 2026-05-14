@@ -1,0 +1,77 @@
+# CD workflow for MyPDF Android → release APK
+#
+# Builds a signed release APK and uploads it as a GitHub Actions artifact.
+# Triggered on every push to main and on PRs targeting main (build-only on PRs
+# to catch breakage early; artifact upload is main-only).
+#
+# Required GitHub repository secrets (Settings → Secrets and variables → Actions):
+#   ANDROID_KEYSTORE_BASE64
+#     Base64-encoded .jks / .keystore file.
+#     Generate locally: base64 -i my-release-key.jks | pbcopy  (macOS)
+#                       [Convert]::ToBase64String([IO.File]::ReadAllBytes("my-release-key.jks")) | clip  (Windows)
+#
+#   ANDROID_KEY_ALIAS       Key alias inside the keystore
+#   ANDROID_KEY_PASSWORD    Password for the key entry
+#   ANDROID_STORE_PASSWORD  Password for the keystore file
+#
+# Local dev: copy android/key.properties.example → android/key.properties and
+# fill in your values. The file is gitignored; never commit it.
+#
+# Flutter pinned to 3.38.6 (matches CI + web CD).
+
+name: CD - Android APK
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-android:
+    name: Build Android APK
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.38.6'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Decode keystore
+        # Writes the keystore to a temp path that key.properties references.
+        # ANDROID_KEYSTORE_BASE64 is required; the build will fail without it.
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 --decode > $HOME/release.jks
+
+      - name: Write key.properties
+        run: |
+          cat > android/key.properties <<EOF
+          storePassword=${{ secrets.ANDROID_STORE_PASSWORD }}
+          keyPassword=${{ secrets.ANDROID_KEY_PASSWORD }}
+          keyAlias=${{ secrets.ANDROID_KEY_ALIAS }}
+          storeFile=$HOME/release.jks
+          EOF
+
+      - name: Build release APK
+        run: flutter build apk --release
+
+      - name: Upload APK artifact
+        # Only upload on main-branch pushes; PR builds validate the compile
+        # but don't need to store the artifact.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: my-pdf-release-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+          retention-days: 30

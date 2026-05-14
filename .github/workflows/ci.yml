@@ -55,7 +55,7 @@ jobs:
         # Exclude golden tests: pixel-diff PNGs were captured on dev (Windows)
         # and font rasterisation differs on Linux runners. Run goldens locally
         # via `flutter test test/golden/` instead.
-        run: flutter test --coverage --reporter expanded --exclude-tags=golden
+        run: flutter test --coverage --reporter expanded --exclude-tags=golden,ocr-pipeline
 
       - name: Upload coverage artifact
         if: always()

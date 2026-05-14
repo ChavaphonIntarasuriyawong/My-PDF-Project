@@ -544,7 +544,7 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: _inSelectionMode
                 ? _buildSelectionTopBar()
-                : _buildDefaultTopBar(book, shelves),
+                : _buildDefaultTopBar(book, shelves, ref),
           ),
 
           // ── Scrollable body ──────────────────────────────────────────────
@@ -587,7 +587,11 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
     );
   }
 
-  Widget _buildDefaultTopBar(BookModel book, List<BookshelfModel> shelves) {
+  Widget _buildDefaultTopBar(
+    BookModel book,
+    List<BookshelfModel> shelves,
+    WidgetRef ref,
+  ) {
     return Row(
       children: [
         GestureDetector(
@@ -607,22 +611,28 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        Builder(
-          builder: (btnCtx) => GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: () {
-              final box = btnCtx.findRenderObject() as RenderBox?;
-              final anchor = box != null
-                  ? box.localToGlobal(Offset(box.size.width, 0))
-                  : Offset.zero;
-              _showOptionsMenu(context, ref, book, shelves, anchor);
-            },
-            child: const Padding(
-              padding: EdgeInsets.all(4),
-              child: Icon(Icons.more_vert, color: AppColors.primary, size: 20),
+        if (!book.isLocked ||
+            ref.watch(bookUnlockSessionProvider).isUnlocked(book.id))
+          Builder(
+            builder: (btnCtx) => GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                final box = btnCtx.findRenderObject() as RenderBox?;
+                final anchor = box != null
+                    ? box.localToGlobal(Offset(box.size.width, 0))
+                    : Offset.zero;
+                _showOptionsMenu(context, ref, book, shelves, anchor);
+              },
+              child: const Padding(
+                padding: EdgeInsets.all(4),
+                child: Icon(
+                  Icons.more_vert,
+                  color: AppColors.primary,
+                  size: 20,
+                ),
+              ),
             ),
           ),
-        ),
       ],
     );
   }
