@@ -363,108 +363,106 @@ class _DesktopBody extends StatelessWidget {
         tagline:
             'Every great insight begins with a single page. Curate your knowledge with us',
       ),
-      form: SingleChildScrollView(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Text('Join the Collection', style: AppTypography.headlineLarge),
-            const SizedBox(height: 24),
-            LabeledTextField(
-              label: 'Username',
-              hint: 'Johnathan',
-              controller: nameCtrl,
-              focusNode: nameFocus,
-              textInputAction: TextInputAction.next,
-              onSubmitted: () => emailFocus.requestFocus(),
-            ),
-            const SizedBox(height: 20),
-            LabeledTextField(
-              label: 'Email',
-              hint: 'johnathan@gmail.com',
-              controller: emailCtrl,
-              keyboardType: TextInputType.emailAddress,
-              focusNode: emailFocus,
-              textInputAction: TextInputAction.next,
-              onSubmitted: () => passwordFocus.requestFocus(),
-            ),
-            const SizedBox(height: 20),
-            LabeledTextField(
-              label: 'Password',
-              hint: '••••••••',
-              controller: passwordCtrl,
-              obscureText: obscurePassword,
-              focusNode: passwordFocus,
-              textInputAction: TextInputAction.next,
-              onSubmitted: () => confirmFocus.requestFocus(),
-              suffix: IconButton(
-                tooltip: obscurePassword ? 'Show password' : 'Hide password',
-                icon: Icon(
-                  obscurePassword
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: AppColors.textMuted,
-                  size: 20,
-                ),
-                onPressed: onTogglePassword,
+      form: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('Join the Collection', style: AppTypography.headlineLarge),
+          const SizedBox(height: 16),
+          LabeledTextField(
+            label: 'Username',
+            hint: 'Johnathan',
+            controller: nameCtrl,
+            focusNode: nameFocus,
+            textInputAction: TextInputAction.next,
+            onSubmitted: () => emailFocus.requestFocus(),
+          ),
+          const SizedBox(height: 12),
+          LabeledTextField(
+            label: 'Email',
+            hint: 'johnathan@gmail.com',
+            controller: emailCtrl,
+            keyboardType: TextInputType.emailAddress,
+            focusNode: emailFocus,
+            textInputAction: TextInputAction.next,
+            onSubmitted: () => passwordFocus.requestFocus(),
+          ),
+          const SizedBox(height: 12),
+          LabeledTextField(
+            label: 'Password',
+            hint: '••••••••',
+            controller: passwordCtrl,
+            obscureText: obscurePassword,
+            focusNode: passwordFocus,
+            textInputAction: TextInputAction.next,
+            onSubmitted: () => confirmFocus.requestFocus(),
+            suffix: IconButton(
+              tooltip: obscurePassword ? 'Show password' : 'Hide password',
+              icon: Icon(
+                obscurePassword
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: AppColors.textMuted,
+                size: 20,
               ),
+              onPressed: onTogglePassword,
             ),
-            const SizedBox(height: 20),
-            LabeledTextField(
-              label: 'Confirm Password',
-              hint: '••••••••',
-              controller: confirmCtrl,
-              obscureText: obscureConfirm,
-              focusNode: confirmFocus,
-              textInputAction: TextInputAction.done,
-              onSubmitted: onSubmit,
-              suffix: IconButton(
-                tooltip: obscureConfirm ? 'Show password' : 'Hide password',
-                icon: Icon(
-                  obscureConfirm
-                      ? Icons.visibility_off_outlined
-                      : Icons.visibility_outlined,
-                  color: AppColors.textMuted,
-                  size: 20,
-                ),
-                onPressed: onToggleConfirm,
+          ),
+          const SizedBox(height: 12),
+          LabeledTextField(
+            label: 'Confirm Password',
+            hint: '••••••••',
+            controller: confirmCtrl,
+            obscureText: obscureConfirm,
+            focusNode: confirmFocus,
+            textInputAction: TextInputAction.done,
+            onSubmitted: onSubmit,
+            suffix: IconButton(
+              tooltip: obscureConfirm ? 'Show password' : 'Hide password',
+              icon: Icon(
+                obscureConfirm
+                    ? Icons.visibility_off_outlined
+                    : Icons.visibility_outlined,
+                color: AppColors.textMuted,
+                size: 20,
               ),
+              onPressed: onToggleConfirm,
             ),
-            const SizedBox(height: 24),
-            GradientButton(
-              label: 'Sign Up',
-              loading: loading,
-              onPressed: onSubmit,
-            ),
-            const SizedBox(height: 48),
-            Center(
-              child: Semantics(
-                button: true,
-                label: 'Already have an account? Sign in',
-                child: GestureDetector(
-                  onTap: onSignIn,
-                  child: ExcludeSemantics(
-                    child: RichText(
-                      text: TextSpan(
-                        text: 'Already have an account? ',
-                        style: AppTypography.bodyMedium,
-                        children: [
-                          TextSpan(
-                            text: 'Sign in',
-                            style: AppTypography.bodyMedium.copyWith(
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.primary,
-                            ),
+          ),
+          const SizedBox(height: 20),
+          GradientButton(
+            label: 'Sign Up',
+            loading: loading,
+            onPressed: onSubmit,
+          ),
+          const SizedBox(height: 24),
+          Center(
+            child: Semantics(
+              button: true,
+              label: 'Already have an account? Sign in',
+              child: GestureDetector(
+                onTap: onSignIn,
+                child: ExcludeSemantics(
+                  child: RichText(
+                    text: TextSpan(
+                      text: 'Already have an account? ',
+                      style: AppTypography.bodyMedium,
+                      children: [
+                        TextSpan(
+                          text: 'Sign in',
+                          style: AppTypography.bodyMedium.copyWith(
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
