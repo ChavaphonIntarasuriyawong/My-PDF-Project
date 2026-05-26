@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter/foundation.dart';
@@ -27,6 +28,14 @@ void main() async {
 
       await Firebase.initializeApp(
         options: DefaultFirebaseOptions.currentPlatform,
+      );
+
+      // Offline persistence — must be configured before any Firestore access.
+      // Settings.persistenceEnabled is the unified API for mobile (SQLite) and
+      // web (IndexedDB). cacheSizeBytes is mobile-only; web ignores it.
+      FirebaseFirestore.instance.settings = const Settings(
+        persistenceEnabled: true,
+        cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED,
       );
 
       // Remote Config: kill switches + feature flags. Never throws — logs and
