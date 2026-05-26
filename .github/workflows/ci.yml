@@ -170,4 +170,4 @@ jobs:
         run: flutter pub get
 
       - name: Run web integration tests
-        run: flutter test --platform chrome integration_test/app_test.dart
+        run: flutter test -d chrome integration_test/app_test.dart
