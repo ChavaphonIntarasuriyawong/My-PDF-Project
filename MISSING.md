@@ -2,7 +2,7 @@
 
 Audited: 2026-05-26. Based on static analysis of `lib/`, `test/`, `.github/workflows/`, `pubspec.yaml`, `firestore.indexes.json`, and `supabase/`.
 
-Last updated: 2026-05-26 (session 4 — widget tests + auth domain tests + AppPinService injectable).
+Last updated: 2026-05-26 (session 5 — dart format, CI hardening fixes, ocr_pipeline load fix).
 
 ---
 
@@ -35,14 +35,29 @@ Added `riverpod_annotation: ^2.6.1` (dep) + `riverpod_generator: ^2.6.4` + `buil
 ### R5 — Cross-platform integration tests in CI → DONE
 Added two new CI jobs to `.github/workflows/ci.yml`:
 - `integration-android` (`runs-on: macos-latest`, `reactivecircus/android-emulator-runner@v2`, API 33 x86_64) — runs `flutter test integration_test/` on every PR.
-- `integration-web` (`runs-on: ubuntu-latest`, headless Chromium, `flutter drive --driver test_driver/integration_test.dart --target integration_test/app_test.dart`) — runs on every PR.
+- `integration-web` (`runs-on: ubuntu-latest`, `flutter test --platform chrome integration_test/app_test.dart`) — runs on every PR. (Originally `flutter drive`; corrected in session 5 — see CI fixes below.)
 Both jobs are gated to `pull_request` events to keep push CI lean.
-Created `test_driver/integration_test.dart` (required by `flutter drive`).
+Created `test_driver/integration_test.dart`.
 
 ### R5 — Dependency / secret scan in CI → DONE
 Added two new CI jobs to `.github/workflows/ci.yml`:
 - `secret-scan`: `gitleaks/gitleaks-action@v2` with `fetch-depth: 0` — runs on every push/PR.
-- `osv-scan`: `google/osv-scanner-action@v2` scanning `pubspec.lock` — runs on every push/PR.
+- `osv-scan`: `google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8` (reusable workflow, job-level call) scanning `pubspec.lock` — runs on every push/PR.
+
+---
+
+## ✅ Also resolved this session (session 5)
+
+### CI hardening — dart format gate + version + action fixes → DONE
+- `dart format --set-exit-if-changed lib/ test/ integration_test/` added as a CI step; 7 files reformatted.
+- Flutter pinned to `3.44.0` (was `3.38.6` which doesn't exist as a release tag).
+- `google/osv-scanner-action`: v2.x is a reusable workflow, not a composite action. Fixed from step-level `uses:` to job-level `uses: .../.github/workflows/osv-scanner-reusable.yml@v2.3.8`. Neither `@v1` nor `@v2` are valid tags — only full semver (e.g. `v2.3.8`).
+- `integration-web`: replaced `flutter drive` (required separate ChromeDriver process) with `flutter test --platform chrome`; Google Chrome is pre-installed on `ubuntu-latest` runners.
+
+### ocr_pipeline_test.dart load failure → FIXED
+`test/features/library/presentation/ocr_pipeline_test.dart` had no `void main() {}` entry point. The test runner attempted to load the file before evaluating `--exclude-tags=ocr-pipeline`, hit a missing-entrypoint error, and reported a hard `-1` failure. Added `void main() {}` — file now loads and skips cleanly.
+
+**New test baseline: 250 pass / 2 skip / 0 fail** (was 250 / 1 / 1).
 
 ---
 
