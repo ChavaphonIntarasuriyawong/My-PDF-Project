@@ -173,9 +173,7 @@ class _DestructiveButton extends StatelessWidget {
         backgroundColor: AppColors.surface,
         foregroundColor: AppColors.error,
         side: const BorderSide(color: AppColors.error, width: 1.5),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       ),
       child: loading
           ? const SizedBox(

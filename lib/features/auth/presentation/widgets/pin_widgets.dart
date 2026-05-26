@@ -84,9 +84,7 @@ class PinStatusLine extends StatelessWidget {
     // so the space matches the actual rendered line height.
     final lineHeight =
         AppTypography.bodyMedium.fontSize! * AppTypography.bodyMedium.height!;
-    return SizedBox(
-      height: MediaQuery.textScalerOf(context).scale(lineHeight),
-    );
+    return SizedBox(height: MediaQuery.textScalerOf(context).scale(lineHeight));
   }
 }
 
@@ -124,7 +122,11 @@ class PinNumpad extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              Expanded(child: ConstrainedBox(constraints: const BoxConstraints(minHeight: 64))),
+              Expanded(
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(minHeight: 64),
+                ),
+              ),
               const SizedBox(width: 12),
               Expanded(
                 child: PinDigitKey(
@@ -294,11 +296,7 @@ class PinBiometricButton extends StatelessWidget {
                   strokeWidth: 2,
                 ),
               )
-            : const Icon(
-                Icons.fingerprint,
-                color: AppColors.primary,
-                size: 22,
-              ),
+            : const Icon(Icons.fingerprint, color: AppColors.primary, size: 22),
         label: Text(
           'Use Face ID / Fingerprint',
           style: AppTypography.labelLarge.copyWith(color: AppColors.primary),
@@ -306,9 +304,7 @@ class PinBiometricButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(double.infinity, 48),
           side: const BorderSide(color: AppColors.primary),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );

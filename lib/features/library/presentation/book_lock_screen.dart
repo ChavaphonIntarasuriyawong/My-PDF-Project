@@ -489,9 +489,7 @@ class _StatusLine extends StatelessWidget {
     // actual rendered line height.
     final lineHeight =
         AppTypography.bodyMedium.fontSize! * AppTypography.bodyMedium.height!;
-    return SizedBox(
-      height: MediaQuery.textScalerOf(context).scale(lineHeight),
-    );
+    return SizedBox(height: MediaQuery.textScalerOf(context).scale(lineHeight));
   }
 }
 
@@ -693,11 +691,7 @@ class _BiometricButton extends StatelessWidget {
                   strokeWidth: 2,
                 ),
               )
-            : const Icon(
-                Icons.fingerprint,
-                color: AppColors.primary,
-                size: 22,
-              ),
+            : const Icon(Icons.fingerprint, color: AppColors.primary, size: 22),
         label: Text(
           'Use Face ID / Fingerprint',
           style: AppTypography.labelLarge.copyWith(color: AppColors.primary),
@@ -705,9 +699,7 @@ class _BiometricButton extends StatelessWidget {
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(double.infinity, 48),
           side: const BorderSide(color: AppColors.primary),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(8),
-          ),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         ),
       ),
     );
