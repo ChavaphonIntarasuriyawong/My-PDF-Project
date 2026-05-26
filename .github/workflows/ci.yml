@@ -86,22 +86,19 @@ jobs:
   # ---------------------------------------------------------------------------
   # Dependency vulnerability scan — flags packages with known CVEs in the
   # OSV database (covers pub.dev, PyPI, npm, Go, etc.).
-  # Runs on every push; blocks merge on HIGH/CRITICAL findings.
+  # v2.x is a reusable workflow; called at the job level, not as a step.
+  # upload-sarif disabled to avoid requiring GitHub Advanced Security.
   # ---------------------------------------------------------------------------
   osv-scan:
     name: OSV dependency scan
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.sha }}
-
-      - name: Run OSV Scanner
-        uses: google/osv-scanner-action@v2.3.8
-        with:
-          scan-args: |-
-            --lockfile=pubspec.lock
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8
+    with:
+      scan-args: |-
+        --lockfile=pubspec.lock
+      upload-sarif: false
+    permissions:
+      contents: read
+      actions: read
 
   # ---------------------------------------------------------------------------
   # Android integration tests — runs integration_test/ on a real emulator.
