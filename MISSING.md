@@ -2,7 +2,7 @@
 
 Audited: 2026-05-26. Based on static analysis of `lib/`, `test/`, `.github/workflows/`, `pubspec.yaml`, `firestore.indexes.json`, and `supabase/`.
 
-Last updated: 2026-05-26 (session 8 — R5 textScaler merged, R2 Riverpod codegen complete).
+Last updated: 2026-05-26 (session 9 — scope clarification: book_lock_screen test not a requirement; Supabase RLS is the only remaining open item).
 
 ---
 
@@ -111,12 +111,23 @@ CI: `dart run build_runner build --delete-conflicting-outputs` added before `flu
 
 ---
 
-## Confirmed partial gaps
+## ✅ Also clarified this session (session 9)
+
+### book_lock_screen widget test — not a requirement
+The per-book PIN lock (`BookLockScreen`) is an **extra feature** added beyond the original project rubric. It does not appear in the R1–R5 requirements checklist. There is no `test/screens/book_lock_screen_test.dart`, but this is not a gap — it was never a deliverable.
+
+This was previously listed as a "partial credit risk" in the R5 widget-test section. That entry is removed.
+
+---
+
+## Remaining open item
 
 ### R1 — Supabase RLS not in repo
 `supabase/` contains only `functions/`. No `migrations/` directory, no `.sql` files with `CREATE POLICY` / `ENABLE ROW LEVEL SECURITY`. RLS is dashboard-only and unverifiable from source control.
 
-**What's needed:** export RLS policies to `supabase/migrations/` so they are reviewed and version-controlled alongside the app.
+**What's needed:** export RLS policies to `supabase/migrations/` via `supabase db pull`, commit the generated `.sql` files.
+
+**This is the only item from the original R1–R5 checklist that remains open.** All other requirements are complete.
 
 ---
 
@@ -143,3 +154,4 @@ CI: `dart run build_runner build --delete-conflicting-outputs` added before `flu
 |---|---|
 | Library domain "1/3 models tested" | **Wrong** — `book_model_test.dart`, `bookshelf_model_test.dart`, and `note_model_test.dart` all exist. |
 | Notes Firestore index over-specified | **Not reproduced** — `(bookId ASC, createdAt DESC)` matches the `watchNotes` query exactly. `watchUserNotesCount` uses `whereIn` with no `orderBy` and needs no composite index. |
+| `book_lock_screen` widget test is a gap | **Wrong** — per-book lock is an extra feature, not an original requirement. No test is expected. |
