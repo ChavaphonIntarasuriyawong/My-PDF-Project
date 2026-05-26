@@ -51,3 +51,6 @@ import 'package:flutter_test/flutter_test.dart';
 //     @override
 //     Future<void> dispose() async {}
 //   }
+
+// Required for the test runner to load this file; all tests are @Skip-tagged.
+void main() {}

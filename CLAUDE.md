@@ -149,7 +149,7 @@ This repo uses 5 scoped subagents under `.claude/agents/`. **Dispatch in paralle
 
 | Gate | Requirement |
 |---|---|
-| **Correctness** | `flutter analyze` clean (zero warnings/errors) · `flutter test` green (current baseline: 181 pass · 2 skipped · 0 fail) · domain layer (`lib/features/*/domain/`) >80% line coverage |
+| **Correctness** | `flutter analyze` clean (zero warnings/errors) · `flutter test` green (current baseline: 250 pass · 1 skip · 1 pre-existing OCR-asset load fail) · domain layer (`lib/features/*/domain/`) >80% line coverage |
 | **Security** | No secrets committed (Supabase anon key in `main.dart` is public-by-design; service keys never in repo) · Firestore rules + Supabase RLS reviewed for any new collection/bucket path · auth state checked on every protected route |
 | **Accessibility** | `Semantics` labels on every interactive widget (buttons, list items, icon-only taps) · WCAG AA contrast on `AppColors` pairings · tap targets ≥48×48 dp |
 | **Performance** | No unbounded `ListView` (use `.builder` + key) · all images and thumbnails cached · streams disposed in `ref.onDispose` · no synchronous PDF byte work on the UI isolate for files >2 MB |

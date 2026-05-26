@@ -244,7 +244,7 @@ class _NoteEditTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 64,
+      constraints: const BoxConstraints(minHeight: 64),
       color: AppColors.surface,
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
