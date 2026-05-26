@@ -102,8 +102,10 @@ jobs:
       security-events: write
 
   # ---------------------------------------------------------------------------
-  # Web integration tests — runs integration_test/ in headless Chrome.
-  # Google Chrome is pre-installed on ubuntu-latest runners.
+  # Web integration tests — flutter drive against headless Chrome.
+  # Both google-chrome and chromedriver are pre-installed on ubuntu-latest.
+  # flutter test -d chrome is NOT supported for integration_test; flutter
+  # drive + chromedriver is the correct approach.
   # Gated to pull_request to keep push CI lean.
   # ---------------------------------------------------------------------------
   integration-web:
@@ -126,5 +128,14 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
+      - name: Start ChromeDriver
+        run: chromedriver --port=4444 &
+
       - name: Run web integration tests
-        run: flutter test -d chrome integration_test/app_test.dart
+        run: |
+          flutter drive \
+            --driver=test_driver/integration_test.dart \
+            --target=integration_test/app_test.dart \
+            -d web-server \
+            --browser-name=chrome \
+            --headless
