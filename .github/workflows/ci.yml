@@ -102,51 +102,6 @@ jobs:
       security-events: write
 
   # ---------------------------------------------------------------------------
-  # Android integration tests — runs integration_test/ on a real emulator.
-  # Uses macos-latest for hardware-accelerated HAXM; ~15 min per run.
-  # Gated to pull_request to keep push CI lean.
-  # ---------------------------------------------------------------------------
-  integration-android:
-    name: Integration tests (Android emulator)
-    runs-on: macos-latest
-    if: github.event_name == 'pull_request'
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Set up Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          flutter-version: '3.44.0'
-          channel: stable
-          cache: true
-
-      - name: Install dependencies
-        run: flutter pub get
-
-      - name: Set up Java (required by Android SDK)
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Run integration tests on Android emulator
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 29
-          target: default
-          arch: x86_64
-          profile: Nexus 6
-          disable-animations: true
-          emulator-options: -no-snapshot -noaudio -no-boot-anim -camera-back none
-          # --dart-define values for Firebase/Supabase are intentionally omitted:
-          # integration tests that need real backends should use a dedicated
-          # test-project Firebase project and inject keys via repo secrets.
-          script: flutter test integration_test/ --reporter expanded
-
-  # ---------------------------------------------------------------------------
   # Web integration tests — runs integration_test/ in headless Chrome.
   # Google Chrome is pre-installed on ubuntu-latest runners.
   # Gated to pull_request to keep push CI lean.
