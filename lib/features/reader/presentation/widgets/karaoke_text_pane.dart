@@ -646,14 +646,11 @@ class _SpeedSlider extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            width: 32,
-            child: Text(
-              '${clamped.toStringAsFixed(1)}x',
-              style: AppTypography.captionBold.copyWith(
-                color: AppColors.primary,
-                fontSize: 11,
-              ),
+          Text(
+            '${clamped.toStringAsFixed(1)}x',
+            style: AppTypography.captionBold.copyWith(
+              color: AppColors.primary,
+              fontSize: 11,
             ),
           ),
           Expanded(

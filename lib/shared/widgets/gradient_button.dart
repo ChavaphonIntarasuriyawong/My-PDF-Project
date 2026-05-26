@@ -20,9 +20,11 @@ class GradientButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      width: double.infinity,
-      height: 56,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minHeight: 56,
+        minWidth: double.infinity,
+      ),
       child: DecoratedBox(
         decoration: BoxDecoration(
           gradient: onPressed == null
