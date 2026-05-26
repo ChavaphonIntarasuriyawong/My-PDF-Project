@@ -1,34 +1,39 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../data/auth_repository_impl.dart';
 import '../data/firebase_auth_data_source.dart';
 import '../domain/auth_repository.dart';
 import '../domain/user_model.dart';
 
-final firebaseAuthProvider = Provider<FirebaseAuth>(
-  (ref) => FirebaseAuth.instance,
-);
-final firestoreProvider = Provider<FirebaseFirestore>(
-  (ref) => FirebaseFirestore.instance,
-);
+part 'auth_providers.g.dart';
 
-final authDataSourceProvider = Provider<FirebaseAuthDataSource>((ref) {
+@Riverpod(keepAlive: true)
+FirebaseAuth firebaseAuth(FirebaseAuthRef ref) => FirebaseAuth.instance;
+
+@Riverpod(keepAlive: true)
+FirebaseFirestore firestore(FirestoreRef ref) => FirebaseFirestore.instance;
+
+@Riverpod(keepAlive: true)
+FirebaseAuthDataSource authDataSource(AuthDataSourceRef ref) {
   return FirebaseAuthDataSource(
     ref.watch(firebaseAuthProvider),
     ref.watch(firestoreProvider),
   );
-});
+}
 
-final authRepositoryProvider = Provider<AuthRepository>((ref) {
+@Riverpod(keepAlive: true)
+AuthRepository authRepository(AuthRepositoryRef ref) {
   return AuthRepositoryImpl(ref.watch(authDataSourceProvider));
-});
+}
 
-final authStateProvider = StreamProvider<UserModel?>((ref) {
+@Riverpod(keepAlive: true)
+Stream<UserModel?> authState(AuthStateRef ref) {
   return ref.watch(authRepositoryProvider).authStateChanges();
-});
+}
 
-final userProfileProvider = StreamProvider<UserModel?>((ref) {
+@Riverpod(keepAlive: true)
+Stream<UserModel?> userProfile(UserProfileRef ref) {
   final uid = ref.watch(authStateProvider).valueOrNull?.uid;
   if (uid == null) return const Stream.empty();
   return ref
@@ -45,4 +50,4 @@ final userProfileProvider = StreamProvider<UserModel?>((ref) {
           email: data['email'] ?? '',
         );
       });
-});
+}

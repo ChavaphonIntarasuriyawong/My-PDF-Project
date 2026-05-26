@@ -1,13 +1,15 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../data/book_lock_hasher.dart';
 import '../domain/book_model.dart';
 import '../domain/note_model.dart';
 import 'library_providers.dart';
+
+part 'library_controller.g.dart';
 
 class DuplicateNameException implements Exception {
   final String message;
@@ -16,21 +18,22 @@ class DuplicateNameException implements Exception {
   String toString() => message;
 }
 
-class LibraryController extends StateNotifier<AsyncValue<void>> {
-  final Ref _ref;
-  LibraryController(this._ref) : super(const AsyncValue.data(null));
+@Riverpod(keepAlive: true)
+class LibraryController extends _$LibraryController {
+  @override
+  AsyncValue<void> build() => const AsyncValue.data(null);
 
   String _norm(String s) => s.trim().toLowerCase();
 
   Future<bool> createShelf(String name, String ownerId) async {
     state = const AsyncValue.loading();
     try {
-      final existing = _ref.read(shelvesProvider).valueOrNull ?? [];
+      final existing = ref.read(shelvesProvider).valueOrNull ?? [];
       final n = _norm(name);
       if (existing.any((s) => _norm(s.name) == n)) {
         throw DuplicateNameException('A shelf named "$name" already exists.');
       }
-      await _ref
+      await ref
           .read(firestoreDataSourceProvider)
           .createShelf(name: name, ownerId: ownerId);
       state = const AsyncValue.data(null);
@@ -44,12 +47,12 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
   Future<bool> updateShelfName(String shelfId, String name) async {
     state = const AsyncValue.loading();
     try {
-      final existing = _ref.read(shelvesProvider).valueOrNull ?? [];
+      final existing = ref.read(shelvesProvider).valueOrNull ?? [];
       final n = _norm(name);
       if (existing.any((s) => s.id != shelfId && _norm(s.name) == n)) {
         throw DuplicateNameException('A shelf named "$name" already exists.');
       }
-      await _ref
+      await ref
           .read(firestoreDataSourceProvider)
           .updateShelfName(shelfId, name);
       state = const AsyncValue.data(null);
@@ -63,7 +66,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
   Future<bool> deleteShelf(String shelfId) async {
     state = const AsyncValue.loading();
     try {
-      await _ref.read(firestoreDataSourceProvider).deleteShelf(shelfId);
+      await ref.read(firestoreDataSourceProvider).deleteShelf(shelfId);
       state = const AsyncValue.data(null);
       return true;
     } catch (e, st) {
@@ -75,7 +78,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
   Future<BookModel?> createBook(BookModel book) async {
     state = const AsyncValue.loading();
     try {
-      final existing = _ref.read(allBooksProvider).valueOrNull ?? [];
+      final existing = ref.read(allBooksProvider).valueOrNull ?? [];
       final n = _norm(book.title);
       if (n.isEmpty) {
         throw DuplicateNameException('Title cannot be empty.');
@@ -85,7 +88,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
           'A book titled "${book.title}" already exists.',
         );
       }
-      final created = await _ref
+      final created = await ref
           .read(firestoreDataSourceProvider)
           .createBook(book);
       state = const AsyncValue.data(null);
@@ -99,16 +102,16 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
   Future<bool> deleteBook(String bookId) async {
     state = const AsyncValue.loading();
     try {
-      final link = await _ref
+      final link = await ref
           .read(firestoreDataSourceProvider)
           .deleteBook(bookId);
       // Drop from local recents so the home rail doesn't show a dead pointer.
-      await _ref.read(recentBooksServiceProvider).remove(bookId);
+      await ref.read(recentBooksServiceProvider).remove(bookId);
       // Best-effort OCR cache cleanup. Never blocks delete — book + notes
       // are already gone from Firestore by this point and a stale Hive entry
       // is harmless beyond a few KB of disk.
       try {
-        await _ref.read(ocrCacheServiceProvider).purgeBook(bookId);
+        await ref.read(ocrCacheServiceProvider).purgeBook(bookId);
       } catch (e) {
         debugPrint('OCR cache purge failed for $bookId: $e');
       }
@@ -158,7 +161,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     required int totalPages,
   }) async {
     try {
-      await _ref
+      await ref
           .read(firestoreDataSourceProvider)
           .updateReadingProgress(
             bookId: bookId,
@@ -174,7 +177,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
 
   Future<bool> updateStatus(String bookId, String status) async {
     try {
-      await _ref
+      await ref
           .read(firestoreDataSourceProvider)
           .updateBookStatus(bookId, status);
       return true;
@@ -186,7 +189,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
 
   Future<bool> renameBook(String bookId, String newTitle) async {
     try {
-      final existing = _ref.read(allBooksProvider).valueOrNull ?? [];
+      final existing = ref.read(allBooksProvider).valueOrNull ?? [];
       final n = _norm(newTitle);
       if (n.isEmpty) {
         throw DuplicateNameException('Title cannot be empty.');
@@ -196,7 +199,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
           'A book titled "$newTitle" already exists.',
         );
       }
-      await _ref
+      await ref
           .read(firestoreDataSourceProvider)
           .updateBookTitle(bookId, newTitle);
       return true;
@@ -208,7 +211,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
 
   Future<bool> moveBook(String bookId, String newShelfId) async {
     try {
-      await _ref.read(firestoreDataSourceProvider).moveBook(bookId, newShelfId);
+      await ref.read(firestoreDataSourceProvider).moveBook(bookId, newShelfId);
       return true;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -222,7 +225,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     required String content,
   }) async {
     try {
-      return await _ref
+      return await ref
           .read(firestoreDataSourceProvider)
           .createNote(bookId: bookId, title: title, content: content);
     } catch (e, st) {
@@ -237,7 +240,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     required String content,
   }) async {
     try {
-      await _ref
+      await ref
           .read(firestoreDataSourceProvider)
           .updateNote(noteId, title: title, content: content);
       return true;
@@ -249,7 +252,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
 
   Future<bool> deleteNote(String noteId) async {
     try {
-      await _ref.read(firestoreDataSourceProvider).deleteNote(noteId);
+      await ref.read(firestoreDataSourceProvider).deleteNote(noteId);
       return true;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -261,7 +264,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
   Future<bool> deleteNotes(List<String> noteIds) async {
     if (noteIds.isEmpty) return true;
     try {
-      await _ref.read(firestoreDataSourceProvider).deleteNotes(noteIds);
+      await ref.read(firestoreDataSourceProvider).deleteNotes(noteIds);
       return true;
     } catch (e, st) {
       state = AsyncValue.error(e, st);
@@ -281,11 +284,11 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     try {
       final hash = BookLockHasher.hash(pin);
-      await _ref
+      await ref
           .read(firestoreDataSourceProvider)
           .updateBookLock(bookId, isLocked: true, lockHash: hash);
       // Newly locked book: clear any cached session unlock so next open prompts.
-      _ref.read(bookUnlockSessionProvider).lock(bookId);
+      ref.read(bookUnlockSessionProvider).lock(bookId);
       state = const AsyncValue.data(null);
       return true;
     } catch (e, st) {
@@ -301,7 +304,7 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
     state = const AsyncValue.loading();
     try {
       // Verify current PIN against the latest book doc before unlocking.
-      final book = _ref.read(bookByIdProvider(bookId)).valueOrNull;
+      final book = ref.read(bookByIdProvider(bookId)).valueOrNull;
       if (book == null || book.lockHash == null) {
         state = const AsyncValue.data(null);
         return false;
@@ -310,10 +313,10 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
         state = const AsyncValue.data(null);
         return false;
       }
-      await _ref
+      await ref
           .read(firestoreDataSourceProvider)
           .updateBookLock(bookId, isLocked: false, lockHash: null);
-      _ref.read(bookUnlockSessionProvider).lock(bookId);
+      ref.read(bookUnlockSessionProvider).lock(bookId);
       state = const AsyncValue.data(null);
       return true;
     } catch (e, st) {
@@ -326,13 +329,8 @@ class LibraryController extends StateNotifier<AsyncValue<void>> {
   /// round-trip; reads the cached `bookByIdProvider` snapshot and runs a
   /// SHA-crypt compare. Returns false for unknown books or unlocked books.
   bool verifyBookLock(String bookId, String pin) {
-    final book = _ref.read(bookByIdProvider(bookId)).valueOrNull;
+    final book = ref.read(bookByIdProvider(bookId)).valueOrNull;
     if (book == null || book.lockHash == null) return false;
     return BookLockHasher.verify(pin, book.lockHash!);
   }
 }
-
-final libraryControllerProvider =
-    StateNotifierProvider<LibraryController, AsyncValue<void>>(
-      (ref) => LibraryController(ref),
-    );
