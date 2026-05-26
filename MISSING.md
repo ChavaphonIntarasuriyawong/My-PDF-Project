@@ -2,7 +2,7 @@
 
 Audited: 2026-05-26. Based on static analysis of `lib/`, `test/`, `.github/workflows/`, `pubspec.yaml`, `firestore.indexes.json`, and `supabase/`.
 
-Last updated: 2026-05-26 (session 6 — CI action fixes, Android emulator removed, web integration test corrected).
+Last updated: 2026-05-26 (session 7 — Firestore offline persistence enabled).
 
 ---
 
@@ -76,14 +76,21 @@ Final working CI job set on `clean_ups` branch:
 
 ---
 
-## Hard misses
+## ✅ Also resolved this session (session 7)
 
-### R4 — Firestore offline persistence + offline-first cache
-No `Settings(persistenceEnabled: true)`, `setPersistenceEnabled`, or `enablePersistence` call anywhere. The app is purely online-only — books, shelves, and notes fail silently when offline.
+### R4 — Firestore offline persistence → DONE
+Added `FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true, cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED)` in `lib/main.dart` immediately after `Firebase.initializeApp()`, before any Firestore reads or writes.
 
-**What's needed:** enable Firestore persistence in `main.dart` before `runApp`. Consider an offline-first repository layer (serve cache → sync on reconnect).
+- Mobile: SQLite-backed persistence via the Firestore SDK's local cache; unlimited cache size.
+- Web: IndexedDB persistence via the same `Settings` API (`cacheSizeBytes` is web-ignored).
+- `enablePersistence()` was the old web-only API; it is deprecated — `Settings.persistenceEnabled` is the unified replacement.
+- Books, shelves, and notes now load from local cache while offline and sync automatically on reconnect.
+
+**Test baseline: 250 pass / 1 skip / 0 fail** (unchanged — no test-visible behaviour change).
 
 ---
+
+## Hard misses
 
 ### R5 — Dynamic type (MediaQuery.textScaler)
 Zero occurrences of `textScaler` or `textScaleFactor` in `lib/`. Font sizes are hardcoded through `AppTypography` with no respect for the OS accessibility text-size setting.
