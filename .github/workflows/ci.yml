@@ -99,6 +99,7 @@ jobs:
     permissions:
       contents: read
       actions: read
+      security-events: write
 
   # ---------------------------------------------------------------------------
   # Android integration tests — runs integration_test/ on a real emulator.
