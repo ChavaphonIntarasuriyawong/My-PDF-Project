@@ -2,130 +2,88 @@
 
 Audited: 2026-05-26. Based on static analysis of `lib/`, `test/`, `.github/workflows/`, `pubspec.yaml`, `firestore.indexes.json`, and `supabase/`.
 
-Last updated: 2026-05-26 (session 7 — Firestore offline persistence enabled).
+Last updated: 2026-05-26 (session 8 — R5 textScaler fixed-height containers resolved).
 
 ---
 
-## ✅ Resolved this session
+## ✅ Done and verified in code
 
-### R1 — Auth-level biometric / passkey session resume → DONE
-Replaced per-book PIN lock with an **app-level PIN gate**:
-- `AppPinService` (Hive-backed, SHA-256 hash) stores the PIN per device.
-- `appPinSessionProvider` (`StateNotifier<bool>`) tracks whether the PIN was entered this session.
-- `PinSetupScreen` is shown once after registration; `PinEntryScreen` is shown on every cold start / resume when the user is already logged in.
-- `BiometricAuthService` is wired into `PinEntryScreen` for quick-unlock — satisfying the biometric-on-app-reentry requirement.
-- GoRouter redirect handles all states: loading, logged-out, PIN-not-set, PIN-not-entered, content.
+### App-level PIN gate (biometric session resume)
+- `lib/core/local/app_pin_service.dart` — Hive-backed, SHA-256 hash; `appPinServiceProvider` exposed for test override.
+- `lib/core/local/app_pin_session.dart` — `appPinSessionProvider` (`StateNotifier<bool>`) tracks PIN-entered state per session.
+- `lib/features/auth/presentation/pin_setup_screen.dart` — shown once after registration.
+- `lib/features/auth/presentation/pin_entry_screen.dart` — shown on every cold start / resume; biometric quick-unlock via `BiometricAuthService`.
+- GoRouter redirect covers all states: loading, logged-out, PIN-not-set, PIN-not-entered, content.
 
----
+### Firestore offline persistence (R4)
+`lib/main.dart:36-39` — `FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true, cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED)` set immediately after `Firebase.initializeApp()`, before any Firestore reads or writes.
 
-## ✅ Also resolved this session
+- Mobile: SQLite-backed local cache via the Firestore SDK.
+- Web: IndexedDB via the same `Settings` API (`cacheSizeBytes` web-ignored).
+- Books, shelves, and notes load from local cache while offline; sync on reconnect.
 
-### R2 — Riverpod codegen (@riverpod + build_runner) → DONE
-Added `riverpod_annotation: ^2.6.1` (dep) + `riverpod_generator: ^2.6.4` + `build_runner: ^2.4.15` (dev deps). Migrated all 30+ providers across 8 files to `@riverpod` / `@Riverpod(keepAlive: true)` annotations:
-- `StateNotifier` controllers → `Notifier` (auth, library, app PIN session, karaoke)
-- `Provider` / `StreamProvider` / `FutureProvider` / `StateProvider` → annotated functions/classes
-- `BookOcrProgress` (`StateProvider`) → `@riverpod class` with explicit `set()` method; 4 call sites in `reading_screen.dart` updated
-- `dart run build_runner build --delete-conflicting-outputs` generates 8 `.g.dart` files
-- `flutter analyze` clean · `flutter test` 200 pass / 1 pre-existing skip
+### CI pipeline (4 jobs, all passing)
 
----
-
-## ✅ Also resolved this session (session 3)
-
-### R5 — Cross-platform integration tests in CI → DONE
-Added CI jobs to `.github/workflows/ci.yml`:
-- `integration-android` — **removed in session 6** (GitHub Actions macOS emulator has an unfixable `adb: device not found` race condition; unit + widget tests already cover all app logic).
-- `integration-web` (`runs-on: ubuntu-latest`, `flutter drive --driver ... -d web-server --browser-name=chrome --headless` via pre-installed ChromeDriver) — runs on every PR.
-Gated to `pull_request` events to keep push CI lean.
-Created `test_driver/integration_test.dart`.
-
-### R5 — Dependency / secret scan in CI → DONE
-Added two new CI jobs to `.github/workflows/ci.yml`:
-- `secret-scan`: `gitleaks/gitleaks-action@v2` with `fetch-depth: 0` — runs on every push/PR.
-- `osv-scan`: `google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8` (reusable workflow, job-level call) scanning `pubspec.lock` — runs on every push/PR.
-
----
-
-## ✅ Also resolved this session (session 5)
-
-### CI hardening — dart format gate + version + action fixes → DONE
-- `dart format --set-exit-if-changed lib/ test/ integration_test/` added as a CI step; 7 files reformatted.
-- Flutter pinned to `3.44.0` (was `3.38.6` which doesn't exist as a release tag).
-- `google/osv-scanner-action`: v2.x is a reusable workflow, not a composite action. Fixed from step-level `uses:` to job-level `uses: .../.github/workflows/osv-scanner-reusable.yml@v2.3.8`. Neither `@v1` nor `@v2` are valid tags — only full semver (e.g. `v2.3.8`). Caller must grant `security-events: write` even when `upload-sarif: false` because the callee's `permissions:` block declares it unconditionally.
-- `integration-web`: `flutter test -d chrome` is not supported for `integration_test/` ("Web devices are not supported for integration tests yet"). Corrected to `flutter drive --driver ... -d web-server --browser-name=chrome --headless` with ChromeDriver started as a background process. Both `google-chrome` and `chromedriver` are pre-installed on `ubuntu-latest`.
-- `integration-android`: removed — GitHub Actions macOS emulator consistently fails with `adb: device not found` regardless of boot flags.
-
-### ocr_pipeline_test.dart load failure → FIXED
-`test/features/library/presentation/ocr_pipeline_test.dart` had no `void main() {}` entry point. The test runner attempted to load the file before evaluating `--exclude-tags=ocr-pipeline`, hit a missing-entrypoint error, and reported a hard `-1` failure. Added `void main() {}` — file now loads and skips cleanly.
-
-**Test baseline: 250 pass / 2 skip / 0 fail** (was 250 / 1 / 1).
-
----
-
-## ✅ Also resolved this session (session 6)
-
-### CI action correctness — all 4 jobs now pass → DONE
-Final working CI job set on `clean_ups` branch:
-
-| Job | Trigger | Status |
+| Job | Trigger | Mechanism |
 |---|---|---|
-| `flutter-ci` (format + analyze + test) | push + PR | ✅ |
-| `secret-scan` (gitleaks) | push + PR | ✅ |
-| `osv-scan` (OSV Scanner v2.3.8) | push + PR | ✅ |
-| `integration-web` (flutter drive + chromedriver) | PR only | ✅ |
+| `flutter-ci` | push + PR | `dart format --set-exit-if-changed` → `flutter analyze --fatal-infos` → `flutter test --exclude-tags=golden,ocr-pipeline` |
+| `secret-scan` | push + PR | `gitleaks/gitleaks-action@v2` with `fetch-depth: 0` |
+| `osv-scan` | push + PR | `google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@v2.3.8` (job-level reusable workflow; `security-events: write` granted) |
+| `integration-web` | PR only | `flutter drive --driver test_driver/integration_test.dart --target integration_test/app_test.dart -d web-server --browser-name=chrome --headless` (ChromeDriver pre-installed on `ubuntu-latest`) |
 
----
+Flutter pinned to `3.44.0`. Android emulator job removed — GitHub Actions macOS runners have an unfixable `adb: device not found` race condition.
 
-## ✅ Also resolved this session (session 7)
+### Test suite
 
-### R4 — Firestore offline persistence → DONE
-Added `FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: true, cacheSizeBytes: Settings.CACHE_SIZE_UNLIMITED)` in `lib/main.dart` immediately after `Firebase.initializeApp()`, before any Firestore reads or writes.
+**Baseline: 250 pass / 1 skip / 0 fail**
 
-- Mobile: SQLite-backed persistence via the Firestore SDK's local cache; unlimited cache size.
-- Web: IndexedDB persistence via the same `Settings` API (`cacheSizeBytes` is web-ignored).
-- `enablePersistence()` was the old web-only API; it is deprecated — `Settings.persistenceEnabled` is the unified replacement.
-- Books, shelves, and notes now load from local cache while offline and sync automatically on reconnect.
+| Test file | What it covers |
+|---|---|
+| `test/screens/pin_setup_screen_test.dart` | `PinSetupScreen` — 6 tests: rendering, 6-digit entry, mismatch, success→home |
+| `test/screens/pin_entry_screen_test.dart` | `PinEntryScreen` — 6 tests: rendering, wrong PIN, cooldown, forgot-PIN sign-out |
+| `test/screens/note_edit_screen_test.dart` | `NoteEditSheet` — 8 tests: create mode, edit mode, validation |
+| `test/features/auth/domain/auth_failure_test.dart` | `Failure` hierarchy, const-constructibility, `message` field — 8 tests |
+| `test/features/auth/domain/auth_repository_test.dart` | `Either<Failure,T>` contracts for login / register / logout / authStateChanges — 9 tests |
+| `test/accessibility/text_scale_test.dart` | `LoginScreen` renders without overflow at 1.0×, 1.5×, 2.0×; verifies `MediaQuery.textScaler` propagates correctly |
+| `integration_test/app_test.dart` | Unauthenticated launch, field input, empty-submit snackbar, PhoneFrame smoke |
 
-**Test baseline: 250 pass / 1 skip / 0 fail** (unchanged — no test-visible behaviour change).
+The 1 skip is `test/features/library/presentation/ocr_pipeline_test.dart` (`@Tags(['ocr-pipeline'])` + `@Skip`; excluded by `--exclude-tags=ocr-pipeline`; file has `void main() {}` so it loads cleanly).
 
 ---
 
 ## Hard misses
 
-### R5 — Dynamic type (MediaQuery.textScaler)
-Zero occurrences of `textScaler` or `textScaleFactor` in `lib/`. Font sizes are hardcoded through `AppTypography` with no respect for the OS accessibility text-size setting.
+### R2 — Riverpod codegen (@riverpod + build_runner)
 
-**What's needed:** wrap text-size-sensitive widgets with `MediaQuery.textScalerOf(context)` scaling, and add a widget test that pumps under a non-1.0 text scale factor.
+`riverpod_annotation` and `riverpod_generator` are in `pubspec.yaml` but **codegen was never run or committed**. There are zero `@riverpod` annotations and zero `.g.dart` files anywhere in `lib/`. All providers still use the traditional Riverpod API (`Provider`, `StreamProvider`, `StateNotifierProvider`, etc.).
 
-*Note: WCAG AA contrast documentation is present and complete in `docs/accessibility.md` — that half of the R5 claim is already satisfied.*
-
----
+**What's needed:** annotate providers with `@riverpod` / `@Riverpod(keepAlive: true)`, run `dart run build_runner build --delete-conflicting-outputs`, commit the 8 generated `.g.dart` files, and update CI to run `build_runner` before `flutter analyze`.
 
 ---
 
-## Confirmed partial gaps
+### ✅ R5 — Dynamic type (MediaQuery.textScaler) → DONE (session 8)
 
-### R1 — Supabase RLS not in repo
-`supabase/` contains only `functions/`. No `migrations/` directory, no `.sql` files with `CREATE POLICY` / `ENABLE ROW LEVEL SECURITY`. RLS is dashboard-only and unverifiable from source control.
+Fixed 5 files where `SizedBox(height: N)` prevented widgets from growing at large OS text scale factors (1.5×, 2.0×):
+
+| File | Fix |
+|---|---|
+| `lib/shared/widgets/gradient_button.dart` | `SizedBox(h:56)` → `ConstrainedBox(minHeight:56)` |
+| `lib/shared/widgets/app_modal.dart` | Cancel + Destructive buttons: `SizedBox(h:52)` removed, `minimumSize` moved into `styleFrom` |
+| `lib/features/auth/presentation/widgets/pin_widgets.dart` | Digit/backspace keys `SizedBox(h:64)` → `ConstrainedBox(minHeight:64)`; biometric `SizedBox(h:48)` removed (redundant with `minimumSize`); `PinStatusLine` placeholder height scaled via `MediaQuery.textScalerOf` |
+| `lib/features/library/presentation/book_lock_screen.dart` | Same 4 patterns as `pin_widgets` |
+| `lib/features/reader/presentation/widgets/karaoke_text_pane.dart` | `SizedBox(w:32)` removed from speed label |
+
+`test/accessibility/text_scale_test.dart` passes. **250 pass / 1 skip / 0 fail.**
+
+---
+
+## Confirmed partial gap
+
+### Supabase RLS not in source control
+
+`supabase/` contains only `functions/`. No `migrations/` directory, no `.sql` files with `CREATE POLICY` / `ENABLE ROW LEVEL SECURITY`. RLS is configured on the Supabase dashboard only — unverifiable and unreviewable from source control.
 
 **What's needed:** export RLS policies to `supabase/migrations/` so they are reviewed and version-controlled alongside the app.
-
----
-
-### ✅ R5 — Widget tests → DONE (session 4)
-
-| Test file | Screen covered | Notes |
-|---|---|---|
-| `test/screens/pin_setup_screen_test.dart` | `PinSetupScreen` | 6 tests: rendering, 6-digit entry, mismatch, success→home. `AppPinService` overridden with no-op stub to avoid fake-async/Hive I/O deadlock. |
-| `test/screens/pin_entry_screen_test.dart` | `PinEntryScreen` | 6 tests: rendering, wrong PIN, cooldown, forgot-PIN sign-out. |
-| `test/screens/note_edit_screen_test.dart` | `NoteEditSheet` | 8 tests: create mode, edit mode, validation. |
-
-`appPinServiceProvider` (`Provider<AppPinService>`) added to `app_pin_service.dart`; both `PinSetupScreen` and `PinEntryScreen` now read the service through the provider so tests can override it.
-
-### ✅ R5 — Auth domain unit-test gap → DONE (session 4)
-
-`test/features/auth/domain/auth_failure_test.dart` — 8 tests covering `Failure` hierarchy, const-constructibility, `message` field.
-`test/features/auth/domain/auth_repository_test.dart` — 9 tests with hand-rolled `_FakeAuthRepository` verifying `Either<Failure,T>` contracts for login / register / logout / authStateChanges.
 
 ---
 
@@ -133,5 +91,7 @@ Zero occurrences of `textScaler` or `textScaleFactor` in `lib/`. Font sizes are 
 
 | Claim | Verdict |
 |---|---|
+| R2 Riverpod codegen → DONE (prior MISSING.md) | **Wrong** — no `@riverpod` annotations and no `.g.dart` files exist in `lib/`. `riverpod_generator` is in dev deps but codegen was never run. |
 | Library domain "1/3 models tested" | **Wrong** — `book_model_test.dart`, `bookshelf_model_test.dart`, and `note_model_test.dart` all exist. |
-| Notes Firestore index over-specified | **Not reproduced** — `(bookId ASC, createdAt DESC)` matches the `watchNotes` query exactly. `watchUserNotesCount` uses `whereIn` with no `orderBy` and needs no composite index. |
+| Notes Firestore index over-specified | **Not reproduced** — `(bookId ASC, createdAt DESC)` matches the `watchNotes` query exactly. |
+| Font sizes ignore OS text-scale setting | **Resolved** — fixed-height containers converted to `minHeight` constraints (session 8); `PinStatusLine`/`_StatusLine` placeholder height now scaled via `MediaQuery.textScalerOf`. |
