@@ -80,10 +80,12 @@ class PinStatusLine extends StatelessWidget {
       );
     }
     // Reserve vertical room so the layout doesn't jitter when the message
-    // appears / disappears.
+    // appears / disappears. Scale the reserved height with the OS text scale
+    // so the space matches the actual rendered line height.
+    final lineHeight =
+        AppTypography.bodyMedium.fontSize! * AppTypography.bodyMedium.height!;
     return SizedBox(
-      height:
-          AppTypography.bodyMedium.fontSize! * AppTypography.bodyMedium.height!,
+      height: MediaQuery.textScalerOf(context).scale(lineHeight),
     );
   }
 }
@@ -122,7 +124,7 @@ class PinNumpad extends StatelessWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Expanded(child: SizedBox(height: 64)),
+              Expanded(child: ConstrainedBox(constraints: const BoxConstraints(minHeight: 64))),
               const SizedBox(width: 12),
               Expanded(
                 child: PinDigitKey(
@@ -186,8 +188,8 @@ class PinDigitKey extends StatelessWidget {
       button: true,
       label: 'PIN digit $label',
       enabled: !disabled,
-      child: SizedBox(
-        height: 64,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 64),
         child: Material(
           color: isPressed
               ? AppColors.primary.withValues(alpha: 0.15)
@@ -234,8 +236,8 @@ class PinBackspaceKey extends StatelessWidget {
       button: true,
       label: 'Delete last PIN digit',
       enabled: !disabled,
-      child: SizedBox(
-        height: 64,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 64),
         child: Material(
           color: isPressed
               ? AppColors.primary.withValues(alpha: 0.15)
@@ -281,34 +283,31 @@ class PinBiometricButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Unlock with Face ID or fingerprint',
-      child: SizedBox(
-        height: 48,
-        child: OutlinedButton.icon(
-          onPressed: loading ? null : onTap,
-          icon: loading
-              ? const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(
-                    color: AppColors.primary,
-                    strokeWidth: 2,
-                  ),
-                )
-              : const Icon(
-                  Icons.fingerprint,
+      child: OutlinedButton.icon(
+        onPressed: loading ? null : onTap,
+        icon: loading
+            ? const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(
                   color: AppColors.primary,
-                  size: 22,
+                  strokeWidth: 2,
                 ),
-          label: Text(
-            'Use Face ID / Fingerprint',
-            style: AppTypography.labelLarge.copyWith(color: AppColors.primary),
-          ),
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size(double.infinity, 48),
-            side: const BorderSide(color: AppColors.primary),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8),
-            ),
+              )
+            : const Icon(
+                Icons.fingerprint,
+                color: AppColors.primary,
+                size: 22,
+              ),
+        label: Text(
+          'Use Face ID / Fingerprint',
+          style: AppTypography.labelLarge.copyWith(color: AppColors.primary),
+        ),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(double.infinity, 48),
+          side: const BorderSide(color: AppColors.primary),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
           ),
         ),
       ),

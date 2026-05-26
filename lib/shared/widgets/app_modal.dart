@@ -82,28 +82,26 @@ class _AppModalState extends State<AppModal> {
               child: Row(
                 children: [
                   Expanded(
-                    child: SizedBox(
-                      height: 52,
-                      child: OutlinedButton(
-                        onPressed: _loading
-                            ? null
-                            : () => Navigator.of(context).pop(),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(
-                            color: AppColors.primary,
-                            width: 1.5,
-                          ),
-                          foregroundColor: AppColors.primary,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
+                    child: OutlinedButton(
+                      onPressed: _loading
+                          ? null
+                          : () => Navigator.of(context).pop(),
+                      style: OutlinedButton.styleFrom(
+                        minimumSize: const Size(double.infinity, 52),
+                        side: const BorderSide(
+                          color: AppColors.primary,
+                          width: 1.5,
                         ),
-                        child: Text(
-                          'Cancel',
-                          style: AppTypography.labelButton.copyWith(
-                            color: AppColors.primary,
-                            height: 1.0,
-                          ),
+                        foregroundColor: AppColors.primary,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: Text(
+                        'Cancel',
+                        style: AppTypography.labelButton.copyWith(
+                          color: AppColors.primary,
+                          height: 1.0,
                         ),
                       ),
                     ),
@@ -168,37 +166,35 @@ class _DestructiveButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
-      height: 52,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          backgroundColor: AppColors.surface,
-          foregroundColor: AppColors.error,
-          side: const BorderSide(color: AppColors.error, width: 1.5),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
+    return OutlinedButton(
+      onPressed: onPressed,
+      style: OutlinedButton.styleFrom(
+        minimumSize: const Size(double.infinity, 52),
+        backgroundColor: AppColors.surface,
+        foregroundColor: AppColors.error,
+        side: const BorderSide(color: AppColors.error, width: 1.5),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12),
         ),
-        child: loading
-            ? const SizedBox(
-                width: 18,
-                height: 18,
-                child: CircularProgressIndicator(
-                  color: AppColors.error,
-                  strokeWidth: 2,
-                ),
-              )
-            : Text(
-                label,
-                // height: 1.0 keeps descenders ('g','p','y') from being clipped
-                // by the button's bounded height. labelButton ships height: 1.5.
-                style: AppTypography.labelButton.copyWith(
-                  color: AppColors.error,
-                  height: 1.0,
-                ),
-              ),
       ),
+      child: loading
+          ? const SizedBox(
+              width: 18,
+              height: 18,
+              child: CircularProgressIndicator(
+                color: AppColors.error,
+                strokeWidth: 2,
+              ),
+            )
+          : Text(
+              label,
+              // height: 1.0 keeps descenders ('g','p','y') from being clipped
+              // by the button's bounded height. labelButton ships height: 1.5.
+              style: AppTypography.labelButton.copyWith(
+                color: AppColors.error,
+                height: 1.0,
+              ),
+            ),
     );
   }
 }
