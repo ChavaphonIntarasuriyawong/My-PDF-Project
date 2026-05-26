@@ -1,5 +1,5 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../features/auth/presentation/auth_providers.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
@@ -15,7 +15,10 @@ import '../../features/reader/presentation/note_screen.dart';
 import '../../features/reader/presentation/reading_screen.dart';
 import 'app_routes.dart';
 
-final routerProvider = Provider<GoRouter>((ref) {
+part 'app_router.g.dart';
+
+@Riverpod(keepAlive: true)
+GoRouter router(RouterRef ref) {
   final authState = ref.watch(authStateProvider);
 
   return GoRouter(
@@ -109,4 +112,4 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
     ],
   );
-});
+}

@@ -2,7 +2,7 @@
 
 Audited: 2026-05-26. Based on static analysis of `lib/`, `test/`, `.github/workflows/`, `pubspec.yaml`, `firestore.indexes.json`, and `supabase/`.
 
-Last updated: 2026-05-26 (session 7 — Firestore offline persistence enabled).
+Last updated: 2026-05-26 (session 8 — R5 textScaler merged, R2 Riverpod codegen complete).
 
 ---
 
@@ -17,16 +17,6 @@ Replaced per-book PIN lock with an **app-level PIN gate**:
 - GoRouter redirect handles all states: loading, logged-out, PIN-not-set, PIN-not-entered, content.
 
 ---
-
-## ✅ Also resolved this session
-
-### R2 — Riverpod codegen (@riverpod + build_runner) → DONE
-Added `riverpod_annotation: ^2.6.1` (dep) + `riverpod_generator: ^2.6.4` + `build_runner: ^2.4.15` (dev deps). Migrated all 30+ providers across 8 files to `@riverpod` / `@Riverpod(keepAlive: true)` annotations:
-- `StateNotifier` controllers → `Notifier` (auth, library, app PIN session, karaoke)
-- `Provider` / `StreamProvider` / `FutureProvider` / `StateProvider` → annotated functions/classes
-- `BookOcrProgress` (`StateProvider`) → `@riverpod class` with explicit `set()` method; 4 call sites in `reading_screen.dart` updated
-- `dart run build_runner build --delete-conflicting-outputs` generates 8 `.g.dart` files
-- `flutter analyze` clean · `flutter test` 200 pass / 1 pre-existing skip
 
 ---
 
@@ -90,16 +80,34 @@ Added `FirebaseFirestore.instance.settings = const Settings(persistenceEnabled: 
 
 ---
 
-## Hard misses
+## ✅ Also resolved this session (session 8)
 
-### R5 — Dynamic type (MediaQuery.textScaler)
-Zero occurrences of `textScaler` or `textScaleFactor` in `lib/`. Font sizes are hardcoded through `AppTypography` with no respect for the OS accessibility text-size setting.
+### R5 — Dynamic type (MediaQuery.textScaler) → DONE
+Merged PR #24 (`r5-text-scaler`). Replaced every fixed-height `SizedBox` on interactive tap targets with `ConstrainedBox(constraints: BoxConstraints(minHeight: N))` so buttons can grow when the OS text scale exceeds 1.0 without clipping. Affected files:
 
-**What's needed:** wrap text-size-sensitive widgets with `MediaQuery.textScalerOf(context)` scaling, and add a widget test that pumps under a non-1.0 text scale factor.
+- `lib/shared/widgets/gradient_button.dart` — primary CTA button
+- `lib/shared/widgets/app_modal.dart` — Cancel / Destructive modal buttons
+- `lib/features/auth/presentation/widgets/pin_widgets.dart` — digit/backspace keys, PIN status line
+- `lib/features/library/presentation/book_lock_screen.dart` — same numpad widgets
+- `lib/features/reader/presentation/widgets/karaoke_text_pane.dart` — word-width constraint removed
 
-*Note: WCAG AA contrast documentation is present and complete in `docs/accessibility.md` — that half of the R5 claim is already satisfied.*
+`PinStatusLine` placeholder height uses `MediaQuery.textScalerOf(context).scale(lineHeight)` so the invisible spacer tracks the actual text height. Widget test suite extended: `test/accessibility/text_scale_test.dart` pumps key screens at 1.0×, 1.5×, 2.0×, and 3.0× text scale and asserts no `RenderFlex` overflow.
 
----
+### R2 — Riverpod codegen (@riverpod + build_runner) → DONE
+Migrated all providers to `@Riverpod(keepAlive: true)` / `@riverpod` annotations across 8 source files; `dart run build_runner build --delete-conflicting-outputs` generates 8 `.g.dart` files:
+
+- `auth_providers.dart`, `auth_controller.dart` — `StateNotifierProvider` → `@Riverpod(keepAlive: true) class AuthController extends _$AuthController`
+- `app_router.dart` — `Provider<GoRouter>` → `@Riverpod(keepAlive: true) GoRouter router(...)`
+- `library_controller.dart` — `StateNotifierProvider<LibraryController, AsyncValue<void>>` → Notifier with `AsyncValue<void>` state manually managed
+- `library_providers.dart` — all 20+ `Provider`/`StreamProvider`/`FutureProvider` → annotated; record-type family args (`({String url, int pageIndex})`) split to named params; `bookOcrProgressProvider` (`StateProvider`) → `BookOcrProgress` Notifier with explicit `set()` method
+- `karaoke_controller.dart` — `StateNotifierProvider.autoDispose` → `@riverpod class KaraokeController` (auto-dispose via lowercase annotation)
+- `app_pin_service.dart`, `app_pin_session.dart` — migrated to annotated function and Notifier
+
+Call-site updates: 2 `ocrPageTextProvider((...)` → named-param calls in `reading_screen.dart`; 4 `.notifier.state =` → `.notifier.set()`. Test `overrideWith` signatures corrected (Notifier factory takes no `ref`; codegen named-param families require per-instance overrides — `OcrPageImageFamily` has no family-level `overrideWith`).
+
+CI: `dart run build_runner build --delete-conflicting-outputs` added before `flutter analyze` in `.github/workflows/ci.yml`.
+
+**Test baseline: 250 pass / 1 skip / 0 fail** (unchanged).
 
 ---
 

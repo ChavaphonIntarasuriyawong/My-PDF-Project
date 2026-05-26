@@ -298,7 +298,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     _bgOcrVersion++;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       try {
-        ref.read(bookOcrProgressProvider.notifier).state = null;
+        ref.read(bookOcrProgressProvider.notifier).set(null);
       } catch (_) {
         /* container disposed before frame — best effort */
       }
@@ -467,11 +467,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         String ocrText;
         try {
           ocrText = await ref.read(
-            ocrPageTextProvider((
+            ocrPageTextProvider(
               bookId: widget.bookId,
               url: pdfPath,
               pageIndex: pageIndex,
-            )).future,
+            ).future,
           );
         } catch (e) {
           AppLogger.error('OCR', 'failed', error: e);
@@ -609,7 +609,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
     final bookId = widget.bookId;
     // Surface a starting state immediately so the UI chip pops in without
     // waiting for the first page to finish.
-    ref.read(bookOcrProgressProvider.notifier).state = (done: 1, total: total);
+    ref.read(bookOcrProgressProvider.notifier).set((done: 1, total: total));
 
     // Run the loop on its own microtask so the caller (foreground TTS) can
     // continue uninterrupted.
@@ -626,11 +626,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           if (cached == null) {
             try {
               await ref.read(
-                ocrPageTextProvider((
+                ocrPageTextProvider(
                   bookId: bookId,
                   url: pdfPath,
                   pageIndex: i,
-                )).future,
+                ).future,
               );
             } catch (e) {
               // Per-page failure is non-fatal — we'll fall back to
@@ -641,10 +641,10 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
           }
           if (v != _bgOcrVersion) return;
           done += 1;
-          ref.read(bookOcrProgressProvider.notifier).state = (
+          ref.read(bookOcrProgressProvider.notifier).set((
             done: done,
             total: total,
-          );
+          ));
           // Yield back to the event loop so UI repaints, scroll & tap
           // gestures stay responsive, and the cancellation flag has a
           // chance to flip.
@@ -658,7 +658,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         // Only clear progress if we're still the active sweep — otherwise a
         // later sweep will manage its own lifecycle.
         if (v == _bgOcrVersion) {
-          ref.read(bookOcrProgressProvider.notifier).state = null;
+          ref.read(bookOcrProgressProvider.notifier).set(null);
         }
       }
     });

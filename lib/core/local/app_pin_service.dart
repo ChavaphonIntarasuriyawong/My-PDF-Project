@@ -1,6 +1,8 @@
 import 'package:crypt/crypt.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive/hive.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'app_pin_service.g.dart';
 
 /// Owns the app-level PIN hash in the `app_prefs` Hive box.
 ///
@@ -49,4 +51,5 @@ class AppPinService {
   }
 }
 
-final appPinServiceProvider = Provider<AppPinService>((ref) => AppPinService());
+@Riverpod(keepAlive: true)
+AppPinService appPinService(AppPinServiceRef ref) => AppPinService();

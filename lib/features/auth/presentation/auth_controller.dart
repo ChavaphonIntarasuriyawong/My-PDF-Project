@@ -1,7 +1,9 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../library/presentation/library_providers.dart';
 import '../domain/user_model.dart';
 import 'auth_providers.dart';
+
+part 'auth_controller.g.dart';
 
 enum AuthStatus { idle, loading, success, error }
 
@@ -33,14 +35,14 @@ class AuthState {
   static const _sentinel = Object();
 }
 
-class AuthController extends StateNotifier<AuthState> {
-  final Ref _ref;
-
-  AuthController(this._ref) : super(const AuthState());
+@Riverpod(keepAlive: true)
+class AuthController extends _$AuthController {
+  @override
+  AuthState build() => const AuthState();
 
   Future<bool> login({required String email, required String password}) async {
     state = state.copyWith(status: AuthStatus.loading);
-    final result = await _ref
+    final result = await ref
         .read(authRepositoryProvider)
         .login(email: email, password: password);
     return result.fold(
@@ -64,7 +66,7 @@ class AuthController extends StateNotifier<AuthState> {
     required String password,
   }) async {
     state = state.copyWith(status: AuthStatus.loading);
-    final result = await _ref
+    final result = await ref
         .read(authRepositoryProvider)
         .register(name: name, email: email, password: password);
     return result.fold(
@@ -83,11 +85,11 @@ class AuthController extends StateNotifier<AuthState> {
   }
 
   Future<void> logout() async {
-    await _ref.read(authRepositoryProvider).logout();
+    await ref.read(authRepositoryProvider).logout();
     // Clear local user-scoped state so the next account doesn't inherit
     // the previous user's "Recently Opened" rail.
     try {
-      await _ref.read(recentBooksServiceProvider).clear();
+      await ref.read(recentBooksServiceProvider).clear();
     } catch (_) {
       /* best-effort */
     }
@@ -96,9 +98,3 @@ class AuthController extends StateNotifier<AuthState> {
 
   void clearError() => state = state.copyWith(status: AuthStatus.idle);
 }
-
-final authControllerProvider = StateNotifierProvider<AuthController, AuthState>(
-  (ref) {
-    return AuthController(ref);
-  },
-);

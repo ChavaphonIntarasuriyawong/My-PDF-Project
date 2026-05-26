@@ -114,8 +114,7 @@ void main() {
             // inside fake-async and pumpAndSettle() can settle normally.
             appPinServiceProvider.overrideWithValue(_NoIoAppPinService()),
             appPinSessionProvider.overrideWith(
-              (ref) =>
-                  _TrackingPinSession(onUnlock: () => sessionUnlocked = true),
+              () => _TrackingPinSession(onUnlock: () => sessionUnlocked = true),
             ),
           ],
         ),

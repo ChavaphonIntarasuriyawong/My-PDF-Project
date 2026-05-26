@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:riverpod_annotation/riverpod_annotation.dart';
+
+part 'karaoke_controller.g.dart';
 
 /// Immutable state for the TTS karaoke side-pane.
 ///
@@ -78,8 +80,10 @@ class KaraokeState {
 /// - [onProgress] mirrors `setProgressHandler((text, start, end, word))`.
 /// - [onSentenceTick] used only when [enableFallbackMode] has flipped the mode.
 /// - [onTtsStop] called from completion / cancel / error handlers.
-class KaraokeController extends StateNotifier<KaraokeState> {
-  KaraokeController() : super(const KaraokeState());
+@riverpod
+class KaraokeController extends _$KaraokeController {
+  @override
+  KaraokeState build() => const KaraokeState();
 
   /// Reset for a new utterance and capture the full text. Keeps current
   /// visibility (don't auto-close the pane) and resets fallback mode for a
@@ -163,10 +167,3 @@ class KaraokeController extends StateNotifier<KaraokeState> {
     state = state.copyWith(isVisible: false);
   }
 }
-
-/// Auto-disposes when the reader screen unmounts. Kept alive across pane
-/// visibility toggles because the screen itself reads the provider in `build`.
-final karaokeControllerProvider =
-    StateNotifierProvider.autoDispose<KaraokeController, KaraokeState>(
-      (ref) => KaraokeController(),
-    );
