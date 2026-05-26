@@ -98,7 +98,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
 
       - name: Run OSV Scanner
-        uses: google/osv-scanner-action@v2
+        uses: google/osv-scanner-action@v1
         with:
           scan-args: |-
             --lockfile=pubspec.lock
@@ -147,11 +147,12 @@ jobs:
           script: flutter test integration_test/ --reporter expanded
 
   # ---------------------------------------------------------------------------
-  # Web integration tests — runs flutter drive against a headless Chromium.
+  # Web integration tests — runs integration_test/ in headless Chrome.
+  # Google Chrome is pre-installed on ubuntu-latest runners.
   # Gated to pull_request to keep push CI lean.
   # ---------------------------------------------------------------------------
   integration-web:
-    name: Integration tests (web / headless Chromium)
+    name: Integration tests (web / headless Chrome)
     runs-on: ubuntu-latest
     if: github.event_name == 'pull_request'
     steps:
@@ -170,16 +171,5 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Install Chromium
-        run: |
-          sudo apt-get update -q
-          sudo apt-get install -y chromium-browser
-
       - name: Run web integration tests
-        run: |
-          flutter drive \
-            --driver=test_driver/integration_test.dart \
-            --target=integration_test/app_test.dart \
-            -d web-server \
-            --browser-name=chrome \
-            --headless
+        run: flutter test --platform chrome integration_test/app_test.dart
