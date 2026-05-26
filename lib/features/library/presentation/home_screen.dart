@@ -225,12 +225,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
+                  Text(
                     'MYPDF',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
+                    style: AppTypography.titleLarge.copyWith(
                       letterSpacing: -0.9,
                       color: AppColors.primary,
                     ),
@@ -431,20 +428,15 @@ class _AppDrawer extends ConsumerWidget {
                       children: [
                         Text(
                           userName,
-                          style: const TextStyle(
-                            fontFamily: 'Manrope',
-                            fontWeight: FontWeight.w700,
-                            fontSize: 16,
+                          style: AppTypography.titleMedium.copyWith(
                             color: AppColors.textPrimary,
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           userEmail,
-                          style: const TextStyle(
-                            fontFamily: 'Inter',
+                          style: AppTypography.bodySmall.copyWith(
                             fontWeight: FontWeight.w500,
-                            fontSize: 12,
                             color: AppColors.textSecondary,
                           ),
                         ),
@@ -526,7 +518,9 @@ class _AppDrawer extends ConsumerWidget {
               },
             ),
             _DrawerNavTile(
-              icon: FontAwesomeIcons.bookOpenReader,
+              // font_awesome_flutter 11+ returns FaIconData; extract .data
+              // to satisfy _DrawerNavTile's IconData type.
+              icon: FontAwesomeIcons.bookOpenReader.data,
               label: 'LIBRARY',
               active: true,
               onTap: onClose,
@@ -575,12 +569,10 @@ class _AppDrawer extends ConsumerWidget {
                   size: 18,
                   color: AppColors.error,
                 ),
-                title: const Text(
+                title: Text(
                   'LOGOUT',
-                  style: TextStyle(
-                    fontFamily: 'Inter',
+                  style: AppTypography.bodySmall.copyWith(
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
                     letterSpacing: 0.5,
                     color: AppColors.error,
                   ),
@@ -597,12 +589,10 @@ class _AppDrawer extends ConsumerWidget {
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 4, 20, 16),
-              child: const Text(
+              child: Text(
                 'MYPDF',
-                style: TextStyle(
-                  fontFamily: 'Inter',
+                style: AppTypography.bodySmall.copyWith(
                   fontWeight: FontWeight.w700,
-                  fontSize: 12,
                   letterSpacing: 1.0,
                   color: AppColors.textDisabled,
                 ),
@@ -627,10 +617,8 @@ class _MiniStat extends StatelessWidget {
       children: [
         Text(
           label,
-          style: const TextStyle(
-            fontFamily: 'Inter',
+          style: AppTypography.captionRegular.copyWith(
             fontWeight: FontWeight.w600,
-            fontSize: 10,
             letterSpacing: 0.8,
             color: AppColors.textSecondary,
           ),
@@ -638,8 +626,7 @@ class _MiniStat extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value,
-          style: const TextStyle(
-            fontFamily: 'Manrope',
+          style: AppTypography.headlineMedium.copyWith(
             fontWeight: FontWeight.w800,
             fontSize: 20,
             color: AppColors.primary,
@@ -685,10 +672,8 @@ class _DrawerNavTile extends StatelessWidget {
                 const SizedBox(width: 12),
                 Text(
                   label,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
+                  style: AppTypography.bodySmall.copyWith(
                     fontWeight: FontWeight.w600,
-                    fontSize: 13,
                     letterSpacing: 0.5,
                     color: active ? AppColors.primary : AppColors.textSecondary,
                   ),

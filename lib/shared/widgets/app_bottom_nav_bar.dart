@@ -59,8 +59,13 @@ class _NavItem extends StatelessWidget {
   final NavTab active;
   final ValueChanged<NavTab> onTap;
 
-  static const _meta = {
-    NavTab.library: (icon: FontAwesomeIcons.bookOpenReader, label: 'Library'),
+  // font_awesome_flutter 11+ returns FaIconData (not IconData). Extract .data
+  // so the map is uniformly typed as ({IconData icon, String label}).
+  static final _meta = {
+    NavTab.library: (
+      icon: FontAwesomeIcons.bookOpenReader.data,
+      label: 'Library',
+    ),
     NavTab.create: (icon: Icons.add, label: 'Create'),
     NavTab.profile: (icon: Icons.person_outline, label: 'Profile'),
   };

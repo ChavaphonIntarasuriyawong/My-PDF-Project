@@ -1,16 +1,15 @@
 # CI workflow for MyPDF
 #
-# Runs on every push (any branch) and on PRs targeting `main`. Single gating
-# job that enforces the three D1 deliverable gates: formatting, static
-# analysis, and test suite. Coverage is uploaded as an artifact.
+# Runs on every push (any branch) and on PRs targeting `main`.
 #
-# Smoke builds (Android APK, web release) are deliberately omitted from CI:
-#   - The web build is exercised end-to-end by the CD workflow.
-#   - The Android toolchain has flaked on hosted runners and is not part of
-#     the D1 deliverable.
-# Add them later if needed; keep CI lean.
+# Jobs:
+#   flutter-ci          — format + analyze + unit/widget tests (ubuntu-latest)
+#   secret-scan         — gitleaks secret detection (ubuntu-latest)
+#   osv-scan            — OSV dependency vulnerability scan (ubuntu-latest)
+#   integration-android — integration_test/ on Android emulator (macos-latest, PR-only)
+#   integration-web     — integration_test/ via flutter drive on headless Chromium (ubuntu-latest, PR-only)
 #
-# Flutter pinned to 3.38.6 (matches local; Dart SDK ^3.10.7 in pubspec.yaml).
+# Flutter pinned to 3.44.0 (matches local; Dart SDK ^3.10.7 in pubspec.yaml).
 
 name: CI
 
@@ -38,7 +37,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.6'
+          flutter-version: '3.44.0'
           channel: stable
           cache: true
 
@@ -64,3 +63,123 @@ jobs:
           name: lcov-coverage
           path: coverage/lcov.info
           if-no-files-found: warn
+
+  # ---------------------------------------------------------------------------
+  # Secret scanning — detect accidentally committed credentials / tokens.
+  # Runs on every push; blocks merge if any secret is found.
+  # ---------------------------------------------------------------------------
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Run gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ---------------------------------------------------------------------------
+  # Dependency vulnerability scan — flags packages with known CVEs in the
+  # OSV database (covers pub.dev, PyPI, npm, Go, etc.).
+  # Runs on every push; blocks merge on HIGH/CRITICAL findings.
+  # ---------------------------------------------------------------------------
+  osv-scan:
+    name: OSV dependency scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Run OSV Scanner
+        uses: google/osv-scanner-action@v2
+        with:
+          scan-args: |-
+            --lockfile=pubspec.lock
+
+  # ---------------------------------------------------------------------------
+  # Android integration tests — runs integration_test/ on a real emulator.
+  # Uses macos-latest for hardware-accelerated HAXM; ~15 min per run.
+  # Gated to pull_request to keep push CI lean.
+  # ---------------------------------------------------------------------------
+  integration-android:
+    name: Integration tests (Android emulator)
+    runs-on: macos-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Set up Java (required by Android SDK)
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Run integration tests on Android emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 33
+          target: google_apis
+          arch: x86_64
+          profile: Nexus 6
+          # --dart-define values for Firebase/Supabase are intentionally omitted:
+          # integration tests that need real backends should use a dedicated
+          # test-project Firebase project and inject keys via repo secrets.
+          script: flutter test integration_test/ --reporter expanded
+
+  # ---------------------------------------------------------------------------
+  # Web integration tests — runs flutter drive against a headless Chromium.
+  # Gated to pull_request to keep push CI lean.
+  # ---------------------------------------------------------------------------
+  integration-web:
+    name: Integration tests (web / headless Chromium)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.44.0'
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Install Chromium
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y chromium-browser
+
+      - name: Run web integration tests
+        run: |
+          flutter drive \
+            --driver=test_driver/integration_test.dart \
+            --target=integration_test/app_test.dart \
+            -d web-server \
+            --browser-name=chrome \
+            --headless

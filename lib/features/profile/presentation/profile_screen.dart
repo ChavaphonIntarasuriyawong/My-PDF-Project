@@ -86,12 +86,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  const Text(
+                  Text(
                     'MYPDF',
-                    style: TextStyle(
-                      fontFamily: 'Inter',
-                      fontWeight: FontWeight.w700,
-                      fontSize: 18,
+                    style: AppTypography.titleLarge.copyWith(
                       letterSpacing: -0.9,
                       color: AppColors.primary,
                     ),
@@ -114,13 +111,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         children: [
                           Text(
                             user?.name ?? '',
-                            style: const TextStyle(
-                              fontFamily: 'Manrope',
-                              fontWeight: FontWeight.w700,
-                              fontSize: 30,
-                              letterSpacing: -0.75,
-                              color: AppColors.primary,
-                            ),
+                            style: AppTypography.headlineLarge,
                           ),
                           const SizedBox(height: 4),
                           Text(
@@ -211,10 +202,7 @@ class _StatCard extends StatelessWidget {
         children: [
           Text(
             value,
-            style: const TextStyle(
-              fontFamily: 'Manrope',
-              fontWeight: FontWeight.w800,
-              fontSize: 36,
+            style: AppTypography.displayLarge.copyWith(
               height: 1.1,
               color: AppColors.primary,
             ),
@@ -222,11 +210,7 @@ class _StatCard extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             label,
-            style: const TextStyle(
-              fontFamily: 'Inter',
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              letterSpacing: 1.2,
+            style: AppTypography.sectionMeta.copyWith(
               color: AppColors.textSecondary,
             ),
           ),
@@ -285,10 +269,8 @@ class _SettingsRow extends StatelessWidget {
                 Expanded(
                   child: Text(
                     label,
-                    style: TextStyle(
-                      fontFamily: 'Inter',
+                    style: AppTypography.bodyMedium.copyWith(
                       fontWeight: FontWeight.w600,
-                      fontSize: 14,
                       color: labelColor,
                     ),
                   ),
@@ -369,9 +351,7 @@ class _DesktopBody extends StatelessWidget {
                   alignment: Alignment.center,
                   child: Text(
                     _initials(name, email),
-                    style: const TextStyle(
-                      fontFamily: 'Manrope',
-                      fontWeight: FontWeight.w800,
+                    style: AppTypography.displayLarge.copyWith(
                       fontSize: 56,
                       color: Colors.white,
                       letterSpacing: -1.0,

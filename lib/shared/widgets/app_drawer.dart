@@ -134,7 +134,7 @@ class AppDrawer extends ConsumerWidget {
               },
             ),
             _DrawerNavTile(
-              icon: FontAwesomeIcons.bookOpenReader,
+              icon: FontAwesomeIcons.bookOpenReader.data,
               label: 'LIBRARY',
               active: active == NavSection.library,
               onTap: () {

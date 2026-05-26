@@ -12,6 +12,7 @@ dependencies:
 
   # State management
   flutter_riverpod: ^2.6.1
+  riverpod_annotation: ^2.6.1
 
   # Navigation
   go_router: ^14.6.3
@@ -47,7 +48,7 @@ dependencies:
   file_picker: ^8.1.2
 
   # Icons
-  font_awesome_flutter: ^10.8.0
+  font_awesome_flutter: ^11.0.0
 
   # OCR (mobile only — Wave 2 OCR fallback for scanned PDFs)
   tesseract_ocr: ^0.5.0
@@ -70,6 +71,9 @@ dev_dependencies:
   # Wave 3 enterprise gap closure — integration test harness
   integration_test:
     sdk: flutter
+  # Riverpod codegen (R2)
+  riverpod_generator: ^2.6.4
+  build_runner: ^2.4.15
 
 flutter:
   uses-material-design: true
