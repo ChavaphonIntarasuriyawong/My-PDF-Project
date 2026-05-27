@@ -96,10 +96,11 @@ void main() {
       });
 
       test('uses id argument as id', () {
-        final s = BookshelfModel.fromMap(
-          'doc-id',
-          {'name': 'X', 'ownerId': 'u1', 'createdAt': fixedDate.toIso8601String()},
-        );
+        final s = BookshelfModel.fromMap('doc-id', {
+          'name': 'X',
+          'ownerId': 'u1',
+          'createdAt': fixedDate.toIso8601String(),
+        });
         expect(s.id, 'doc-id');
       });
 
@@ -125,22 +126,29 @@ void main() {
         final s = BookshelfModel.fromMap('s1', {'name': 'N', 'ownerId': 'u1'});
         final after = DateTime.now();
 
-        expect(s.createdAt.isAfter(before) || s.createdAt.isAtSameMomentAs(before),
-            isTrue);
-        expect(s.createdAt.isBefore(after) || s.createdAt.isAtSameMomentAs(after),
-            isTrue);
-      });
-
-      test('garbled createdAt falls back to DateTime.now() (does not throw)', () {
         expect(
-          () => BookshelfModel.fromMap('s1', {
-            'name': 'N',
-            'ownerId': 'u1',
-            'createdAt': 'not-a-date',
-          }),
-          returnsNormally,
+          s.createdAt.isAfter(before) || s.createdAt.isAtSameMomentAs(before),
+          isTrue,
+        );
+        expect(
+          s.createdAt.isBefore(after) || s.createdAt.isAtSameMomentAs(after),
+          isTrue,
         );
       });
+
+      test(
+        'garbled createdAt falls back to DateTime.now() (does not throw)',
+        () {
+          expect(
+            () => BookshelfModel.fromMap('s1', {
+              'name': 'N',
+              'ownerId': 'u1',
+              'createdAt': 'not-a-date',
+            }),
+            returnsNormally,
+          );
+        },
+      );
 
       test('null name defaults to empty string', () {
         final s = BookshelfModel.fromMap('s1', <String, dynamic>{
@@ -195,8 +203,10 @@ void main() {
           createdAt: DateTime.utc(2024, 6, 1, 10, 0, 0, 500),
         );
         final back = BookshelfModel.fromMap('s1', s.toMap());
-        expect(back.createdAt.millisecondsSinceEpoch,
-            s.createdAt.millisecondsSinceEpoch);
+        expect(
+          back.createdAt.millisecondsSinceEpoch,
+          s.createdAt.millisecondsSinceEpoch,
+        );
       });
     });
   });

@@ -30,8 +30,12 @@ void main() {
       });
 
       test('explicit role is stored', () {
-        const u =
-            UserModel(uid: 'u1', name: 'Alice', email: 'a@b.com', role: 'admin');
+        const u = UserModel(
+          uid: 'u1',
+          name: 'Alice',
+          email: 'a@b.com',
+          role: 'admin',
+        );
         expect(u.role, 'admin');
       });
     });
@@ -42,8 +46,12 @@ void main() {
 
     group('toMap()', () {
       test('includes name, email, and role — omits uid', () {
-        const u =
-            UserModel(uid: 'u1', name: 'Alice', email: 'a@b.com', role: 'user');
+        const u = UserModel(
+          uid: 'u1',
+          name: 'Alice',
+          email: 'a@b.com',
+          role: 'user',
+        );
         final map = u.toMap();
 
         expect(map['name'], 'Alice');
@@ -54,8 +62,12 @@ void main() {
       });
 
       test('reflects admin role in toMap()', () {
-        const u =
-            UserModel(uid: 'u2', name: 'Bob', email: 'b@c.com', role: 'admin');
+        const u = UserModel(
+          uid: 'u2',
+          name: 'Bob',
+          email: 'b@c.com',
+          role: 'admin',
+        );
         expect(u.toMap()['role'], 'admin');
       });
 
@@ -81,7 +93,10 @@ void main() {
       });
 
       test('uses uid argument as uid', () {
-        final u = UserModel.fromMap('uid-from-arg', {'name': 'X', 'email': 'x@y.com'});
+        final u = UserModel.fromMap('uid-from-arg', {
+          'name': 'X',
+          'email': 'x@y.com',
+        });
         expect(u.uid, 'uid-from-arg');
       });
 
@@ -96,8 +111,10 @@ void main() {
       });
 
       test('missing role defaults to "user"', () {
-        final u =
-            UserModel.fromMap('u1', {'name': 'Alice', 'email': 'a@b.com'});
+        final u = UserModel.fromMap('u1', {
+          'name': 'Alice',
+          'email': 'a@b.com',
+        });
         expect(u.role, 'user');
       });
 
@@ -137,8 +154,12 @@ void main() {
       });
 
       test('toMap → fromMap round-trip preserves all fields', () {
-        const original =
-            UserModel(uid: 'u9', name: 'Zara', email: 'z@z.com', role: 'admin');
+        const original = UserModel(
+          uid: 'u9',
+          name: 'Zara',
+          email: 'z@z.com',
+          role: 'admin',
+        );
         final reconstructed = UserModel.fromMap('u9', original.toMap());
 
         expect(reconstructed.uid, original.uid);

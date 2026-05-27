@@ -37,7 +37,10 @@ void main() {
       test('needsOcr defaults to false', () => expect(_base.needsOcr, isFalse));
       test('isLocked defaults to false', () => expect(_base.isLocked, isFalse));
       test('lockHash defaults to null', () => expect(_base.lockHash, isNull));
-      test('lastReadAt defaults to null', () => expect(_base.lastReadAt, isNull));
+      test(
+        'lastReadAt defaults to null',
+        () => expect(_base.lastReadAt, isNull),
+      );
       test('author defaults to null', () => expect(_base.author, isNull));
       test('year defaults to null', () => expect(_base.year, isNull));
     });

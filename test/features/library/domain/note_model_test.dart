@@ -153,32 +153,42 @@ void main() {
         expect(n.content, '');
       });
 
-      test('missing updatedAt falls back to DateTime.now() (does not throw)', () {
-        final before = DateTime.now();
-        final n = NoteModel.fromMap('n1', {
-          'bookId': 'b1',
-          'title': 'T',
-          'content': 'C',
-        });
-        final after = DateTime.now();
-
-        expect(n.updatedAt.isAfter(before) || n.updatedAt.isAtSameMomentAs(before),
-            isTrue);
-        expect(n.updatedAt.isBefore(after) || n.updatedAt.isAtSameMomentAs(after),
-            isTrue);
-      });
-
-      test('garbled updatedAt falls back to DateTime.now() (does not throw)', () {
-        expect(
-          () => NoteModel.fromMap('n1', {
+      test(
+        'missing updatedAt falls back to DateTime.now() (does not throw)',
+        () {
+          final before = DateTime.now();
+          final n = NoteModel.fromMap('n1', {
             'bookId': 'b1',
             'title': 'T',
             'content': 'C',
-            'updatedAt': 'not-a-date',
-          }),
-          returnsNormally,
-        );
-      });
+          });
+          final after = DateTime.now();
+
+          expect(
+            n.updatedAt.isAfter(before) || n.updatedAt.isAtSameMomentAs(before),
+            isTrue,
+          );
+          expect(
+            n.updatedAt.isBefore(after) || n.updatedAt.isAtSameMomentAs(after),
+            isTrue,
+          );
+        },
+      );
+
+      test(
+        'garbled updatedAt falls back to DateTime.now() (does not throw)',
+        () {
+          expect(
+            () => NoteModel.fromMap('n1', {
+              'bookId': 'b1',
+              'title': 'T',
+              'content': 'C',
+              'updatedAt': 'not-a-date',
+            }),
+            returnsNormally,
+          );
+        },
+      );
 
       test('null bookId defaults to empty string', () {
         final n = NoteModel.fromMap('n1', <String, dynamic>{
@@ -267,8 +277,10 @@ void main() {
           updatedAt: DateTime.utc(2025, 3, 10, 9, 0, 0, 250),
         );
         final back = NoteModel.fromMap('n1', n.toMap());
-        expect(back.updatedAt.millisecondsSinceEpoch,
-            n.updatedAt.millisecondsSinceEpoch);
+        expect(
+          back.updatedAt.millisecondsSinceEpoch,
+          n.updatedAt.millisecondsSinceEpoch,
+        );
       });
 
       test('multi-line content round-trips without truncation', () {
