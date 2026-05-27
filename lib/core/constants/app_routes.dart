@@ -3,6 +3,8 @@ class AppRoutes {
 
   static const String login = '/login';
   static const String register = '/register';
+  static const String pinSetup = '/pin-setup';
+  static const String pinEntry = '/pin-entry';
   static const String home = '/home';
   static const String shelf = '/shelf/:id';
   static const String newBook = '/book/new';

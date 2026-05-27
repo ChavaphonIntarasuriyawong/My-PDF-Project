@@ -1,7 +1,11 @@
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../core/local/app_pin_service.dart';
+import '../../core/local/app_pin_session.dart';
 import '../../features/auth/presentation/auth_providers.dart';
 import '../../features/auth/presentation/login_screen.dart';
+import '../../features/auth/presentation/pin_entry_screen.dart';
+import '../../features/auth/presentation/pin_setup_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
 import '../../features/library/presentation/book_info_screen.dart';
 import '../../features/library/presentation/book_lock_screen.dart';
@@ -29,19 +33,41 @@ GoRouter router(RouterRef ref) {
       if (authState.isLoading) return null;
 
       final isLoggedIn = authState.valueOrNull != null;
-      final isAuthRoute =
-          state.matchedLocation == AppRoutes.login ||
-          state.matchedLocation == AppRoutes.register;
-
-      if (!isLoggedIn && !isAuthRoute) return AppRoutes.login;
-      if (isLoggedIn && isAuthRoute) return AppRoutes.home;
-
-      // Per-book lock gate (Wave 4): if the destination is a reading or note
-      // screen for a locked book that hasn't been unlocked this session, push
-      // the user through the PIN gate first. We only inspect cached snapshots
-      // (`valueOrNull`) — if the book stream hasn't emitted yet we let the
-      // route mount and the screen's own AsyncValue handles the loading UI.
       final loc = state.matchedLocation;
+      final isAuthRoute =
+          loc == AppRoutes.login || loc == AppRoutes.register;
+      final isPinSetup = loc == AppRoutes.pinSetup;
+      final isPinEntry = loc == AppRoutes.pinEntry;
+
+      // ── Not logged in ──────────────────────────────────────────────────────
+      if (!isLoggedIn) {
+        // Auth screens are fine; any other route → login.
+        return isAuthRoute ? null : AppRoutes.login;
+      }
+
+      // ── Logged in — app-level PIN gate ─────────────────────────────────────
+      final pinService = ref.read(appPinServiceProvider);
+      final pinUnlocked = ref.read(appPinSessionProvider);
+
+      if (!pinService.hasPinSet()) {
+        // No PIN set yet (new user or wiped device) → mandatory setup.
+        return isPinSetup ? null : AppRoutes.pinSetup;
+      }
+
+      if (!pinUnlocked) {
+        // PIN set but not entered this session → require entry.
+        return isPinEntry ? null : AppRoutes.pinEntry;
+      }
+
+      // ── PIN unlocked — bounce away from auth/pin screens ───────────────────
+      if (isAuthRoute || isPinSetup || isPinEntry) return AppRoutes.home;
+
+      // ── Per-book lock gate ─────────────────────────────────────────────────
+      // If the destination is a reading or note screen for a locked book that
+      // hasn't been unlocked this session, push the user through the PIN gate.
+      // We only inspect cached snapshots (`valueOrNull`) — if the book stream
+      // hasn't emitted yet we let the route mount and the screen's own
+      // AsyncValue handles the loading UI.
       final lockGated = RegExp(
         r'^/book/([^/]+)/(reading|note)$',
       ).firstMatch(loc);
@@ -64,6 +90,14 @@ GoRouter router(RouterRef ref) {
       GoRoute(
         path: AppRoutes.register,
         builder: (ctx, state) => const RegisterScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.pinSetup,
+        builder: (ctx, state) => const PinSetupScreen(),
+      ),
+      GoRoute(
+        path: AppRoutes.pinEntry,
+        builder: (ctx, state) => const PinEntryScreen(),
       ),
       GoRoute(
         path: AppRoutes.home,
