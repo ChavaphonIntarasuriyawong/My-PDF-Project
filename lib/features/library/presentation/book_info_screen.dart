@@ -375,7 +375,6 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
       return EscapePopScope(
         onEscape: () => context.canPop() ? context.pop() : context.go('/home'),
         child: Scaffold(
-          // Darker page surface so cover + notes cards pop against the bg.
           backgroundColor: AppColors.surfaceMuted,
           body: bookAsync.when(
             loading: () => const Center(child: CircularProgressIndicator()),
@@ -419,7 +418,6 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
     return EscapePopScope(
       onEscape: () => context.canPop() ? context.pop() : context.go('/home'),
       child: PopScope(
-        // Back gesture exits selection mode first; only pops when not selecting.
         canPop: !_inSelectionMode,
         onPopInvokedWithResult: (didPop, _) {
           if (didPop) return;
@@ -434,8 +432,6 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
               if (tab == NavTab.profile) context.push('/profile');
             },
           ),
-          // Figma 25:741 has no floating action button — entry to the reader
-          // moves to the inline pencil next to the cover card.
           body: SafeArea(
             bottom: false,
             child: bookAsync.when(
@@ -465,28 +461,22 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
     final shelves = ref.watch(shelvesProvider).valueOrNull ?? [];
 
     return GestureDetector(
-      // Tap outside the notes list (e.g. on the cover area) exits selection.
       behavior: HitTestBehavior.translucent,
       onTap: _inSelectionMode ? _exitSelectionMode : null,
       child: Column(
         children: [
-          // ── Sticky top bar — swaps in selection mode (Figma 25:741) ────
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: _inSelectionMode
                 ? _buildSelectionTopBar()
                 : _buildDefaultTopBar(book, shelves, ref),
           ),
-
-          // ── Scrollable body ──────────────────────────────────────────────
           Expanded(
             child: SingleChildScrollView(
               padding: EdgeInsets.zero,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // PDF cover card + inline read pencil. Constrained to ≤768px
-                  // wide per Figma so wide web viewports stay tidy.
                   Padding(
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     child: _PdfDisplayArea(book: book),
@@ -554,9 +544,6 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
   }
 
   Widget _buildSelectionTopBar() {
-    // Figma 25:796: two text buttons only — Cancel (left), Delete (right).
-    // Same primary color; the destructive warning shows up only in the
-    // confirm AppModal.
     final buttonStyle = TextButton.styleFrom(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
@@ -590,8 +577,7 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// PDF Display Area — white card + inline pencil → reading screen.
-// Figma: max-width 768, radius 8, shadow 0px 8px 32px rgba(25,28,29,0.08).
+// PDF Display Area
 // ──────────────────────────────────────────────────────────────────────────
 
 class _PdfDisplayArea extends ConsumerWidget {
@@ -604,9 +590,6 @@ class _PdfDisplayArea extends ConsumerWidget {
         ? ref.watch(pdfThumbnailProvider(book.link))
         : const AsyncValue<Uint8List?>.data(null);
 
-    // Figma 25:741: pencil button sits inside the cover card, vertically
-    // centered, right-anchored with a 16px inset. Cover + pencil share a
-    // Stack so the button overlaps the image.
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 768),
@@ -621,7 +604,6 @@ class _PdfDisplayArea extends ConsumerWidget {
                     borderRadius: BorderRadius.circular(8),
                     boxShadow: const [
                       BoxShadow(
-                        // rgba(25,28,29,0.08)
                         color: Color(0x14191C1D),
                         blurRadius: 32,
                         offset: Offset(0, 8),
@@ -638,7 +620,6 @@ class _PdfDisplayArea extends ConsumerWidget {
                   ),
                 ),
               ),
-              // 40x40 teal circle pencil → push reading screen.
               Positioned(
                 right: 16,
                 top: 0,
@@ -705,10 +686,10 @@ class _InlineReadButton extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Annotated Insights — rounded-top 40 sheet, surfaceMuted, padding 33/24/48.
+// Annotated Insights sheet
 // ──────────────────────────────────────────────────────────────────────────
 
-class _AnnotatedInsightsSheet extends ConsumerWidget {
+class _AnnotatedInsightsSheet extends StatelessWidget {
   final BookModel book;
   final Set<String> selectedNoteIds;
   final bool inSelectionMode;
@@ -744,9 +725,7 @@ class _AnnotatedInsightsSheet extends ConsumerWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Notes list. Selection state is owned by the parent BookInfoScreen so the
-// top app bar can swap. Long-press toggles selection; tap toggles when in
-// selection mode, otherwise opens the note editor.
+// Notes list
 // ──────────────────────────────────────────────────────────────────────────
 
 class _NotesSection extends ConsumerWidget {
@@ -774,13 +753,11 @@ class _NotesSection extends ConsumerWidget {
       ),
       error: (e, _) => Text('Error: $e', style: AppTypography.bodySmall),
       data: (notes) {
-        // Ask the parent to drop selections that no longer exist.
         onPruneSelection(notes.map((n) => n.id).toSet());
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // ── Header row — heading + Add Note pill (Figma) ────────────
             Row(
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
@@ -846,7 +823,6 @@ class _NotesSection extends ConsumerWidget {
   }
 }
 
-/// Add Note gradient pill — Figma button: pad 20h/14v, radius 12, gradient.
 class _AddNotePill extends StatelessWidget {
   final VoidCallback onTap;
   const _AddNotePill({required this.onTap});
@@ -894,8 +870,7 @@ class _AddNotePill extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Note card — Figma "Modal Note Card": white bg, 16 radius, 21 padding,
-// soft shadow, hairline border, 3-line clamp body.
+// Note card
 // ──────────────────────────────────────────────────────────────────────────
 
 class _NotePreview extends StatelessWidget {
@@ -931,7 +906,6 @@ class _NotePreview extends StatelessWidget {
     return Material(
       color: AppColors.surface,
       borderRadius: BorderRadius.circular(16),
-      // 0px 1px 1px rgba(0,0,0,0.05)
       shadowColor: Colors.black.withValues(alpha: 0.05),
       elevation: 1,
       child: InkWell(
@@ -988,8 +962,6 @@ class _NotePreview extends StatelessWidget {
                 ],
               ),
             ),
-            // Selection indicator — Figma 25:796 places the circle at the
-            // bottom-right of the card (left:310, top:102.2 inside 342x140.8).
             if (selectionMode)
               Positioned(
                 right: 12,
@@ -1084,11 +1056,7 @@ class _CoverPlaceholder extends StatelessWidget {
 }
 
 // ──────────────────────────────────────────────────────────────────────────
-// Desktop body — Figma "Full PDF Reader & Notes - Desktop" frame.
-// 3-column row inside the shell: [back+title], [cover + edit + progress +
-// settings card], [annotated insights list + Add Note + Delete buttons].
-// All controllers / providers reused from the mobile path — only layout
-// changes.
+// Desktop body
 // ──────────────────────────────────────────────────────────────────────────
 
 class _DesktopBookInfoBody extends ConsumerStatefulWidget {
@@ -1122,8 +1090,6 @@ class _DesktopBookInfoBody extends ConsumerStatefulWidget {
 }
 
 class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
-  /// `null` = list view, `''` = creating new, real id = editing existing.
-  /// UI-local state (CLAUDE.md allows setState for non-shared UI flags).
   String? _editingNoteId;
 
   void _openEditor(String? noteId) {
@@ -1152,7 +1118,6 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Top bar: back arrow only — title moves into the cover column below.
           Row(
             children: [
               Semantics(
@@ -1180,14 +1145,12 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Center: cover + pencil/lock + form — scrolls as one body.
                 Expanded(
                   flex: 3,
                   child: SingleChildScrollView(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
-                        // Title sits above the cover, centered within this column.
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 480),
                           child: Text(
@@ -1231,7 +1194,6 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                           ),
                         ),
                         const SizedBox(height: 16),
-                        // Progress strip — bar + percent on one row.
                         ConstrainedBox(
                           constraints: const BoxConstraints(maxWidth: 360),
                           child: Row(
@@ -1262,7 +1224,6 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        // Settings card
                         Container(
                           decoration: BoxDecoration(
                             color: AppColors.surface,
@@ -1409,8 +1370,6 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                // Fixed action column between cover and notes — pencil
-                // (open reader) + lock toggle. Doesn't scroll with the page.
                 Padding(
                   padding: const EdgeInsets.only(top: 96),
                   child: Column(
@@ -1424,9 +1383,6 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                   ),
                 ),
                 const SizedBox(width: 16),
-                // Right: notes side panel — fixed beside the scrolling
-                // center column. Branches between list mode and inline
-                // editor mode based on _editingNoteId.
                 SizedBox(
                   width: 320,
                   child: _editingNoteId == null
@@ -1488,9 +1444,6 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                           ],
                         )
                       : DesktopNoteEditorPanel(
-                          // Re-key on id swap so init reloads controllers
-                          // when the user taps a different card while the
-                          // editor is already open.
                           key: ValueKey(_editingNoteId ?? 'new'),
                           bookId: book.id,
                           noteId: _editingNoteId!.isEmpty

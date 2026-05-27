@@ -5,7 +5,6 @@
 //   - constructor + defaults
 //   - progress calculation in fromMap()
 //   - lastReadAt ISO-8601 parsing
-//   - PIN-lock fields (isLocked, lockHash)
 //   - optional author/year fields
 //   - toMap() completeness
 //   - fromMap() resilience (missing keys, null values, non-bool booleans)
@@ -35,8 +34,6 @@ void main() {
 
     group('constructor defaults', () {
       test('needsOcr defaults to false', () => expect(_base.needsOcr, isFalse));
-      test('isLocked defaults to false', () => expect(_base.isLocked, isFalse));
-      test('lockHash defaults to null', () => expect(_base.lockHash, isNull));
       test(
         'lastReadAt defaults to null',
         () => expect(_base.lastReadAt, isNull),
@@ -172,97 +169,6 @@ void main() {
     });
 
     // -----------------------------------------------------------------------
-    // PIN-lock fields
-    // -----------------------------------------------------------------------
-
-    group('PIN-lock fields (isLocked / lockHash)', () {
-      test('fromMap with isLocked=true and lockHash persists', () {
-        final b = BookModel.fromMap('id', {
-          'title': 'Locked',
-          'link': 'l',
-          'totalPages': 1,
-          'currentPage': 0,
-          'status': 'reading',
-          'shelfId': 's1',
-          'ownerId': 'u1',
-          'isLocked': true,
-          'lockHash': r'$5$salt$hashvalue',
-        });
-        expect(b.isLocked, isTrue);
-        expect(b.lockHash, r'$5$salt$hashvalue');
-      });
-
-      test('fromMap with isLocked=false and no hash', () {
-        final b = BookModel.fromMap('id', {
-          'title': 'Unlocked',
-          'link': 'l',
-          'totalPages': 1,
-          'currentPage': 0,
-          'status': 'reading',
-          'shelfId': 's1',
-          'ownerId': 'u1',
-          'isLocked': false,
-        });
-        expect(b.isLocked, isFalse);
-        expect(b.lockHash, isNull);
-      });
-
-      test('fromMap absent isLocked defaults to false (backward compat)', () {
-        final b = BookModel.fromMap('id', {
-          'title': 'Legacy',
-          'link': 'l',
-          'totalPages': 1,
-          'currentPage': 0,
-          'status': 'reading',
-          'shelfId': 's1',
-          'ownerId': 'u1',
-        });
-        expect(b.isLocked, isFalse);
-      });
-
-      test('fromMap non-bool isLocked degrades to false', () {
-        for (final junk in <Object>['true', 1, 'yes']) {
-          final b = BookModel.fromMap('id', {
-            'title': 'T',
-            'link': 'l',
-            'totalPages': 1,
-            'currentPage': 0,
-            'status': 'reading',
-            'shelfId': 's1',
-            'ownerId': 'u1',
-            'isLocked': junk,
-          });
-          expect(b.isLocked, isFalse, reason: 'junk value: $junk');
-        }
-      });
-
-      test('toMap includes isLocked and lockHash keys', () {
-        final map = _base.toMap();
-        expect(map.containsKey('isLocked'), isTrue);
-        expect(map.containsKey('lockHash'), isTrue);
-      });
-
-      test('toMap → fromMap round-trips locked book', () {
-        const locked = BookModel(
-          id: 'b2',
-          title: 'Secret',
-          link: 'l',
-          totalPages: 10,
-          currentPage: 0,
-          progress: 0,
-          status: 'reading',
-          shelfId: 's1',
-          ownerId: 'u1',
-          isLocked: true,
-          lockHash: r'$5$abc$xyz',
-        );
-        final reconstructed = BookModel.fromMap('b2', locked.toMap());
-        expect(reconstructed.isLocked, isTrue);
-        expect(reconstructed.lockHash, r'$5$abc$xyz');
-      });
-    });
-
-    // -----------------------------------------------------------------------
     // Optional author / year
     // -----------------------------------------------------------------------
 
@@ -333,8 +239,6 @@ void main() {
           'author',
           'year',
           'needsOcr',
-          'isLocked',
-          'lockHash',
         ]) {
           expect(map.containsKey(key), isTrue, reason: 'Missing key: $key');
         }
@@ -361,7 +265,6 @@ void main() {
         expect(b.status, 'reading');
         expect(b.shelfId, '');
         expect(b.ownerId, '');
-        expect(b.isLocked, isFalse);
         expect(b.needsOcr, isFalse);
       });
 
@@ -408,31 +311,6 @@ void main() {
         expect(copy.currentPage, 100);
       });
 
-      test('copyWith(isLocked: true) locks the book', () {
-        final locked = _base.copyWith(isLocked: true, lockHash: 'hash');
-        expect(locked.isLocked, isTrue);
-        expect(locked.lockHash, 'hash');
-        expect(locked.id, _base.id);
-      });
-
-      test('copyWith(isLocked: false) unlocks the book', () {
-        const locked = BookModel(
-          id: 'b2',
-          title: 'T',
-          link: 'l',
-          totalPages: 1,
-          currentPage: 0,
-          progress: 0,
-          status: 'reading',
-          shelfId: 's1',
-          ownerId: 'u1',
-          isLocked: true,
-          lockHash: 'hash',
-        );
-        final unlocked = locked.copyWith(isLocked: false);
-        expect(unlocked.isLocked, isFalse);
-      });
-
       test('copyWith preserves ownerId (it is immutable)', () {
         final copy = _base.copyWith(title: 'Changed');
         expect(copy.ownerId, _base.ownerId);
@@ -461,7 +339,6 @@ void main() {
         expect(b.status, _base.status);
         expect(b.shelfId, _base.shelfId);
         expect(b.ownerId, _base.ownerId);
-        expect(b.isLocked, _base.isLocked);
         expect(b.needsOcr, _base.needsOcr);
       });
 
@@ -480,8 +357,6 @@ void main() {
           author: 'Author Name',
           year: 2020,
           needsOcr: true,
-          isLocked: true,
-          lockHash: r'$5$salt$hash',
         );
         final fullWithDate = full.copyWith(lastReadAt: dt);
         final map = fullWithDate.toMap();
@@ -490,8 +365,6 @@ void main() {
         expect(b.author, 'Author Name');
         expect(b.year, 2020);
         expect(b.needsOcr, isTrue);
-        expect(b.isLocked, isTrue);
-        expect(b.lockHash, r'$5$salt$hash');
         expect(b.lastReadAt?.year, 2025);
       });
     });
