@@ -89,12 +89,8 @@ service cloud.firestore {
 
     // ---------- books/{bookId} ----------
     // Owner read+write. Admins get read-only across all owners.
-    // Mutable: title, currentPage, progress, status, lastReadAt, shelfId,
-    //          isLocked, lockHash.
+    // Mutable: title, currentPage, progress, status, lastReadAt, shelfId.
     // Immutable: ownerId, link, totalPages, needsOcr, author, year.
-    // Note: lockHash is a salted SHA-256-crypt string written by the client.
-    // Even if abused, the raw PIN cannot be recovered without offline brute
-    // force — format check is intentionally client-side.
     match /books/{bookId} {
       allow read: if isSignedIn()
         && (resource.data.ownerId == request.auth.uid || isAdmin());
@@ -111,7 +107,6 @@ service cloud.firestore {
       allow update: if isOwner(resource.data.ownerId)
         && changedFields().hasOnly([
           'title', 'currentPage', 'progress', 'status', 'lastReadAt', 'shelfId',
-          'isLocked', 'lockHash'
         ])
         && (!('lastReadAt' in changedFields()) || timestampValid('lastReadAt'))
         && (!('status' in changedFields())

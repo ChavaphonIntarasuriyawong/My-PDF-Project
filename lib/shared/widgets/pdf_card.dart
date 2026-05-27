@@ -25,7 +25,7 @@ class PdfCard extends ConsumerWidget {
     return Semantics(
       button: true,
       label:
-          'Book: ${book.title}${book.isLocked ? ' (locked)' : ''}${(book.author ?? '').isNotEmpty ? ', by ${book.author}' : ''}, $progressPct percent read, status ${book.status}',
+          'Book: ${book.title}${(book.author ?? '').isNotEmpty ? ', by ${book.author}' : ''}, $progressPct percent read, status ${book.status}',
       child: GestureDetector(
         onTap: onTap,
         child: Container(
@@ -91,26 +91,6 @@ class PdfCard extends ConsumerWidget {
                         ),
                       ),
                     ),
-                    // Lock badge (Wave 4) — only when this book has a PIN set.
-                    // Mirrors the PDF badge's tile-on-cover style but pinned to
-                    // the top-left so the two badges never overlap.
-                    if (book.isLocked)
-                      Positioned(
-                        top: 12,
-                        left: 12,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(2),
-                          child: Container(
-                            padding: const EdgeInsets.all(3),
-                            color: AppColors.surface,
-                            child: const Icon(
-                              Icons.lock,
-                              size: 12,
-                              color: AppColors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
