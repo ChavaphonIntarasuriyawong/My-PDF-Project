@@ -1,12 +1,15 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:go_router/go_router.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
 import '../../core/local/app_pin_service.dart';
 import '../../core/local/app_pin_session.dart';
+import '../../features/auth/domain/user_model.dart';
 import '../../features/auth/presentation/auth_providers.dart';
 import '../../features/auth/presentation/login_screen.dart';
 import '../../features/auth/presentation/pin_entry_screen.dart';
 import '../../features/auth/presentation/pin_setup_screen.dart';
 import '../../features/auth/presentation/register_screen.dart';
+import '../../features/library/domain/book_model.dart';
 import '../../features/library/presentation/book_info_screen.dart';
 import '../../features/library/presentation/book_lock_screen.dart';
 import '../../features/library/presentation/home_screen.dart';
@@ -21,67 +24,74 @@ import 'app_routes.dart';
 
 part 'app_router.g.dart';
 
+/// Pure redirect logic — extracted so the router body stays thin and this
+/// function can be unit-tested without spinning up GoRouter or Firebase.
+///
+/// [getBook] returns a cached [BookModel] snapshot for the given bookId (null
+/// if the stream hasn't emitted yet or the book doesn't exist).
+/// [isBookUnlocked] returns whether the book was unlocked this process session.
+@visibleForTesting
+String? computeRedirect({
+  required String location,
+  required AsyncValue<UserModel?> authState,
+  required bool hasPinSet,
+  required bool pinUnlocked,
+  required BookModel? Function(String bookId) getBook,
+  required bool Function(String bookId) isBookUnlocked,
+}) {
+  // Don't redirect while auth is still resolving — avoids /login flash on
+  // cold start for users with a cached Firebase session.
+  if (authState.isLoading) return null;
+
+  final isLoggedIn = authState.valueOrNull != null;
+  final isAuthRoute =
+      location == AppRoutes.login || location == AppRoutes.register;
+  final isPinSetup = location == AppRoutes.pinSetup;
+  final isPinEntry = location == AppRoutes.pinEntry;
+
+  // ── Not logged in ──────────────────────────────────────────────────────────
+  if (!isLoggedIn) return isAuthRoute ? null : AppRoutes.login;
+
+  // ── Logged in — app-level PIN gate ─────────────────────────────────────────
+  if (!hasPinSet) return isPinSetup ? null : AppRoutes.pinSetup;
+  if (!pinUnlocked) return isPinEntry ? null : AppRoutes.pinEntry;
+
+  // ── PIN unlocked — bounce away from auth/pin screens ───────────────────────
+  if (isAuthRoute || isPinSetup || isPinEntry) return AppRoutes.home;
+
+  // ── Per-book lock gate ─────────────────────────────────────────────────────
+  // If the destination is a reading or note screen for a locked book that
+  // hasn't been unlocked this session, push the user through the PIN gate.
+  // We only inspect cached snapshots — if the stream hasn't emitted yet we let
+  // the route mount and the screen's own AsyncValue handles the loading UI.
+  final lockGated = RegExp(
+    r'^/book/([^/]+)/(reading|note)$',
+  ).firstMatch(location);
+  if (lockGated != null) {
+    final bookId = lockGated.group(1)!;
+    final book = getBook(bookId);
+    if (book != null && book.isLocked && !isBookUnlocked(bookId)) {
+      return '/book/$bookId/lock?redirect=${Uri.encodeComponent(location)}';
+    }
+  }
+  return null;
+}
+
 @Riverpod(keepAlive: true)
 GoRouter router(RouterRef ref) {
   final authState = ref.watch(authStateProvider);
 
   return GoRouter(
     initialLocation: AppRoutes.login,
-    redirect: (context, state) {
-      // Don't redirect while auth is still loading — avoids /login flash
-      // for users with cached Firebase sessions on cold start.
-      if (authState.isLoading) return null;
-
-      final isLoggedIn = authState.valueOrNull != null;
-      final loc = state.matchedLocation;
-      final isAuthRoute =
-          loc == AppRoutes.login || loc == AppRoutes.register;
-      final isPinSetup = loc == AppRoutes.pinSetup;
-      final isPinEntry = loc == AppRoutes.pinEntry;
-
-      // ── Not logged in ──────────────────────────────────────────────────────
-      if (!isLoggedIn) {
-        // Auth screens are fine; any other route → login.
-        return isAuthRoute ? null : AppRoutes.login;
-      }
-
-      // ── Logged in — app-level PIN gate ─────────────────────────────────────
-      final pinService = ref.read(appPinServiceProvider);
-      final pinUnlocked = ref.read(appPinSessionProvider);
-
-      if (!pinService.hasPinSet()) {
-        // No PIN set yet (new user or wiped device) → mandatory setup.
-        return isPinSetup ? null : AppRoutes.pinSetup;
-      }
-
-      if (!pinUnlocked) {
-        // PIN set but not entered this session → require entry.
-        return isPinEntry ? null : AppRoutes.pinEntry;
-      }
-
-      // ── PIN unlocked — bounce away from auth/pin screens ───────────────────
-      if (isAuthRoute || isPinSetup || isPinEntry) return AppRoutes.home;
-
-      // ── Per-book lock gate ─────────────────────────────────────────────────
-      // If the destination is a reading or note screen for a locked book that
-      // hasn't been unlocked this session, push the user through the PIN gate.
-      // We only inspect cached snapshots (`valueOrNull`) — if the book stream
-      // hasn't emitted yet we let the route mount and the screen's own
-      // AsyncValue handles the loading UI.
-      final lockGated = RegExp(
-        r'^/book/([^/]+)/(reading|note)$',
-      ).firstMatch(loc);
-      if (lockGated != null) {
-        final bookId = lockGated.group(1)!;
-        final book = ref.read(bookByIdProvider(bookId)).valueOrNull;
-        if (book != null &&
-            book.isLocked &&
-            !ref.read(bookUnlockSessionProvider).isUnlocked(bookId)) {
-          return '/book/$bookId/lock?redirect=${Uri.encodeComponent(loc)}';
-        }
-      }
-      return null;
-    },
+    redirect: (context, state) => computeRedirect(
+      location: state.matchedLocation,
+      authState: authState,
+      hasPinSet: ref.read(appPinServiceProvider).hasPinSet(),
+      pinUnlocked: ref.read(appPinSessionProvider),
+      getBook: (id) => ref.read(bookByIdProvider(id)).valueOrNull,
+      isBookUnlocked: (id) =>
+          ref.read(bookUnlockSessionProvider).isUnlocked(id),
+    ),
     routes: [
       GoRoute(
         path: AppRoutes.login,
