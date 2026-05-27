@@ -42,26 +42,6 @@ final recentBooksServiceProvider = Provider<RecentBooksService>.internal(
 @Deprecated('Will be removed in 3.0. Use Ref instead')
 // ignore: unused_element
 typedef RecentBooksServiceRef = ProviderRef<RecentBooksService>;
-String _$bookUnlockSessionHash() => r'ff41a5ec6b385394af4c6b09bc47c17c1138b142';
-
-/// Tracks per-session unlocked book IDs for the per-book PIN lock feature
-/// (Wave 2). Process-lifetime only — kill the app and every book re-locks.
-///
-/// Copied from [bookUnlockSession].
-@ProviderFor(bookUnlockSession)
-final bookUnlockSessionProvider = Provider<BookUnlockSession>.internal(
-  bookUnlockSession,
-  name: r'bookUnlockSessionProvider',
-  debugGetCreateSourceHash: const bool.fromEnvironment('dart.vm.product')
-      ? null
-      : _$bookUnlockSessionHash,
-  dependencies: null,
-  allTransitiveDependencies: null,
-);
-
-@Deprecated('Will be removed in 3.0. Use Ref instead')
-// ignore: unused_element
-typedef BookUnlockSessionRef = ProviderRef<BookUnlockSession>;
 String _$recentBookIdsHash() => r'a74f91a3b85f95b6895f59a8146066ea43363dbd';
 
 /// Reactive stream of locally-stored recent book IDs (most recent first).

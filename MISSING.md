@@ -2,19 +2,52 @@
 
 Audited: 2026-05-26. Based on static analysis of `lib/`, `test/`, `.github/workflows/`, `pubspec.yaml`, `firestore.indexes.json`, and `supabase/`.
 
-Last updated: 2026-05-27 (session 10 — R1 PIN gate fully wired into GoRouter; 274 tests pass).
+Last updated: 2026-05-27 (session 11 — per-book PIN lock removed on `remove-book-lock` branch; 259 tests pass).
 
 ---
 
-## ✅ Resolved this session
+## ✅ Resolved this session (session 11)
+
+### Per-book PIN lock removed → DONE (`remove-book-lock` branch)
+The optional per-book content gate has been fully removed. Only the **app-level PIN gate** remains (enforced on every cold start when the user is already logged in).
+
+**Deleted files:**
+- `lib/core/local/book_unlock_session.dart` — in-memory unlock set
+- `lib/features/library/data/book_lock_hasher.dart` — SHA-256 PIN hasher
+- `lib/features/library/presentation/book_lock_screen.dart` — per-book numpad UI
+- `lib/features/library/presentation/widgets/lock_setup_sheet.dart` — lock setup bottom sheet
+- `test/core/local/book_unlock_session_test.dart`
+- `test/features/library/data/book_lock_hasher_test.dart`
+
+**Modified files:**
+- `lib/features/library/domain/book_model.dart` — removed `isLocked`, `lockHash` fields
+- `lib/features/library/data/firestore_data_source.dart` — removed `updateBookLock()`
+- `lib/features/library/presentation/library_controller.dart` — removed `setBookLock()`, `removeBookLock()`, `verifyBookLock()`
+- `lib/features/library/presentation/library_providers.dart` / `.g.dart` — removed `bookUnlockSessionProvider`
+- `lib/features/library/presentation/book_info_screen.dart` — removed lock UI (LockSetupSheet call, `_PrivacyTile`, desktop lock action, notes-locked gate)
+- `lib/shared/widgets/pdf_card.dart` — removed lock badge and Semantics lock label
+- `lib/core/constants/app_router.dart` — removed `/book/:id/lock` GoRoute, simplified `computeRedirect()` (no `getBook`/`isBookUnlocked` params)
+- `lib/core/constants/app_routes.dart` — removed `bookLock` route constant
+- `firestore.rules` — removed `isLocked`/`lockHash` from mutable-field allowlist
+- `test/core/router/router_redirect_test.dart` — removed per-book lock gate test group (5 tests)
+- `test/controllers/library_controller_test.dart` — removed `updateBookLock` fake override
+
+**What is kept:**
+- `BiometricAuthService` — still used by `PinEntryScreen` (app-level gate)
+- `AppPinService`, `appPinSessionProvider`, `PinEntryScreen`, `PinSetupScreen` — app-level gate fully intact
+- GoRouter redirect still enforces app PIN first before any protected route
+
+---
+
+## ✅ Resolved this session (session 10)
 
 ### R1 — Auth-level biometric / passkey session resume → DONE
-Replaced per-book PIN lock with an **app-level PIN gate**:
+Added an **app-level PIN gate**:
 - `AppPinService` (Hive-backed, SHA-256 hash) stores the PIN per device.
 - `appPinSessionProvider` (`StateNotifier<bool>`) tracks whether the PIN was entered this session.
 - `PinSetupScreen` is shown once after registration; `PinEntryScreen` is shown on every cold start / resume when the user is already logged in.
-- `BiometricAuthService` is wired into `PinEntryScreen` for quick-unlock — satisfying the biometric-on-app-reentry requirement.
-- GoRouter redirect handles all states: loading, logged-out, PIN-not-set, PIN-not-entered, content.
+- `BiometricAuthService` is wired into `PinEntryScreen` for quick-unlock via Android Keystore biometrics.
+- GoRouter redirect enforces the app PIN gate before any protected route.
 
 ---
 

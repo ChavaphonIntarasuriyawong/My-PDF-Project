@@ -18,7 +18,6 @@ import '../domain/bookshelf_model.dart';
 import '../domain/note_model.dart';
 import 'library_controller.dart';
 import 'library_providers.dart';
-import 'widgets/lock_setup_sheet.dart';
 
 /// Book Info screen — Figma node 25:741 ("Full PDF Reader & Notes View").
 ///
@@ -315,28 +314,6 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
     );
   }
 
-  void _showLockSetupSheet(BookModel book) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.4),
-      builder: (sheetCtx) => LockSetupSheet(
-        bookId: book.id,
-        currentlyLocked: book.isLocked,
-        // Bottom sheets cannot reliably surface their own SnackBars (the
-        // ScaffoldMessenger they look up is the sheet's local one). Bubble
-        // errors back up so the host scaffold's messenger handles them.
-        onError: (msg) {
-          if (!mounted) return;
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(msg)));
-        },
-      ),
-    );
-  }
-
   Future<void> _showOptionsMenu(
     BuildContext context,
     WidgetRef ref,
@@ -372,37 +349,17 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
       ],
     );
     if (!context.mounted) return;
-    final session = ref.read(bookUnlockSessionProvider);
-    final bookLocked = book.isLocked && !session.isUnlocked(book.id);
     switch (selected) {
       case 'edit':
-        if (bookLocked) {
-          context.push(
-            '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
-          );
-          break;
-        }
         _showRenameModal(context, ref, book);
         break;
       case 'delete':
         _showDeleteModal(context, ref);
         break;
       case 'move':
-        if (bookLocked) {
-          context.push(
-            '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
-          );
-          break;
-        }
         _showMoveShelfModal(context, ref, book, shelves);
         break;
       case 'status':
-        if (bookLocked) {
-          context.push(
-            '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
-          );
-          break;
-        }
         _showStatusModal(context, ref, book);
         break;
     }
@@ -441,43 +398,17 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
                     ref.watch(notesByBookProvider(book.id)).valueOrNull ?? [],
                 onBack: () =>
                     context.canPop() ? context.pop() : context.go('/home'),
-                onEdit: () {
-                  final s = ref.read(bookUnlockSessionProvider);
-                  if (book.isLocked && !s.isUnlocked(book.id)) {
-                    context.push(
-                      '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
-                    );
-                    return;
-                  }
-                  _showRenameModal(context, ref, book);
-                },
+                onEdit: () => _showRenameModal(context, ref, book),
                 onMoveShelf: (sid) async {
-                  final s = ref.read(bookUnlockSessionProvider);
-                  if (book.isLocked && !s.isUnlocked(book.id)) {
-                    context.push(
-                      '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
-                    );
-                    return;
-                  }
                   await ref
                       .read(libraryControllerProvider.notifier)
                       .moveBook(book.id, sid ?? '');
                 },
-                onShowStatusModal: () {
-                  final s = ref.read(bookUnlockSessionProvider);
-                  if (book.isLocked && !s.isUnlocked(book.id)) {
-                    context.push(
-                      '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
-                    );
-                    return;
-                  }
-                  _showStatusModal(context, ref, book);
-                },
+                onShowStatusModal: () => _showStatusModal(context, ref, book),
                 onDeleteNote: (noteId) =>
                     _confirmDeleteNote(context, ref, noteId),
                 onDeleteBook: () => _showDeleteModal(context, ref),
                 onOpenReader: () => context.push('/book/${book.id}/reading'),
-                onLock: () => _showLockSetupSheet(book),
               );
             },
           ),
@@ -561,15 +492,6 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
                     child: _PdfDisplayArea(book: book),
                   ),
 
-                  // ── Privacy — per-book PIN lock entry point ──────────────
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-                    child: _PrivacyTile(
-                      isLocked: book.isLocked,
-                      onTap: () => _showLockSetupSheet(book),
-                    ),
-                  ),
-
                   // ── Annotated Insights — rounded-top muted sheet ─────────
                   _AnnotatedInsightsSheet(
                     book: book,
@@ -611,28 +533,22 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        if (!book.isLocked ||
-            ref.watch(bookUnlockSessionProvider).isUnlocked(book.id))
-          Builder(
-            builder: (btnCtx) => GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {
-                final box = btnCtx.findRenderObject() as RenderBox?;
-                final anchor = box != null
-                    ? box.localToGlobal(Offset(box.size.width, 0))
-                    : Offset.zero;
-                _showOptionsMenu(context, ref, book, shelves, anchor);
-              },
-              child: const Padding(
-                padding: EdgeInsets.all(4),
-                child: Icon(
-                  Icons.more_vert,
-                  color: AppColors.primary,
-                  size: 20,
-                ),
-              ),
+        Builder(
+          builder: (btnCtx) => GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {
+              final box = btnCtx.findRenderObject() as RenderBox?;
+              final anchor = box != null
+                  ? box.localToGlobal(Offset(box.size.width, 0))
+                  : Offset.zero;
+              _showOptionsMenu(context, ref, book, shelves, anchor);
+            },
+            child: const Padding(
+              padding: EdgeInsets.all(4),
+              child: Icon(Icons.more_vert, color: AppColors.primary, size: 20),
             ),
           ),
+        ),
       ],
     );
   }
@@ -809,9 +725,6 @@ class _AnnotatedInsightsSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final session = ref.watch(bookUnlockSessionProvider);
-    final notesLocked = book.isLocked && !session.isUnlocked(book.id);
-
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -819,71 +732,13 @@ class _AnnotatedInsightsSheet extends ConsumerWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
       ),
       padding: const EdgeInsets.fromLTRB(24, 33, 24, 48 + 80 /* nav bar gap */),
-      child: notesLocked
-          ? _LockedNotesPlaceholder(bookId: book.id)
-          : _NotesSection(
-              bookId: book.id,
-              selectedNoteIds: selectedNoteIds,
-              inSelectionMode: inSelectionMode,
-              onToggleNote: onToggleNote,
-              onPruneSelection: onPruneSelection,
-            ),
-    );
-  }
-}
-
-class _LockedNotesPlaceholder extends StatelessWidget {
-  final String bookId;
-  const _LockedNotesPlaceholder({required this.bookId});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        const SizedBox(height: 24),
-        const Icon(Icons.lock, color: AppColors.primary, size: 40),
-        const SizedBox(height: 12),
-        Text('Notes are locked', style: AppTypography.titleMedium),
-        const SizedBox(height: 8),
-        Text(
-          'Unlock this book to view or add notes.',
-          style: AppTypography.bodyMedium.copyWith(
-            color: AppColors.textSecondary,
-          ),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 20),
-        DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: AppColors.primaryGradient,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.1),
-                blurRadius: 12,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(12),
-              onTap: () => context.push(
-                '/book/$bookId/lock?redirect=${Uri.encodeComponent('/book/$bookId')}',
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
-                ),
-                child: Text('Unlock', style: AppTypography.labelButton),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(height: 24),
-      ],
+      child: _NotesSection(
+        bookId: book.id,
+        selectedNoteIds: selectedNoteIds,
+        inSelectionMode: inSelectionMode,
+        onToggleNote: onToggleNote,
+        onPruneSelection: onPruneSelection,
+      ),
     );
   }
 }
@@ -1201,72 +1056,6 @@ class _ShelfPick extends StatelessWidget {
 // title + subtitle, trailing chevron).
 // ──────────────────────────────────────────────────────────────────────────
 
-class _PrivacyTile extends StatelessWidget {
-  final bool isLocked;
-  final VoidCallback onTap;
-
-  const _PrivacyTile({required this.isLocked, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final title = isLocked ? 'Manage lock' : 'Lock this book';
-    final subtitle = isLocked
-        ? 'Change or remove PIN'
-        : 'Require a PIN to open';
-    final icon = isLocked ? Icons.lock : Icons.lock_outline;
-    return Semantics(
-      button: true,
-      label: '$title. $subtitle',
-      child: Material(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(12),
-          onTap: onTap,
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 64),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.borderHairline),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.iconBlueTint,
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  alignment: Alignment.center,
-                  child: Icon(icon, color: AppColors.primary, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(title, style: AppTypography.labelLarge),
-                      const SizedBox(height: 2),
-                      Text(subtitle, style: AppTypography.bodySmall),
-                    ],
-                  ),
-                ),
-                const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textMuted,
-                  size: 20,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class _CoverPlaceholder extends StatelessWidget {
   final bool loading;
   const _CoverPlaceholder({this.loading = false});
@@ -1313,7 +1102,6 @@ class _DesktopBookInfoBody extends ConsumerStatefulWidget {
   final ValueChanged<String> onDeleteNote;
   final VoidCallback onDeleteBook;
   final VoidCallback onOpenReader;
-  final VoidCallback onLock;
 
   const _DesktopBookInfoBody({
     required this.book,
@@ -1326,7 +1114,6 @@ class _DesktopBookInfoBody extends ConsumerStatefulWidget {
     required this.onDeleteNote,
     required this.onDeleteBook,
     required this.onOpenReader,
-    required this.onLock,
   });
 
   @override
@@ -1360,9 +1147,6 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
         ? (book.currentPage / book.totalPages).clamp(0.0, 1.0)
         : 0.0;
     final pct = (progress * 100).round();
-    final session = ref.watch(bookUnlockSessionProvider);
-    final notesLocked = book.isLocked && !session.isUnlocked(book.id);
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(48, 24, 48, 32),
       child: Column(
@@ -1524,46 +1308,35 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 16,
                                 ),
-                                child: GestureDetector(
-                                  behavior: HitTestBehavior.translucent,
-                                  onTap: notesLocked
-                                      ? () => context.push(
-                                          '/book/${book.id}/lock?redirect=${Uri.encodeComponent('/book/${book.id}')}',
-                                        )
-                                      : null,
-                                  child: AbsorbPointer(
-                                    absorbing: notesLocked,
-                                    child: DropdownButtonHideUnderline(
-                                      child: DropdownButton<String?>(
-                                        value: book.shelfId.isEmpty
-                                            ? null
-                                            : book.shelfId,
-                                        isExpanded: true,
-                                        hint: Text(
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String?>(
+                                    value: book.shelfId.isEmpty
+                                        ? null
+                                        : book.shelfId,
+                                    isExpanded: true,
+                                    hint: Text(
+                                      'No Shelf',
+                                      style: AppTypography.bodyLarge,
+                                    ),
+                                    items: [
+                                      DropdownMenuItem<String?>(
+                                        value: null,
+                                        child: Text(
                                           'No Shelf',
                                           style: AppTypography.bodyLarge,
                                         ),
-                                        items: [
-                                          DropdownMenuItem<String?>(
-                                            value: null,
-                                            child: Text(
-                                              'No Shelf',
-                                              style: AppTypography.bodyLarge,
-                                            ),
-                                          ),
-                                          ...shelves.map(
-                                            (s) => DropdownMenuItem<String?>(
-                                              value: s.id,
-                                              child: Text(
-                                                s.name,
-                                                style: AppTypography.bodyLarge,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                        onChanged: widget.onMoveShelf,
                                       ),
-                                    ),
+                                      ...shelves.map(
+                                        (s) => DropdownMenuItem<String?>(
+                                          value: s.id,
+                                          child: Text(
+                                            s.name,
+                                            style: AppTypography.bodyLarge,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                    onChanged: widget.onMoveShelf,
                                   ),
                                 ),
                               ),
@@ -1647,14 +1420,6 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                         label: 'Open reader',
                         onTap: widget.onOpenReader,
                       ),
-                      const SizedBox(height: 16),
-                      _DesktopCircleAction(
-                        icon: book.isLocked
-                            ? Icons.lock
-                            : Icons.lock_open_outlined,
-                        label: book.isLocked ? 'Manage lock' : 'Set up lock',
-                        onTap: widget.onLock,
-                      ),
                     ],
                   ),
                 ),
@@ -1664,9 +1429,7 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                 // editor mode based on _editingNoteId.
                 SizedBox(
                   width: 320,
-                  child: notesLocked
-                      ? _LockedNotesPlaceholder(bookId: book.id)
-                      : _editingNoteId == null
+                  child: _editingNoteId == null
                       ? Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [

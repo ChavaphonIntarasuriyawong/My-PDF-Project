@@ -12,10 +12,12 @@
 #     Obtain via Firebase Console -> Project Settings -> Service Accounts ->
 #     Generate new private key. Paste entire JSON contents as the secret value.
 #
-# Flutter pinned to 3.38.6 (matches local + CI).
+# Flutter pinned to 3.44.0 (matches CI).
 #
 # Note: web/ocr/ Tesseract.js binaries ARE committed to the repo (~23 MB).
 # No download step is needed; they are present after checkout.
+# Note: .g.dart files are committed; no build_runner step needed here
+#       because CI already verifies generated code before this job runs.
 
 name: CD - Web (Firebase Hosting)
 
@@ -48,7 +50,7 @@ jobs:
       - name: Set up Flutter
         uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.38.6'
+          flutter-version: '3.44.0'
           channel: stable
           cache: true
 

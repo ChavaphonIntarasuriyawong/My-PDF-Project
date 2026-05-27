@@ -4,7 +4,6 @@ import 'package:http/http.dart' as http;
 import 'package:path_provider/path_provider.dart';
 import 'package:pdfx/pdfx.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
-import '../../../core/local/book_unlock_session.dart';
 import '../../../core/local/ocr_cache_service.dart';
 import '../../../core/local/recent_books_service.dart';
 import '../../../core/network/pdf_fetcher.dart';
@@ -27,12 +26,6 @@ FirestoreDataSource firestoreDataSource(FirestoreDataSourceRef ref) {
 RecentBooksService recentBooksService(RecentBooksServiceRef ref) {
   return RecentBooksService();
 }
-
-/// Tracks per-session unlocked book IDs for the per-book PIN lock feature
-/// (Wave 2). Process-lifetime only — kill the app and every book re-locks.
-@Riverpod(keepAlive: true)
-BookUnlockSession bookUnlockSession(BookUnlockSessionRef ref) =>
-    BookUnlockSession();
 
 /// Reactive stream of locally-stored recent book IDs (most recent first).
 @Riverpod(keepAlive: true)
