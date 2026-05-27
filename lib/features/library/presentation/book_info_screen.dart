@@ -481,6 +481,8 @@ class _BookInfoScreenState extends ConsumerState<BookInfoScreen> {
                     padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
                     child: _PdfDisplayArea(book: book),
                   ),
+
+                  // ── Annotated Insights — rounded-top muted sheet ─────────
                   _AnnotatedInsightsSheet(
                     book: book,
                     selectedNoteIds: _selectedNoteIds,
@@ -703,14 +705,14 @@ class _AnnotatedInsightsSheet extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
         color: AppColors.surfaceMuted,
         borderRadius: BorderRadius.vertical(top: Radius.circular(40)),
       ),
-      padding: const EdgeInsets.fromLTRB(24, 33, 24, 48 + 80),
+      padding: const EdgeInsets.fromLTRB(24, 33, 24, 48 + 80 /* nav bar gap */),
       child: _NotesSection(
         bookId: book.id,
         selectedNoteIds: selectedNoteIds,
@@ -1019,6 +1021,13 @@ class _ShelfPick extends StatelessWidget {
   }
 }
 
+// ──────────────────────────────────────────────────────────────────────────
+// Privacy tile — single settings-row that toggles between "Lock this book"
+// and "Manage lock" based on the book's lock state. Matches the visual
+// language of other tiles on this screen (white surface, primary icon,
+// title + subtitle, trailing chevron).
+// ──────────────────────────────────────────────────────────────────────────
+
 class _CoverPlaceholder extends StatelessWidget {
   final bool loading;
   const _CoverPlaceholder({this.loading = false});
@@ -1104,7 +1113,6 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
         ? (book.currentPage / book.totalPages).clamp(0.0, 1.0)
         : 0.0;
     final pct = (progress * 100).round();
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(48, 24, 48, 32),
       child: Column(
@@ -1364,10 +1372,14 @@ class _DesktopBookInfoBodyState extends ConsumerState<_DesktopBookInfoBody> {
                 const SizedBox(width: 16),
                 Padding(
                   padding: const EdgeInsets.only(top: 96),
-                  child: _DesktopCircleAction(
-                    icon: Icons.menu_book_outlined,
-                    label: 'Open reader',
-                    onTap: widget.onOpenReader,
+                  child: Column(
+                    children: [
+                      _DesktopCircleAction(
+                        icon: Icons.menu_book_outlined,
+                        label: 'Open reader',
+                        onTap: widget.onOpenReader,
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(width: 16),

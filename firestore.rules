@@ -106,7 +106,7 @@ service cloud.firestore {
 
       allow update: if isOwner(resource.data.ownerId)
         && changedFields().hasOnly([
-          'title', 'currentPage', 'progress', 'status', 'lastReadAt', 'shelfId',
+          'title', 'currentPage', 'progress', 'status', 'lastReadAt', 'shelfId'
         ])
         && (!('lastReadAt' in changedFields()) || timestampValid('lastReadAt'))
         && (!('status' in changedFields())
