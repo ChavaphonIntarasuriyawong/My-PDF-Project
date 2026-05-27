@@ -2,7 +2,7 @@
 
 Audited: 2026-05-26. Based on static analysis of `lib/`, `test/`, `.github/workflows/`, `pubspec.yaml`, `firestore.indexes.json`, and `supabase/`.
 
-Last updated: 2026-05-26 (session 9 — scope clarification: book_lock_screen test not a requirement; Supabase RLS is the only remaining open item).
+Last updated: 2026-05-27 (session 10 — R1 PIN gate fully wired into GoRouter; 274 tests pass).
 
 ---
 
@@ -108,6 +108,31 @@ Call-site updates: 2 `ocrPageTextProvider((...)` → named-param calls in `readi
 CI: `dart run build_runner build --delete-conflicting-outputs` added before `flutter analyze` in `.github/workflows/ci.yml`.
 
 **Test baseline: 250 pass / 1 skip / 0 fail** (unchanged).
+
+---
+
+## ✅ Also resolved this session (session 10)
+
+### R1 — App-level PIN gate fully wired → DONE
+`PinSetupScreen` and `PinEntryScreen` existed but were dead code — no routes registered, no redirect enforcing them. Fixed on branch `r1-pin-gate-wiring`:
+
+- `AppRoutes.pinSetup` (`/pin-setup`) and `AppRoutes.pinEntry` (`/pin-entry`) added to `app_routes.dart`.
+- Both screens registered as `GoRoute` entries in `app_router.dart`.
+- Redirect logic extracted into `computeRedirect()` (`@visibleForTesting`) and the full state machine now enforced:
+
+| Condition | Redirect |
+|---|---|
+| Auth loading | `null` (wait) |
+| Not logged in | `/login` |
+| Logged in, no PIN set | `/pin-setup` |
+| Logged in, PIN set, session not unlocked | `/pin-entry` |
+| Logged in, unlocked, on auth/pin screen | `/home` |
+| Logged in, unlocked, book locked | `/book/:id/lock` |
+| Anything else | `null` (allow) |
+
+- `test/core/router/router_redirect_test.dart` — 24 pure-function tests covering every redirect state (no GoRouter, no Firebase, no platform channels).
+
+**Test baseline: 274 pass / 1 skip / 0 fail** (was 250 / 1 / 0).
 
 ---
 
