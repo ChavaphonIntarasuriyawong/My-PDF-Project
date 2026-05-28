@@ -705,7 +705,7 @@ class _AnnotatedInsightsSheet extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
