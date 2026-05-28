@@ -9,16 +9,16 @@ Flutter app targeting **Android (primary)** and **Web (secondary)**.
 ## Features
 
 - Email/password auth (Firebase)
+- App-level PIN lock — mandatory 6-digit PIN set on registration, verified on every cold start; optional biometric quick-unlock (Face ID / Touch ID / fingerprint, mobile)
 - Bookshelves + books CRUD (Firestore, real-time streams)
 - PDF upload (Supabase Storage) or paste-link import
 - Reader with auto-resume to last page + progress percentage
 - Per-book notes (auto-named `Note (N)` if title empty)
-- Text-to-speech of current page (mobile + web)
+- Text-to-speech of current page with karaoke word-level highlighting (mobile + web)
 - OCR fallback for scanned PDFs (Tesseract — English + Thai), feeds TTS when no embedded text layer exists
-- Per-book PIN lock with biometric quick-unlock (Face ID / Touch ID / fingerprint, mobile)
 - Profile (name + email)
 - "Recently Opened" rail backed by Hive (local storage)
-- Phone-frame layout on wide web viewports
+- Phone-frame layout on wide web viewports; desktop shell with sidebar nav
 - External-link reading on web via Supabase Edge Function CORS proxy
 - Remote Config feature flag for OCR rollback (`ocr_fallback_enabled`)
 
@@ -30,7 +30,7 @@ Flutter app targeting **Android (primary)** and **Web (secondary)**.
 |---|---|
 | Framework | Flutter (Dart SDK ^3.10.7) |
 | State | `flutter_riverpod` |
-| Routing | `go_router` (auth-gated redirects + per-book lock gate) |
+| Routing | `go_router` (auth + app PIN redirect guards) |
 | Auth + DB | Firebase Auth + Cloud Firestore |
 | Feature flags | Firebase Remote Config |
 | File storage | Supabase Storage (bucket `pdfs`) |
@@ -41,7 +41,7 @@ Flutter app targeting **Android (primary)** and **Web (secondary)**.
 | OCR (mobile) | `tesseract_ocr` (FFI, Tesseract 4) |
 | OCR (web) | Tesseract.js v5 in a Web Worker |
 | TTS | `flutter_tts` |
-| Biometric (book lock) | `local_auth` |
+| Biometric (PIN unlock) | `local_auth` |
 | Logging | `logger` (with Crashlytics mirror on mobile) |
 | Crash | `firebase_crashlytics` (mobile only) |
 
@@ -58,15 +58,15 @@ Full dependency list from `pubspec.yaml`. Each package has a defined role — do
 | Package | Version | Role |
 |---|---|---|
 | `flutter_riverpod` | ^2.6.1 | App state management. No `setState` for shared state. |
-| `go_router` | ^14.6.3 | Declarative routing + auth-gated redirect guard. |
+| `go_router` | ^14.6.3 | Declarative routing + auth and app PIN redirect guards. |
 | `firebase_core` | ^3.13.1 | Firebase init bootstrap. |
 | `firebase_auth` | ^5.5.4 | Email/password auth. |
 | `cloud_firestore` | ^5.6.7 | Books, shelves, notes, users docs. |
 | `supabase_flutter` | ^2.8.4 | PDF storage (`pdfs` bucket) + Edge Function calls. |
 | `firebase_crashlytics` | ^4.3.5 | Crash reporting (mobile only — skipped on web). |
 | `firebase_remote_config` | ^5.4.0 | Feature flags (e.g. `ocr_fallback_enabled`). Read via `featureFlagsProvider`. |
-| `local_auth` | ^2.3.0 | Biometric prompt for the per-book PIN lock quick-unlock (mobile only). |
-| `hive` + `hive_flutter` | ^2.2.3 / ^1.1.0 | Local key-value cache (`app_prefs` box → recent book IDs + OCR text). |
+| `local_auth` | ^2.3.0 | Biometric prompt for login quick-unlock and app-level PIN entry (mobile only). |
+| `hive` + `hive_flutter` | ^2.2.3 / ^1.1.0 | Local key-value cache (`app_prefs` box → PIN hash, biometric flag, recent book IDs, OCR text). |
 | `flutter_pdfview` | ^1.3.2 | Native PDF rendering on mobile. |
 | `pdfx` | ^2.9.0 | Web PDF rendering + thumbnail generation + per-page raster for OCR. |
 | `syncfusion_flutter_pdf` | ^27.1.48 | PDF metadata extraction + web text extraction (TTS). |
@@ -74,7 +74,7 @@ Full dependency list from `pubspec.yaml`. Each package has a defined role — do
 | `flutter_tts` | ^4.2.0 | Text-to-speech (mobile + web). |
 | `tesseract_ocr` | ^0.5.0 | OCR fallback on mobile (Android Tesseract4Android via FFI). |
 | `web` | ^1.1.0 | Modern JS interop bridge for the Tesseract.js worker on web. |
-| `crypt` | ^4.3.1 | SHA-256-crypt PIN hashing for the per-book lock. |
+| `crypt` | ^4.3.1 | SHA-256-crypt PIN hashing for the app-level PIN lock (`AppPinService`). |
 | `logger` | ^2.4.0 | Structured logging (mirrors errors to Crashlytics on mobile). |
 | `dartz` | ^0.10.1 | `Either<Failure, T>` for repository contracts. |
 | `http` | ^1.2.2 | Network fetches (PDF bytes via `pdf_fetcher.dart`). |
@@ -86,7 +86,7 @@ Full dependency list from `pubspec.yaml`. Each package has a defined role — do
 
 Native plugin gotchas:
 - Android `AndroidManifest.xml` needs `<intent action android.intent.action.TTS_SERVICE>` inside `<queries>` (Android 11+ package visibility) for `flutter_tts` to find an engine.
-- Android also needs `USE_BIOMETRIC` permission (already declared) for the per-book lock biometric path.
+- Android also needs `USE_BIOMETRIC` permission (already declared) for the login and PIN entry biometric path.
 - `flutter_pdf_text` is mobile-only — web text extraction routes through `syncfusion_flutter_pdf` on cached bytes.
 - `tesseract_ocr` is mobile-only — web OCR uses Tesseract.js via the conditional import in `lib/features/library/data/ocr_data_source.dart`.
 - `path_provider` and `dart:io` `File` must be `kIsWeb`-guarded.
@@ -215,13 +215,18 @@ lib/
 │   ├── config/       feature_flags.dart  (Remote Config wrapper + provider)
 │   ├── constants/    routes, router
 │   ├── errors/       failures
-│   ├── local/        recent_books_service, ocr_cache_service, book_unlock_session
+│   ├── local/        recent_books_service, ocr_cache_service,
+│   │                 app_pin_service, app_pin_session
 │   ├── logging/      app_logger.dart  (structured logger + Crashlytics mirror)
 │   ├── network/      pdf_fetcher.dart  (CORS proxy entry point)
 │   ├── text/         tts_text_cleaner.dart  (OCR/text normalization for TTS)
 │   └── theme/        AppColors, AppTypography, AppTheme
-├── features/         auth, library, reader, profile  (data/domain/presentation per feature)
-├── shared/           reusable widgets
+├── features/
+│   ├── auth/         login, register, pin_setup, pin_entry screens; biometric service
+│   ├── library/      shelves, books, notes CRUD + OCR datasource
+│   ├── reader/       reading screen, TTS engine, karaoke controller, note screens
+│   └── profile/      profile + edit screens
+├── shared/           reusable widgets (pdf_card, desktop_shell, app_drawer, …)
 ├── firebase_options.dart
 └── main.dart
 
@@ -265,7 +270,7 @@ flutter test                            # full suite
 flutter test integration_test/          # integration harness (needs a device / emulator)
 ```
 
-Unit, widget, controller, and golden tests under `test/`; end-to-end harness under `integration_test/`. Current baseline: **181 pass, 2 skipped, 0 fail**, `flutter analyze` clean. Fakes match current `FirestoreDataSource` signatures.
+Unit, widget, controller, and golden tests under `test/`; end-to-end harness under `integration_test/`. Current baseline: **181 pass, 2 skipped, 0 fail**, `flutter analyze` clean.
 
 ---
 
@@ -277,7 +282,6 @@ Unit, widget, controller, and golden tests under `test/`; end-to-end harness und
 - Firebase Storage is not used. Do not add it — all PDFs go to Supabase.
 - **iOS is not yet supported by the OCR pipeline.** The `tesseract_ocr` plugin needs a SwiftyTesseract / libtesseract xcframework wired into `ios/Podfile` — not yet added. Android + web OCR are the supported targets.
 - **OCR rollback** — flip `ocr_fallback_enabled` to `false` in Firebase Remote Config to disable the OCR fallback without redeploy.
-- Profile-level biometric sign-in was removed; biometric is currently scoped to per-book lock quick-unlock only.
 - Outstanding security debts (deferred for demo scope): pdf.js loaded from `cdnjs.cloudflare.com` without SRI, no CSP/COEP headers, Hive cache unencrypted, `tesseract_ocr 0.5.0` upstream unmaintained since 2023.
 
 ---
