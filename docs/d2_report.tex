@@ -1,0 +1,511 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Encoding & fonts ─────────────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ── Page geometry ─────────────────────────────────────────────────────────────
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.8cm, right=2.8cm]{geometry}
+
+% ── Typography & spacing ──────────────────────────────────────────────────────
+\usepackage{parskip}
+\setlength{\parskip}{4pt}
+\usepackage{setspace}
+\setstretch{1.05}
+
+% ── Colours ───────────────────────────────────────────────────────────────────
+\usepackage[dvipsnames,table]{xcolor}
+\definecolor{accent}{HTML}{1A56DB}
+\definecolor{rowalt}{HTML}{F3F6FC}
+\definecolor{codebackground}{HTML}{F5F5F5}
+\definecolor{rulecolor}{HTML}{CCCCCC}
+
+% ── Section headings ──────────────────────────────────────────────────────────
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries\color{accent}}{}{0em}{}[\color{rulecolor}\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{}{0em}{}
+\titlespacing{\section}{0pt}{14pt}{4pt}
+\titlespacing{\subsection}{0pt}{9pt}{3pt}
+\titlespacing{\subsubsection}{0pt}{6pt}{2pt}
+
+% ── Tables ────────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\renewcommand{\arraystretch}{1.22}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% ── Code listings ─────────────────────────────────────────────────────────────
+\usepackage{listings}
+\lstset{
+  backgroundcolor=\color{codebackground},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  breakatwhitespace=true,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{rulecolor},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+  aboveskip=6pt,
+  belowskip=6pt,
+  captionpos=b,
+  showstringspaces=false,
+}
+
+% ── Hyperlinks ────────────────────────────────────────────────────────────────
+\usepackage[hidelinks,
+  pdftitle={D2 -- Enterprise Audit \& Orchestration Report},
+  pdfauthor={MyPDF Engineering Team},
+  colorlinks=false
+]{hyperref}
+
+% ── Header / footer ───────────────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\small\textcolor{gray}{MyPDF — D2 Enterprise Audit \& Orchestration Report}}
+\fancyhead[R]{\small\textcolor{gray}{28 May 2026}}
+\fancyfoot[C]{\small\thepage}
+
+% ── Misc ──────────────────────────────────────────────────────────────────────
+\usepackage{enumitem}
+\setlist[itemize]{itemsep=1pt, topsep=3pt, parsep=0pt}
+\setlist[enumerate]{itemsep=1pt, topsep=3pt, parsep=0pt}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Compact title block ───────────────────────────────────────────────────────
+\thispagestyle{fancy}
+\begin{center}
+  {\LARGE\bfseries\color{accent} D2 — Enterprise Audit \& Orchestration Report}\\[6pt]
+  {\normalsize MyPDF \textbullet{} Flutter (Android + Web) \textbullet{} Firebase + Supabase \textbullet{} 28 May 2026}\\[4pt]
+  {\small\itshape Prepared by the MyPDF Engineering Team \textbullet{} Private — not for redistribution}
+\end{center}
+\vspace{2pt}
+{\small This report covers four mandated audit areas: multi-agent orchestration workflow,
+domain model design and state management rationale, role-based access control matrix
+and Firestore security rules, and the observability infrastructure and rollback strategy
+for the live OCR feature flag.}
+\vspace{8pt}
+\hrule
+\vspace{4pt}
+
+\tableofcontents
+\vspace{6pt}
+\hrule
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Agent Workflow \& Multi-Agent Orchestration}
+
+\subsection{The Five-Agent Model}
+
+Development of MyPDF is assisted by a five-agent orchestration system defined in
+\texttt{.claude/agents/} and governed by \texttt{docs/projectscope.md}.
+Each agent is scoped to a single concern and may not edit another agent's domain.
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{2.6cm} L{3.4cm} L{2.6cm} L{5.0cm}@{}}
+  \toprule
+  \textbf{Agent} & \textbf{Concern} & \textbf{Tools} & \textbf{Edit Scope} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{architect} & Layering, provider graph, plugin role boundaries &
+    Read, Glob, Grep, Bash & Diagnose only \\
+  \texttt{flutter\_engineer} & UI, Riverpod controllers, GoRouter, theme, \texttt{kIsWeb} &
+    +Edit, Write & \texttt{lib/features/*/presentation/}, \texttt{lib/shared/}, router, \texttt{main.dart} \\
+  \rowcolor{rowalt}
+  \texttt{firebase\_specialist} & Firestore, Supabase, Edge Function, datasources &
+    +Edit, Write & \texttt{lib/features/*/data/}, \texttt{supabase/functions/}, \texttt{firestore.rules} \\
+  \texttt{qa\_engineer} & Tests, \texttt{flutter analyze}, manual QA &
+    +Edit, Write & \texttt{test/} \\
+  \rowcolor{rowalt}
+  \texttt{security} & Auth, rules, RLS, CORS proxy, secrets, CVEs &
+    Read, Glob, Grep, Bash, WebFetch & Diagnose only \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+\texttt{architect} and \texttt{security} are read-only; they diagnose and report but
+cannot modify source files. Only \texttt{flutter\_engineer} and
+\texttt{firebase\_specialist} hold write access, each constrained to its own path namespace.
+
+\subsection{Dispatch Protocol and Prompts Used}
+
+All dispatches are \textbf{parallel}: the orchestrator sends a single message containing
+one Task call per required agent. \textbf{Topic-map auto-routing} matches the user's intent
+against a keyword table in \texttt{docs/projectscope.md}:
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{6.0cm} L{7.8cm}@{}}
+  \toprule
+  \textbf{User intent} & \textbf{Agents dispatched} \\
+  \midrule
+  \rowcolor{rowalt}
+  Add/fix a screen, widget, or route & \texttt{flutter\_engineer} \\
+  Firestore query, Supabase upload & \texttt{firebase\_specialist} \\
+  \rowcolor{rowalt}
+  Auth flow or PIN change & \texttt{firebase\_specialist} + \texttt{security} \\
+  Security review, rules, CVE & \texttt{security} \\
+  \rowcolor{rowalt}
+  Tests or \texttt{flutter analyze} red & \texttt{qa\_engineer} \\
+  Layering or architecture concern & \texttt{architect} \\
+  \rowcolor{rowalt}
+  New feature spanning data and UI & \texttt{architect} + \texttt{flutter\_engineer} + \texttt{firebase\_specialist} \\
+  Pre-merge / pre-release gate & All five agents \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+Explicit \texttt{audit} prefix overrides the topic map: \texttt{audit} (all five),
+\texttt{audit <names>} (named subset), \texttt{audit <feature>} (all five scoped to
+\texttt{lib/features/<feature>/}). The orchestrator states the routing decision in one
+line before dispatching so the user can redirect.
+
+Every prompt is \textbf{self-contained} and includes: (1) target file paths the agent
+must read first, (2) the original ask verbatim, (3) which \texttt{CLAUDE.md} section
+to read, and (4) the expected report shape. For example, \texttt{audit reader} dispatches
+all five agents with prompts scoped to \texttt{lib/features/reader/}; the
+\texttt{architect} agent must return \texttt{\#\# Violations}, \texttt{\#\# Risks}, and
+\texttt{\#\# OK}; the \texttt{flutter\_engineer} must run \texttt{flutter analyze} and
+report errors before claiming completion.
+
+\subsection{Context Drift Challenges and Mitigations}
+
+Because agents start cold on each dispatch, they risk drifting from established patterns
+or creeping outside their scope. Three structural mitigations address this:
+
+\begin{itemize}
+  \item \textbf{Hard edit-scope boundaries.} Each agent's definition declares a
+    \textit{What you own} list. Violations are out-of-scope and flagged by the orchestrator.
+  \item \textbf{Diagnose-only agents.} \texttt{architect}, \texttt{security}, and
+    \texttt{qa\_engineer} hold no write tools for production code, so even drifted output
+    cannot be committed; it can only produce a report for human review.
+  \item \textbf{\texttt{CLAUDE.md} as single source of truth + \texttt{flutter analyze}
+    gate.} Every agent reads \texttt{CLAUDE.md} first; its explicit \textit{DO NOT} list
+    serves as a checklist. A non-zero analyzer exit is an objective signal of drift.
+\end{itemize}
+
+\subsection{Handoff Management}
+
+After all agents return, the orchestrator produces a single consolidated report grouped
+by severity (\textbf{Critical / High / Medium / Info}), with each finding tagged by the
+originating agent. Conflict resolution follows two tiebreakers: the \texttt{architect}
+verdict prevails on structural disagreements; the \texttt{security} verdict prevails on
+data-exposure disagreements.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Architecture \& Data}
+
+\subsection{Clean Architecture Pattern}
+
+Every feature in \texttt{lib/features/} follows a three-layer structure:
+\texttt{data/} (SDK adapters: Firebase, Supabase, Hive, HTTP) $\rightarrow$
+\texttt{domain/} (plain Dart models + repository interfaces) $\rightarrow$
+\texttt{presentation/} (Riverpod controllers, screens, widgets).
+
+The \textbf{domain layer is framework-free by rule}: zero imports of
+\texttt{flutter/}, \texttt{firebase\_*}, \texttt{supabase\_*}, \texttt{hive*},
+\texttt{path\_provider}, or \texttt{dart:io} are permitted inside any \texttt{domain/}
+directory — enforced as a hard violation by the \texttt{architect} agent. Repository
+interfaces declare return types as \texttt{Either<Failure,\,T>} from \texttt{dartz},
+using \texttt{lib/core/errors/failures.dart} for the failure hierarchy
+(\texttt{AuthFailure}, \texttt{ServerFailure}).
+
+\subsection{Domain Models}
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{3.2cm} L{6.4cm} L{4.0cm}@{}}
+  \toprule
+  \textbf{Model} & \textbf{Key Fields} & \textbf{Firestore Collection} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{UserModel} &
+    \texttt{uid}, \texttt{name}, \texttt{email}, \texttt{role} (default \texttt{'user'}) &
+    \texttt{users/\{uid\}} \\
+  \texttt{BookshelfModel} &
+    \texttt{id}, \texttt{name}, \texttt{ownerId}, \texttt{createdAt} &
+    \texttt{bookshelves/\{shelfId\}} \\
+  \rowcolor{rowalt}
+  \texttt{BookModel} &
+    \texttt{id}, \texttt{title}, \texttt{link}, \texttt{totalPages}, \texttt{currentPage},
+    \texttt{progress}, \texttt{status}, \texttt{shelfId}, \texttt{ownerId},
+    \texttt{lastReadAt?}, \texttt{author?}, \texttt{year?}, \texttt{needsOcr: bool} &
+    \texttt{books/\{bookId\}} \\
+  \texttt{NoteModel} &
+    \texttt{id}, \texttt{bookId}, \texttt{title}, \texttt{content}, \texttt{updatedAt} &
+    \texttt{notes/\{noteId\}} \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+All \texttt{DateTime} fields are stored as \textbf{ISO 8601 strings} in Firestore
+(not \texttt{Timestamp}), keeping the domain layer free of Firestore SDK types.
+\texttt{BookModel.needsOcr} is set once at upload time by the
+\texttt{\_isBitmapOnlyPdf} heuristic and is thereafter immutable (enforced by
+Firestore rules): it lets the reader skip the text-extraction probe and route
+directly to the Tesseract OCR pipeline for bitmap-only PDFs.
+
+\subsection{Firestore Collection Hierarchy}
+
+The schema uses \textbf{flat top-level collections} — \texttt{users}, \texttt{bookshelves},
+\texttt{books}, \texttt{notes} — rather than sub-collections. This avoids the recursive
+rule complexity that sub-collections introduce in Firestore Security Rules and enables
+simple cross-shelf queries (\texttt{where('ownerId', isEqualTo: uid)}) without collection
+groups. Ownership is encoded as \texttt{ownerId} fields; note ownership resolves
+transitively through the parent book's \texttt{ownerId} via the \texttt{bookOwner()}
+helper in Firestore rules.
+
+Cascading deletes are handled in \texttt{FirestoreDataSource}: deleting a shelf
+batch-unshelves all its books before removing the shelf doc; deleting a book
+batch-deletes child notes, then returns \texttt{book.link} so the controller can
+purge the Supabase object, local file cache, thumbnail cache, Hive recents entry, and
+Hive OCR cache. All batches are chunked at 500 operations.
+
+\subsection{State Management — Riverpod Justification}
+
+\texttt{setState} is prohibited for shared state; \texttt{flutter\_riverpod} is used
+throughout. The choice was driven by four requirements: (1) \textbf{compile-time safety}
+— code-generated providers are typed at compile time, eliminating a class of runtime
+errors; (2) \textbf{\texttt{keepAlive}} for \texttt{authStateProvider} and
+\texttt{routerProvider}, preventing GoRouter from being rebuilt on widget tree rebuilds;
+(3) \textbf{\texttt{StreamProvider.family}} for per-entity reactive streams (books per
+shelf, notes per book), ensuring real-time UI updates without polling; and (4)
+\textbf{test-overridable injection} — \texttt{featureFlagsProvider} is overridden in
+\texttt{ProviderScope} so tests supply a deterministic \texttt{FeatureFlags} stub
+without network calls.
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{4.4cm} L{3.2cm} L{6.1cm}@{}}
+  \toprule
+  \textbf{Provider} & \textbf{Type} & \textbf{Purpose} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{authStateProvider} & \texttt{StreamProvider} & Firebase auth stream \\
+  \texttt{routerProvider} & \texttt{Provider} (keepAlive) & GoRouter; watches auth + PIN state \\
+  \rowcolor{rowalt}
+  \texttt{shelvesProvider} & \texttt{StreamProvider} & All shelves for current user \\
+  \texttt{allBooksProvider} & \texttt{StreamProvider} & All books for current user \\
+  \rowcolor{rowalt}
+  \texttt{booksByShelfProvider} & \texttt{StreamProvider.family} & Books in one shelf, keyed by shelfId \\
+  \texttt{notesByBookProvider} & \texttt{StreamProvider.family} & Notes for one book \\
+  \rowcolor{rowalt}
+  \texttt{ocrPageTextProvider} & \texttt{FutureProvider.family} & OCR pipeline: cache → render → recognise → clean → cache \\
+  \texttt{featureFlagsProvider} & \texttt{Provider} & Remote Config singleton (overridden in \texttt{ProviderScope}) \\
+  \bottomrule
+\end{tabularx}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Security Matrix}
+
+\subsection{RBAC Matrix}
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{2.5cm} C{1.65cm} C{1.65cm} C{1.65cm} C{1.65cm} C{2.0cm} C{2.05cm}@{}}
+  \toprule
+  \textbf{Role} & \textbf{users} & \textbf{book\-shelves} & \textbf{books} &
+  \textbf{notes} & \textbf{Supabase pdfs} & \textbf{Edge Fn} \\
+  \midrule
+  \rowcolor{rowalt}
+  Unauthenticated & Deny & Deny & Deny & Deny &
+    Deny upload; public read & Public GET \\
+  User (self) &
+    Read own; create; update name/email &
+    Full CRUD & Full CRUD & CRUD via book &
+    Upload \texttt{\{uid\}/}; public read & GET any URL \\
+  \rowcolor{rowalt}
+  User (other) & Deny & Deny & Deny & Deny & Deny upload; public read & GET any URL \\
+  Admin & Read all & Read all & Read all & Read all & No elevated access & No elevated access \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+The Edge Function \texttt{pdf-proxy} is deployed \texttt{--no-verify-jwt} (public);
+SSRF defences compensate (§\ref{sec:ssrf}). The \texttt{pdfs} bucket is
+public-read by design (URLs are unguessable millis-timestamp paths). The
+\texttt{admin} role is read-only by rule and cannot be self-assigned from the client.
+
+\subsection{Firestore Security Rules}
+
+\textbf{Source:} \texttt{firestore.rules}
+
+Five helper functions encapsulate repeated logic: \texttt{isSignedIn()},
+\texttt{isOwner(uid)}, \texttt{isAdmin()} (resolves \texttt{users/\{uid\}.role}),
+\texttt{timestampValid(field)} (accepts Firestore \texttt{timestamp} within ±5 min
+\emph{or} non-empty ISO 8601 string), and \texttt{bookOwner(bookId)} (fetches the
+parent book's \texttt{ownerId} for transitive note ownership).
+
+\textbf{users/\{uid\}:} Owner-only read/write. \texttt{create} locks \texttt{role} to
+\texttt{'user'} (prevents client-side privilege escalation). \texttt{update} restricts
+mutable fields to \texttt{name} and \texttt{email} via
+\texttt{changedFields().hasOnly(['name','email'])}. Delete is denied.
+
+\textbf{bookshelves/\{shelfId\}:} \texttt{create} binds \texttt{ownerId} to
+\texttt{request.auth.uid}. \texttt{update} allows only the \texttt{name} field;
+\texttt{ownerId} and \texttt{createdAt} are permanently locked.
+
+\textbf{books/\{bookId\}:} \texttt{create} enforces type correctness and restricts
+\texttt{status} to \texttt{['reading', 'on\_hold', 'finished']}. \texttt{update} allows
+only six mutable fields: \texttt{title}, \texttt{currentPage}, \texttt{progress},
+\texttt{status}, \texttt{lastReadAt}, \texttt{shelfId}. Fields \texttt{link},
+\texttt{totalPages}, \texttt{needsOcr}, \texttt{author}, and \texttt{year} are immutable
+after creation — a client cannot rewrite the PDF URL.
+
+\textbf{notes/\{noteId\}:} Ownership resolves transitively via
+\texttt{bookOwner(resource.data.bookId)}. Even knowledge of a note's document ID
+grants no access without ownership of the parent book. Mutable fields:
+\texttt{title}, \texttt{content}, \texttt{updatedAt}.
+
+\textbf{Default deny:} A catch-all \texttt{match /\{document=**\}} denies all
+reads and writes for any unmatched path.
+
+\subsection{Supabase Storage}
+
+The \texttt{pdfs} bucket uses path pattern \texttt{\{uid\}/\{millis\}.pdf}. RLS
+policies restrict uploads to the caller's own \texttt{\{uid\}/} prefix. Deletes are
+owner-enforced by the Supabase auth context. Reads are intentionally public via
+\texttt{getPublicUrl()}.
+
+\subsection{Edge Function SSRF Defences}
+\label{sec:ssrf}
+
+\textbf{Source:} \texttt{supabase/functions/pdf-proxy/index.ts}
+
+\begin{itemize}
+  \item \textbf{Private IP + hostname rejection.} DNS A/AAAA records are checked against
+    all private/reserved IPv4 ranges (\texttt{10/8}, \texttt{172.16/12},
+    \texttt{192.168/16}, \texttt{127/8}, \texttt{169.254/16}) and IPv6 private ranges.
+    \texttt{localhost}, \texttt{*.local}, \texttt{*.internal}, and \texttt{metadata.*} are
+    blocked by name before resolution.
+  \item \textbf{Redirect resistance.} \texttt{fetch} uses \texttt{redirect: manual},
+    preventing redirect-based SSRF through public-to-private redirects.
+  \item \textbf{Size cap + timeout.} Declared \texttt{Content-Length} and streamed bytes
+    are both capped at 50\,MB. A 120-second fetch timeout prevents upstream hangs.
+  \item \textbf{Forced content type.} The response \texttt{Content-Type} is always
+    overwritten to \texttt{application/pdf}, preventing HTML injection through the proxy.
+\end{itemize}
+
+\subsection{App-Level PIN and Biometric}
+
+A mandatory 6-digit PIN gates every cold start
+(\texttt{lib/core/local/app\_pin\_service.dart}). The PIN is hashed using
+\textbf{SHA-256-crypt} (\texttt{\$5\$<salt>\$<hash>}) via \texttt{package:crypt}; the
+raw PIN is never stored. Session state lives in \texttt{AppPinSession} (in-memory only,
+reset on logout). Biometric (\texttt{BiometricAuthService}) is an optional acceleration
+layer at the login and PIN entry screens — never a sole credential; web always returns
+\texttt{false} from \texttt{isDeviceSupported()}.
+
+\subsection{Known Security Debts}
+
+Documented in \texttt{CLAUDE.md} as deliberately deferred for demo scope:
+\texttt{pdf.js} loaded without SRI; no CSP/COEP/COOP headers (COEP absence
+degrades Tesseract.js SIMD WASM silently); Hive \texttt{app\_prefs} unencrypted;
+\texttt{tesseract\_ocr 0.5.0} unmaintained since 2023.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Observability \& Rollback}
+
+\subsection{Structured Logging (AppLogger)}
+
+\textbf{Source:} \texttt{lib/core/logging/app\_logger.dart}
+
+All logging is centralised through the static \texttt{AppLogger} class (wraps
+\texttt{package:logger}):
+
+\begin{lstlisting}[language=Dart]
+AppLogger.debug(tag, message, {error})   // Level.debug — suppressed in release
+AppLogger.info(tag, message)
+AppLogger.warn(tag, message, {error, stackTrace})
+AppLogger.error(tag, message, {error, stackTrace})  // mirrors to Crashlytics
+\end{lstlisting}
+
+Tags use ALL\_CAPS\_SNAKE (\texttt{AUTH}, \texttt{OCR}, \texttt{TTS}, \texttt{LIBRARY})
+for dashboard filtering. Debug builds use \texttt{PrettyPrinter} (8-frame stacks,
+colored); release builds use \texttt{SimplePrinter} (timestamps, \texttt{Level.info}
+threshold).
+
+\subsection{Crashlytics Implementation}
+
+\textbf{Sources:} \texttt{lib/main.dart}, \texttt{lib/core/logging/app\_logger.dart}
+
+All four instrumentation sites are wrapped in \texttt{if (!kIsWeb)};
+collection is further gated by
+\texttt{setCrashlyticsCollectionEnabled(!kDebugMode)}.
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}C{0.4cm} L{3.2cm} L{3.2cm} L{6.4cm}@{}}
+  \toprule
+  \textbf{\#} & \textbf{Source} & \textbf{API call} & \textbf{What it captures} \\
+  \midrule
+  \rowcolor{rowalt}
+  1 & \texttt{main.dart} & \texttt{recordFlutterFatalError} &
+    Flutter widget build/render errors (\texttt{FlutterError.onError}) \\
+  2 & \texttt{main.dart} & \texttt{recordError(fatal:true)} &
+    Platform-thread and Dart isolate errors (\texttt{PlatformDispatcher.onError}) \\
+  \rowcolor{rowalt}
+  3 & \texttt{main.dart} & \texttt{recordError(fatal:true)} &
+    Fallback — errors not caught by sites 1 or 2 (\texttt{runZonedGuarded}) \\
+  4 & \texttt{app\_logger.dart} & \texttt{recordError} + \texttt{reason} &
+    Non-fatal handled errors via \texttt{AppLogger.error()} \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+Site 4 means any \texttt{AppLogger.error()} call with a non-null \texttt{error} object
+is automatically mirrored to Crashlytics with the tag and message as the \texttt{reason}
+field, surfacing non-fatal handled errors alongside fatal crashes.
+
+\subsection{Feature Flag System}
+
+\textbf{Source:} \texttt{lib/core/config/feature\_flags.dart}
+
+\texttt{FeatureFlags} wraps \texttt{FirebaseRemoteConfig} with typed getters. It is
+constructed once in \texttt{main()} and injected via
+\texttt{featureFlagsProvider.overrideWithValue(featureFlags)}.
+Initialization is \textbf{failure-safe}: a try/catch logs the error and falls through to
+defaults so the app never blocks on Remote Config (fetch timeout: 10 s; cache TTL: 1 h).
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{4.2cm} C{1.8cm} L{7.8cm}@{}}
+  \toprule
+  \textbf{Remote Config key} & \textbf{Default} & \textbf{Effect} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{ocr\_fallback\_enabled} & \texttt{true} &
+    Master switch for the Tesseract OCR pipeline. \texttt{false} = embedded text only;
+    scanned PDFs return empty TTS output rather than invoking Tesseract. \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Rollback Plan — \texttt{ocr\_fallback\_enabled}}
+
+The OCR pipeline executes WASM/FFI code on device, performs large memory allocations
+for page rasterisation, and can silently fail on low-RAM devices. The flag provides a
+\textbf{zero-redeploy kill switch}:
+
+\begin{enumerate}
+  \item \textbf{Trigger.} Crashlytics OCR-related crash spike, or user reports of reader
+    freezing on scanned documents.
+  \item \textbf{Action.} Firebase Console $\rightarrow$ Remote Config $\rightarrow$
+    \texttt{ocr\_fallback\_enabled} $\rightarrow$ \texttt{false} $\rightarrow$ publish.
+  \item \textbf{Propagation.} Clients pick up the change within the 1-hour TTL; no
+    client redeploy is required.
+  \item \textbf{Effect.} \texttt{ReadingScreen} skips the OCR branch. TTS falls back to
+    the embedded text layer only — no crash, no freeze.
+  \item \textbf{Recovery.} After root-cause fix is deployed, flip back to \texttt{true};
+    clients update within 1 hour.
+\end{enumerate}
+
+More broadly, \texttt{CLAUDE.md} classifies all engineering actions into three
+reversibility tiers: \textbf{R0} (irreversible — stop and ask first),
+\textbf{R1} (costly to reverse — proceed with stated justification), and
+\textbf{R2} (easily reversed — just do it). This ensures the most dangerous operations
+require explicit human approval while routine development remains friction-free.
+
+\end{document}
