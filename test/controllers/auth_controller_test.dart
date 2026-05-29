@@ -2,10 +2,22 @@ import 'package:dartz/dartz.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:my_pdf/core/errors/failures.dart';
+import 'package:my_pdf/core/local/app_pin_service.dart';
 import 'package:my_pdf/features/auth/domain/auth_repository.dart';
 import 'package:my_pdf/features/auth/domain/user_model.dart';
 import 'package:my_pdf/features/auth/presentation/auth_controller.dart';
 import 'package:my_pdf/features/auth/presentation/auth_providers.dart';
+
+class _FakeAppPinService extends AppPinService {
+  @override
+  bool hasPinSet() => false;
+  @override
+  Future<void> setPin(String pin) async {}
+  @override
+  bool verifyPin(String pin) => false;
+  @override
+  Future<void> clearPin() async {}
+}
 
 class _FakeRepo implements AuthRepository {
   Either<Failure, UserModel>? loginResult;
@@ -36,7 +48,10 @@ class _FakeRepo implements AuthRepository {
 
 ProviderContainer _makeContainer(_FakeRepo repo) {
   return ProviderContainer(
-    overrides: [authRepositoryProvider.overrideWithValue(repo)],
+    overrides: [
+      authRepositoryProvider.overrideWithValue(repo),
+      appPinServiceProvider.overrideWithValue(_FakeAppPinService()),
+    ],
   );
 }
 

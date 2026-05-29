@@ -6,11 +6,27 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:hive/hive.dart';
 import 'package:my_pdf/core/errors/failures.dart';
+import 'package:my_pdf/core/local/app_pin_service.dart';
 import 'package:my_pdf/features/auth/domain/auth_repository.dart';
 import 'package:my_pdf/features/auth/domain/user_model.dart';
 import 'package:my_pdf/features/auth/presentation/auth_providers.dart';
 import 'package:my_pdf/features/auth/presentation/pin_entry_screen.dart';
 import 'package:dartz/dartz.dart';
+
+// ---------------------------------------------------------------------------
+// Stub AppPinService — no-op clearPin so logout completes without Hive.
+// ---------------------------------------------------------------------------
+
+class _FakeAppPinService extends AppPinService {
+  @override
+  bool hasPinSet() => false;
+  @override
+  Future<void> setPin(String pin) async {}
+  @override
+  bool verifyPin(String pin) => false;
+  @override
+  Future<void> clearPin() async {}
+}
 
 // ---------------------------------------------------------------------------
 // Stub AuthRepository — logout always succeeds, login/register unused.
@@ -61,6 +77,7 @@ Widget _buildApp({List<Override> overrides = const []}) {
   return ProviderScope(
     overrides: [
       authRepositoryProvider.overrideWithValue(_StubAuthRepo()),
+      appPinServiceProvider.overrideWithValue(_FakeAppPinService()),
       ...overrides,
     ],
     child: MaterialApp.router(routerConfig: router),
