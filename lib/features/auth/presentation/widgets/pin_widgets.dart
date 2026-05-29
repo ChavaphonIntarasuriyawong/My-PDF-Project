@@ -284,7 +284,7 @@ class PinBiometricButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Unlock with Face ID or fingerprint',
+      label: 'Unlock with fingerprint',
       child: OutlinedButton.icon(
         onPressed: loading ? null : onTap,
         icon: loading
@@ -298,7 +298,7 @@ class PinBiometricButton extends StatelessWidget {
               )
             : const Icon(Icons.fingerprint, color: AppColors.primary, size: 22),
         label: Text(
-          'Use Face ID / Fingerprint',
+          'Use Fingerprint',
           style: AppTypography.labelLarge.copyWith(color: AppColors.primary),
         ),
         style: OutlinedButton.styleFrom(
