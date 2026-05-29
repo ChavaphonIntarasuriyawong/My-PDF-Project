@@ -152,6 +152,7 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
         : 0.0;
 
     final desktop = kIsWeb && isDesktop(context);
+    final keyboardVisible = MediaQuery.of(context).viewInsets.bottom > 0;
 
     return ClipRRect(
       borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -179,16 +180,26 @@ class _NoteEditSheetState extends ConsumerState<NoteEditSheet> {
                           children: [
                             Column(
                               children: [
-                                // PDF viewer section (309px tall).
-                                _PdfPreviewSection(
-                                  thumbAsync: thumbAsync,
-                                  progress: progress,
+                                // PDF viewer section — collapses when the
+                                // keyboard is open so note fields stay visible.
+                                AnimatedSize(
+                                  duration: const Duration(milliseconds: 200),
+                                  curve: Curves.easeInOut,
+                                  child: keyboardVisible
+                                      ? const SizedBox.shrink()
+                                      : _PdfPreviewSection(
+                                          thumbAsync: thumbAsync,
+                                          progress: progress,
+                                        ),
                                 ),
-                                // White note sheet fills remaining space and
-                                // overlaps the PDF section by -24px (margin).
+                                // White note sheet fills remaining space.
+                                // Overlap the PDF section by -24 px only when
+                                // the section is visible.
                                 Expanded(
                                   child: Transform.translate(
-                                    offset: const Offset(0, -24),
+                                    offset: keyboardVisible
+                                        ? Offset.zero
+                                        : const Offset(0, -24),
                                     child: _NoteSheet(
                                       titleCtrl: _titleCtrl,
                                       bodyCtrl: _ctrl,
