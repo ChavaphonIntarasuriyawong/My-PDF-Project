@@ -1082,8 +1082,6 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
         ignoring: !isVisible,
         child: KaraokeTextPane(
           onWordTap: _seekTtsTo,
-          currentSpeed: _speechRate,
-          onSpeedChange: _setSpeechRate,
         ),
       ),
     );
@@ -1969,8 +1967,6 @@ class _SpeechPanel extends StatelessWidget {
               height: 320,
               child: KaraokeTextPane(
                 onWordTap: onWordTap,
-                currentSpeed: speed,
-                onSpeedChange: onSpeedChange,
               ),
             ),
           ],

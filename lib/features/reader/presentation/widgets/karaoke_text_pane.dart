@@ -27,19 +27,11 @@ class _Token {
 /// the tapped word's leading character. The reader screen wires this to its
 /// `_seekTtsTo(wordStart)` to scrub TTS to that word — null disables tap.
 ///
-/// [currentSpeed] / [onSpeedChange]: optional speed slider in the header.
-/// When both are non-null, a 120dp slider lets the user tweak speech rate
-/// live. The slider value range is 0.5–2.0x; the reader screen is in charge
-/// of mapping that to its native engine clamp.
 class KaraokeTextPane extends ConsumerStatefulWidget {
   final void Function(int wordStart)? onWordTap;
-  final double? currentSpeed;
-  final ValueChanged<double>? onSpeedChange;
   const KaraokeTextPane({
     super.key,
     this.onWordTap,
-    this.currentSpeed,
-    this.onSpeedChange,
   });
 
   @override
@@ -233,8 +225,6 @@ class _KaraokeTextPaneState extends ConsumerState<KaraokeTextPane> {
     final modeLabel = state.fallbackSentenceMode
         ? 'Sentence sync'
         : 'Word sync';
-    final showSpeed =
-        widget.currentSpeed != null && widget.onSpeedChange != null;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 6, 12, 10),
       child: Row(
@@ -253,31 +243,20 @@ class _KaraokeTextPaneState extends ConsumerState<KaraokeTextPane> {
             ),
           ),
           const SizedBox(width: 6),
-          // Hide the mode pill once the slider is mounted on phone-frame
-          // widths to avoid overflow. The pill is informational only — the
-          // speech rate slider is more important to the user mid-playback.
-          if (!showSpeed)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: AppColors.iconBlueTint,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Text(
-                modeLabel,
-                style: AppTypography.captionBold.copyWith(
-                  color: AppColors.primary,
-                ),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(
+              color: AppColors.iconBlueTint,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              modeLabel,
+              style: AppTypography.captionBold.copyWith(
+                color: AppColors.primary,
               ),
             ),
+          ),
           const Spacer(),
-          if (showSpeed) ...[
-            _SpeedSlider(
-              value: widget.currentSpeed!,
-              onChanged: widget.onSpeedChange!,
-            ),
-            const SizedBox(width: 4),
-          ],
           Semantics(
             label: 'Hide closed captions',
             button: true,
@@ -623,64 +602,3 @@ class _TappableWordState extends State<_TappableWord> {
   }
 }
 
-/// Compact in-header slider for live speech-rate adjustment. Range 0.5–2.0x;
-/// the host screen maps that to whatever scale its TTS engine accepts.
-///
-/// Visual width caps at 120 dp so we still fit on the 412dp phone-frame.
-class _SpeedSlider extends StatelessWidget {
-  final double value;
-  final ValueChanged<double> onChanged;
-
-  const _SpeedSlider({required this.value, required this.onChanged});
-
-  static const double _min = 0.5;
-  static const double _max = 2.0;
-
-  @override
-  Widget build(BuildContext context) {
-    // Clamp incoming value to the slider's range so a stale persisted rate
-    // outside the new bounds doesn't crash the Slider invariant.
-    final clamped = value.clamp(_min, _max);
-    return SizedBox(
-      width: 140,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            '${clamped.toStringAsFixed(1)}x',
-            style: AppTypography.captionBold.copyWith(
-              color: AppColors.primary,
-              fontSize: 11,
-            ),
-          ),
-          Expanded(
-            child: Semantics(
-              slider: true,
-              value: '${clamped.toStringAsFixed(1)}x speech rate',
-              child: SliderTheme(
-                data: SliderTheme.of(context).copyWith(
-                  trackHeight: 2,
-                  thumbShape: const RoundSliderThumbShape(
-                    enabledThumbRadius: 7,
-                  ),
-                  overlayShape: const RoundSliderOverlayShape(
-                    overlayRadius: 14,
-                  ),
-                ),
-                child: Slider(
-                  value: clamped,
-                  min: _min,
-                  max: _max,
-                  divisions: 15,
-                  activeColor: AppColors.primary,
-                  inactiveColor: AppColors.borderSubtle,
-                  onChanged: onChanged,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
