@@ -1,4 +1,6 @@
 import 'package:riverpod_annotation/riverpod_annotation.dart';
+import '../../../core/local/app_pin_service.dart';
+import '../../../core/local/app_pin_session.dart';
 import '../../library/presentation/library_providers.dart';
 import '../domain/user_model.dart';
 import 'auth_providers.dart';
@@ -93,6 +95,8 @@ class AuthController extends _$AuthController {
     } catch (_) {
       /* best-effort */
     }
+    await ref.read(appPinServiceProvider).clearPin();
+    ref.read(appPinSessionProvider.notifier).lock();
     state = const AuthState();
   }
 

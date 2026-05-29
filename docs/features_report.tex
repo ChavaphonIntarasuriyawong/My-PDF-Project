@@ -1,0 +1,946 @@
+\documentclass[11pt,a4paper]{article}
+
+% ── Encoding & fonts ─────────────────────────────────────────────────────────
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{lmodern}
+\usepackage{microtype}
+
+% ── Page geometry ─────────────────────────────────────────────────────────────
+\usepackage[top=2.5cm, bottom=2.5cm, left=2.8cm, right=2.8cm]{geometry}
+
+% ── Typography & spacing ──────────────────────────────────────────────────────
+\usepackage{parskip}
+\setlength{\parskip}{4pt}
+\usepackage{setspace}
+\setstretch{1.05}
+
+% ── Colours ───────────────────────────────────────────────────────────────────
+\usepackage[dvipsnames,table]{xcolor}
+\definecolor{accent}{HTML}{1A56DB}
+\definecolor{rowalt}{HTML}{F3F6FC}
+\definecolor{codebackground}{HTML}{F5F5F5}
+\definecolor{rulecolor}{HTML}{CCCCCC}
+
+% ── Section headings ──────────────────────────────────────────────────────────
+\usepackage{titlesec}
+\titleformat{\section}{\large\bfseries\color{accent}}{}{0em}{}[\color{rulecolor}\titlerule]
+\titleformat{\subsection}{\normalsize\bfseries}{}{0em}{}
+\titleformat{\subsubsection}{\normalsize\itshape}{}{0em}{}
+\titlespacing{\section}{0pt}{14pt}{4pt}
+\titlespacing{\subsection}{0pt}{9pt}{3pt}
+\titlespacing{\subsubsection}{0pt}{6pt}{2pt}
+
+% ── Tables ────────────────────────────────────────────────────────────────────
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\renewcommand{\arraystretch}{1.22}
+\newcolumntype{L}[1]{>{\raggedright\arraybackslash}p{#1}}
+\newcolumntype{C}[1]{>{\centering\arraybackslash}p{#1}}
+
+% ── Code listings ─────────────────────────────────────────────────────────────
+\usepackage{listings}
+\lstset{
+  backgroundcolor=\color{codebackground},
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  breakatwhitespace=true,
+  frame=single,
+  framerule=0.4pt,
+  rulecolor=\color{rulecolor},
+  xleftmargin=8pt,
+  xrightmargin=8pt,
+  aboveskip=6pt,
+  belowskip=6pt,
+  captionpos=b,
+  showstringspaces=false,
+}
+
+% ── Hyperlinks ────────────────────────────────────────────────────────────────
+\usepackage[hidelinks,
+  pdftitle={Feature Implementation Reference -- MyPDF Flutter},
+  pdfauthor={MyPDF Engineering Team},
+  colorlinks=false
+]{hyperref}
+
+% ── Header / footer ───────────────────────────────────────────────────────────
+\usepackage{fancyhdr}
+\pagestyle{fancy}
+\fancyhf{}
+\renewcommand{\headrulewidth}{0.4pt}
+\fancyhead[L]{\small\textcolor{gray}{MyPDF --- Feature Implementation Reference}}
+\fancyhead[R]{\small\textcolor{gray}{28 May 2026}}
+\fancyfoot[C]{\small\thepage}
+
+% ── Misc ──────────────────────────────────────────────────────────────────────
+\usepackage{enumitem}
+\setlist[itemize]{itemsep=1pt, topsep=3pt, parsep=0pt}
+\setlist[enumerate]{itemsep=1pt, topsep=3pt, parsep=0pt}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\begin{document}
+
+% ── Compact title block ───────────────────────────────────────────────────────
+\thispagestyle{fancy}
+\begin{center}
+  {\LARGE\bfseries\color{accent} Feature Implementation Reference}\\[6pt]
+  {\normalsize MyPDF \textbullet{} Flutter (Android + Web) \textbullet{}
+   Firebase + Supabase \textbullet{} Riverpod \textbullet{} 28 May 2026}\\[4pt]
+  {\small\itshape Prepared by the MyPDF Engineering Team \textbullet{}
+   Private --- not for redistribution}
+\end{center}
+\vspace{2pt}
+{\small This document describes the complete implementation logic for every feature in
+the MyPDF Flutter application: authentication, navigation, PIN security, library
+management, PDF pipeline, local caching, reader, notes, text-to-speech, OCR,
+profile, feature flags, and the Supabase CORS proxy.}
+\vspace{8pt}
+\hrule
+\vspace{4pt}
+
+\tableofcontents
+\vspace{6pt}
+\hrule
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Architecture Overview}
+
+\subsection{Clean Architecture Layers}
+
+Every feature under \texttt{lib/features/<name>/} is divided into three mandatory layers:
+
+\begin{enumerate}
+  \item \textbf{data/} --- SDK adapters: \texttt{FirebaseAuth}, \texttt{FirebaseFirestore},
+    Supabase Storage, Hive, HTTP. This layer may import any package.
+  \item \textbf{domain/} --- Plain Dart models and repository interfaces only.
+    Zero imports of \texttt{flutter/}, \texttt{firebase\_*}, \texttt{supabase\_*},
+    \texttt{hive*}, \texttt{path\_provider}, or \texttt{dart:io} are permitted here.
+    Repository methods return \texttt{Either<Failure,\,T>} from \texttt{dartz}, using
+    \texttt{lib/core/errors/failures.dart} (\texttt{AuthFailure}, \texttt{ServerFailure}).
+  \item \textbf{presentation/} --- Riverpod controllers, screens, and widgets.
+    Controllers are typed \texttt{AsyncNotifier<void>}; screens consume providers only
+    via \texttt{ref.watch} and \texttt{ref.read}.
+\end{enumerate}
+
+The \texttt{reader/} and \texttt{profile/} features are \emph{presentation-only}: they
+reuse \texttt{library/} data and domain layers rather than defining their own.
+
+\subsection{Two-Backend Split}
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{2.8cm} L{11.0cm}@{}}
+  \toprule
+  \textbf{Backend} & \textbf{Responsibility} \\
+  \midrule
+  \rowcolor{rowalt}
+  \textbf{Firebase} &
+    Authentication (email/password) \textbullet{} Firestore document store
+    (\texttt{users}, \texttt{bookshelves}, \texttt{books}, \texttt{notes}) \textbullet{}
+    Crashlytics (mobile only) \textbullet{} Remote Config (feature flags) \\
+  \textbf{Supabase} &
+    Object Storage bucket \texttt{pdfs} (path \texttt{\{uid\}/\{millis\}.pdf}) \textbullet{}
+    Edge Function \texttt{pdf-proxy} (Deno CORS bypass for web) \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+Firebase Storage is \textbf{never used}. All PDF bytes live in the Supabase bucket.
+All dates in Firestore are stored as \textbf{ISO 8601 strings} (not
+\texttt{Timestamp}), keeping domain models free of Firebase SDK types.
+
+\subsection{Platform Branching Discipline}
+
+Four compile-time conditional imports isolate mobile-only packages from the Dart-to-JS
+compiler:
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{5.0cm} L{3.8cm} L{4.8cm}@{}}
+  \toprule
+  \textbf{Interface file} & \textbf{Mobile impl} & \textbf{Web impl} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{ocr\_data\_source.dart} & \texttt{tesseract\_ocr} FFI & Tesseract.js Web Worker \\
+  \texttt{tts\_engine.dart} & \texttt{flutter\_tts} & W3C \texttt{SpeechSynthesis} \\
+  \rowcolor{rowalt}
+  \texttt{pdf\_text\_extractor.dart} & \texttt{flutter\_pdf\_text} & Syncfusion bytes \\
+  \texttt{mobile\_pdf\_reader.dart} & \texttt{flutter\_pdfview} & stub (web uses \texttt{pdfx}) \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+The conditional import selector is \texttt{dart.library.js\_interop}: if the library is
+present the web implementation is chosen, otherwise the mobile one. Never import
+\texttt{\_io.dart} or \texttt{\_web.dart} files directly; always depend on the interface.
+
+\subsection{Web Layout}
+
+\texttt{MyPdfApp} injects a responsive layout shell via
+\texttt{MaterialApp.router(builder:)}:
+
+\begin{itemize}
+  \item \textbf{$<$ 600 px} --- pass-through (mobile form factor).
+  \item \textbf{600--1023 px} --- \texttt{\_PhoneFrame}: centered 412$\times$896
+    card with rounded corners and shadow, mimicking a phone in a browser window.
+  \item \textbf{$\geq$ 1024 px} --- \texttt{\_DesktopRouteAwareShell}: listens to the
+    router delegate; wraps authenticated routes in \texttt{DesktopShell}
+    (sidebar + main content); shows \texttt{DesktopAuthShell} for login/register.
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Initialisation Flow}
+
+\textbf{Source:} \texttt{lib/main.dart}
+
+The \texttt{main()} function runs the following sequence before
+\texttt{runApp()} is called:
+
+\begin{enumerate}
+  \item \textbf{Hive open.} \texttt{Hive.openBox('app\_prefs')} makes the local cache
+    available synchronously to every service that needs it.
+  \item \textbf{Firebase init.} \texttt{Firebase.initializeApp()} using
+    \texttt{DefaultFirebaseOptions.currentPlatform} (generated by FlutterFire CLI).
+    Firestore offline persistence is enabled:
+    \texttt{Settings(persistenceEnabled: true, cacheSizeBytes:\,CACHE\_SIZE\_UNLIMITED)}.
+  \item \textbf{Supabase init.} \texttt{Supabase.initialize(url, anonKey)} using the
+    public anon key (safe to ship; service keys never committed).
+  \item \textbf{Remote Config fetch.} \texttt{FeatureFlags.initialize()} fetches with a
+    10-second timeout and a 1-hour minimum cache TTL. Fetch failures are caught and
+    logged; the app falls back to \texttt{\_defaults} without throwing.
+  \item \textbf{\texttt{runApp}.} A \texttt{ProviderScope} with
+    \texttt{overrides:\,[featureFlagsProvider.overrideWithValue(featureFlags)]} wraps
+    \texttt{MyPdfApp}, injecting the pre-built \texttt{FeatureFlags} singleton so no
+    async work happens inside providers.
+\end{enumerate}
+
+\subsection{Error Instrumentation}
+
+Three Crashlytics capture sites are registered, all guarded by \texttt{if (!kIsWeb)}
+and \texttt{setCrashlyticsCollectionEnabled(!kDebugMode)}:
+
+\begin{itemize}
+  \item \texttt{FlutterError.onError} $\rightarrow$ \texttt{recordFlutterFatalError}
+    (widget build/render errors)
+  \item \texttt{PlatformDispatcher.instance.onError} $\rightarrow$
+    \texttt{recordError(fatal: true)} (platform-thread and isolate errors)
+  \item \texttt{runZonedGuarded} catch $\rightarrow$ \texttt{recordError(fatal: true)}
+    (all remaining async errors)
+\end{itemize}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Authentication}
+
+\subsection{Data Layer}
+
+\textbf{Source:} \texttt{lib/features/auth/data/firebase\_auth\_data\_source.dart}
+
+\texttt{FirebaseAuthDataSource} wraps \texttt{FirebaseAuth} and \texttt{FirebaseFirestore}:
+
+\begin{itemize}
+  \item \textbf{login(email, password):} Calls \texttt{signInWithEmailAndPassword},
+    then \texttt{\_fetchUser(uid)} to return a \texttt{UserModel} with Firestore fields.
+  \item \textbf{register(name, email, password):} Calls
+    \texttt{createUserWithEmailAndPassword}, then writes
+    \texttt{users/\{uid\}} with \texttt{\{name, email, role:\,'user',
+    createdAt:\,serverTimestamp()\}}.
+  \item \textbf{\_fetchUser(uid):} Fetches \texttt{users/\{uid\}}; falls back to
+    \texttt{auth.currentUser.displayName/email} if the Firestore doc is missing (handles
+    auth--Firestore creation race).
+  \item \textbf{authStateChanges():} Streams \texttt{FirebaseAuth.authStateChanges()}
+    and \texttt{asyncMap}-fetches the user profile for each non-null event.
+\end{itemize}
+
+\subsection{Error Mapping}
+
+\textbf{Source:} \texttt{lib/features/auth/data/auth\_repository\_impl.dart}
+
+All \texttt{FirebaseAuthException} codes are mapped to user-facing \texttt{AuthFailure}
+messages. Login collapses \texttt{user-not-found}, \texttt{wrong-password}, and
+\texttt{invalid-credential} into a single ``Incorrect email or password'' message to
+prevent email-enumeration oracles. Other codes map to: \texttt{email-already-in-use},
+\texttt{weak-password}, \texttt{too-many-requests}, \texttt{network-request-failed},
+and \texttt{user-disabled}.
+
+\subsection{Riverpod Providers}
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{4.8cm} L{2.8cm} L{6.0cm}@{}}
+  \toprule
+  \textbf{Provider} & \textbf{Type} & \textbf{Purpose} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{authStateProvider} & \texttt{StreamProvider} (keepAlive) &
+    \texttt{Stream<UserModel?>} fed by Firebase auth changes; watched by the router \\
+  \texttt{authControllerProvider} & \texttt{AsyncNotifier} &
+    State machine: idle $\to$ loading $\to$ error/success \\
+  \rowcolor{rowalt}
+  \texttt{userProfileProvider} & \texttt{StreamProvider} (keepAlive) &
+    Direct Firestore \texttt{users/\{uid\}} watch for real-time name sync \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Screens}
+
+\texttt{LoginScreen} and \texttt{RegisterScreen} each expose a mobile form and a
+desktop variant rendered inside \texttt{DesktopAuthShell} (a centred split-card layout).
+Both listen to \texttt{authControllerProvider} and surface \texttt{Failure.message}
+via a \texttt{SnackBar}. On success they call \texttt{context.go(AppRoutes.home)};
+GoRouter's redirect logic takes over from there.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Navigation (GoRouter)}
+
+\textbf{Sources:} \texttt{lib/core/constants/app\_router.dart},
+\texttt{lib/core/constants/app\_routes.dart}
+
+\subsection{Route Table}
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{4.8cm} L{8.8cm}@{}}
+  \toprule
+  \textbf{Route} & \textbf{Screen} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{/login} & \texttt{LoginScreen} \\
+  \texttt{/register} & \texttt{RegisterScreen} \\
+  \rowcolor{rowalt}
+  \texttt{/pin-setup} & \texttt{PinSetupScreen} (mandatory on first login) \\
+  \texttt{/pin-entry} & \texttt{PinEntryScreen} (every cold start) \\
+  \rowcolor{rowalt}
+  \texttt{/home} & \texttt{HomeScreen} (shelves + recents) \\
+  \texttt{/shelf/:id} & \texttt{ShelfContentScreen} \\
+  \rowcolor{rowalt}
+  \texttt{/book/new} & \texttt{NewBookScreen} (URL or upload) \\
+  \texttt{/book/:id} & \texttt{BookInfoScreen} \\
+  \rowcolor{rowalt}
+  \texttt{/book/:id/reading} & \texttt{ReadingScreen} \\
+  \texttt{/book/:id/note} & \texttt{NoteScreen} \\
+  \rowcolor{rowalt}
+  \texttt{/profile} & \texttt{ProfileScreen} \\
+  \texttt{/profile/edit} & \texttt{EditProfileScreen} \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Redirect Logic}
+
+The pure function \texttt{computeRedirect(state, authState, hasPinSet, pinUnlocked)}
+is the single decision point, evaluated on every navigation event:
+
+\begin{enumerate}
+  \item Auth state is loading $\Rightarrow$ return \texttt{null} (avoids a
+    \texttt{/login} flash while Firebase resolves).
+  \item User is not logged in and current location is not an auth route
+    $\Rightarrow$ redirect to \texttt{/login}.
+  \item User is logged in, PIN not yet set $\Rightarrow$ redirect to
+    \texttt{/pin-setup}.
+  \item User is logged in, PIN set but not unlocked for this session
+    $\Rightarrow$ redirect to \texttt{/pin-entry}.
+  \item All gates pass and user is on an auth or PIN route
+    $\Rightarrow$ redirect to \texttt{/home} (bounce rule).
+  \item Otherwise $\Rightarrow$ return \texttt{null} (allow navigation).
+\end{enumerate}
+
+\texttt{routerProvider} (keepAlive) watches \texttt{authStateProvider} and synchronously
+reads \texttt{appPinServiceProvider.hasPinSet()} and \texttt{appPinSessionProvider} on
+each redirect evaluation. Being a pure function, redirect logic is covered by 10 unit
+tests in \texttt{test/core/router/router\_redirect\_test.dart} without spinning up a
+GoRouter instance.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{App-Level PIN and Biometric}
+
+\subsection{PIN Storage}
+
+\textbf{Source:} \texttt{lib/core/local/app\_pin\_service.dart}
+
+The raw PIN is never stored. On \texttt{setPin(pin)}, the service generates a random
+salt and stores only the \textbf{SHA-256-crypt} hash
+(\texttt{\$5\$<salt>\$<hash>}) using \texttt{package:crypt}, written to Hive
+\texttt{app\_prefs} under key \texttt{app\_pin\_hash}.
+
+Verification calls \texttt{Crypt.match(pin, storedHash)}, which is constant-time to
+prevent timing attacks. \texttt{clearPin()} deletes the key on logout.
+
+\subsection{Session State}
+
+\textbf{Source:} \texttt{lib/core/local/app\_pin\_session.dart}
+
+\texttt{AppPinSession} is an in-memory Riverpod \texttt{StateNotifier<bool>} initialised
+to \texttt{false}. \texttt{unlock()} sets state to \texttt{true};
+\texttt{lock()} resets it. The state is \textbf{never persisted to disk} --- killing the
+app re-locks it unconditionally.
+
+\subsection{PIN Entry Screen}
+
+\texttt{PinEntryScreen} renders a 6-digit numpad (3$\times$4 grid with 0 and
+backspace). Key behaviours:
+
+\begin{itemize}
+  \item \textbf{Rate limiting.} Five consecutive wrong attempts trigger a 30-second
+    cooldown. A countdown is shown inline; input is disabled during the window.
+  \item \textbf{Biometric quick-unlock.} If \texttt{BiometricAuthService.isDeviceSupported()}
+    returns \texttt{true} on mount, a ``Use Face ID / Fingerprint'' button is shown.
+    Tapping it calls \texttt{authenticate(biometricOnly: true)} and unlocks the session
+    on success.
+  \item \textbf{Escape hatch.} A ``Forgot PIN? Sign out'' link calls
+    \texttt{authControllerProvider.logout()}, clearing all state.
+  \item \textbf{Keyboard support.} Numeric keys and backspace are handled via
+    \texttt{LogicalKeyboardKey} mapping.
+\end{itemize}
+
+\subsection{PIN Setup Screen}
+
+\texttt{PinSetupScreen} is mandatory on first login (no skip, no back button). It
+operates in two steps: enter PIN, then confirm PIN. The screen auto-advances to the
+confirm step when 6 digits are entered. A mismatch shows a shake animation and
+``PINs don't match. Try again.'', then resets to step 1. On success, \texttt{setPin()}
+is called, the session is marked unlocked, and the app navigates to \texttt{/home}.
+
+\subsection{BiometricAuthService}
+
+\textbf{Source:} \texttt{lib/features/auth/data/biometric\_auth\_service.dart}
+
+A thin wrapper around \texttt{package:local\_auth} that provides:
+\texttt{isDeviceSupported()} (hardware + enrollment check),
+\texttt{authenticate()}, and a per-user opt-in flag
+(\texttt{biometric\_enabled} in Hive \texttt{app\_prefs}). Web always returns
+\texttt{false} from \texttt{isDeviceSupported()}. Biometric is an acceleration layer
+only --- the PIN or email/password credential always remains valid.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Library --- Shelves and Books}
+
+\subsection{Domain Models}
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{3.2cm} L{10.4cm}@{}}
+  \toprule
+  \textbf{Model} & \textbf{Fields} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{BookshelfModel} &
+    \texttt{id}, \texttt{name}, \texttt{ownerId}, \texttt{createdAt} (ISO 8601) \\
+  \texttt{BookModel} &
+    \texttt{id}, \texttt{title}, \texttt{link}, \texttt{totalPages},
+    \texttt{currentPage}, \texttt{progress} (0--100), \texttt{status}
+    (\texttt{reading}/\texttt{on\_hold}/\texttt{finished}), \texttt{shelfId},
+    \texttt{ownerId}, \texttt{lastReadAt?}, \texttt{author?}, \texttt{year?},
+    \texttt{needsOcr} (bool, immutable after creation) \\
+  \rowcolor{rowalt}
+  \texttt{NoteModel} &
+    \texttt{id}, \texttt{bookId}, \texttt{title}, \texttt{content},
+    \texttt{updatedAt} (ISO 8601) \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+\texttt{BookModel.progress} is recomputed from
+\texttt{currentPage / totalPages * 100} in \texttt{fromMap()}.
+\texttt{link} is either an HTTPS URL (external or Supabase-hosted) or
+\texttt{local://\{filename\}} (mobile-legacy only; rejected on web).
+
+\subsection{Firestore Data Source}
+
+\textbf{Source:} \texttt{lib/features/library/data/firestore\_data\_source.dart}
+
+The data source exposes streams and mutation methods. Exceptions are not caught here;
+they bubble up to the controller, which maps them to \texttt{AsyncError}.
+
+Key stream methods: \texttt{watchShelves(ownerId)},
+\texttt{watchBooks(ownerId)}, \texttt{watchBooksByShelf(shelfId, ownerId)},
+\texttt{watchNotesByBookId(bookId)} (sorted \texttt{updatedAt} DESC),
+\texttt{watchNotesByBookId}, \texttt{watchUserNotesCount(bookIds)}.
+
+\texttt{updateReadingProgress()} skips \texttt{totalPages} and \texttt{progress} fields
+if \texttt{totalPages == 0}, preventing corruption of pre-saved values when the page
+count is not yet known.
+
+\subsubsection{Cascading Delete Sequence}
+
+Deleting a book involves five ordered steps:
+
+\begin{enumerate}
+  \item \texttt{FirestoreDataSource.deleteBook()} batch-deletes all associated notes
+    (chunks of 500), then deletes the book document. Returns \texttt{book.link}.
+  \item \texttt{RecentBooksService.remove(bookId)} --- removes from the LRU recents list.
+  \item \texttt{OcrCacheService.purgeBook(bookId)} --- drops all
+    \texttt{ocr\_v1\_\{bookId\}\_*} Hive entries (best-effort, exceptions logged).
+  \item If \texttt{link} contains \texttt{/storage/v1/object/public/pdfs/},
+    \texttt{Supabase.storage.from('pdfs').remove([path])} purges the object
+    (best-effort, unawaited).
+  \item On mobile, \texttt{pdf\_\{hash\}.pdf} and \texttt{thumb\_\{hash\}.jpg} are
+    deleted from \texttt{appDocs} (best-effort).
+\end{enumerate}
+
+Deleting a shelf batch-updates all its books to \texttt{shelfId: ''}, then deletes the
+shelf document. All batches are chunked at 500 operations (Firestore limit).
+
+\subsection{whereIn Chunking}
+
+Firestore \texttt{whereIn} accepts at most 30 values. \texttt{watchUserNotesCount(bookIds)}
+splits \texttt{bookIds} into chunks of 30, spawns one Firestore listener per chunk, and
+merges the per-chunk counts into a single \texttt{StreamController<int>.broadcast()}
+stream. This powers the NOTES stat on the profile screen.
+
+\subsection{Adding a Book}
+
+\textbf{Source:} \texttt{lib/features/library/presentation/new\_book\_screen.dart}
+
+The screen has two tabs:
+
+\textbf{URL tab:}
+\begin{enumerate}
+  \item Validate URL scheme.
+  \item Fetch bytes via \texttt{fetchPdfBytes(url)} (routes through CORS proxy on web
+    for external hosts).
+  \item \texttt{\_isBitmapOnlyPdf(bytes)}: samples first three pages via Syncfusion; if
+    fewer than 5 characters of embedded text are found across all sampled pages, the PDF
+    is flagged as bitmap-only and \texttt{needsOcr = true}. A dismissable warning is
+    shown.
+  \item \texttt{extractPdfMetadata(bytes)}: reads \texttt{author} and \texttt{year}
+    from the PDF info dictionary (validated: author non-empty; year 1970--2099, rejecting
+    the common default 2001-01-01).
+  \item \texttt{primePdfCache(url, bytes)}: writes already-fetched bytes to the local
+    cache path to avoid a re-download when the reader first opens.
+  \item Duplicate-title guard: \texttt{\_norm(title)} (trim + lowercase) compared
+    against all existing book titles.
+  \item \texttt{LibraryController.createBook()} writes to Firestore.
+\end{enumerate}
+
+\textbf{Upload tab:} \texttt{FilePicker} is called with \texttt{withData: kIsWeb}
+(bytes on web, path on mobile). After probing and metadata extraction, bytes are uploaded
+to Supabase via \texttt{Supabase.storage.from('pdfs').uploadBinary()} with a random
+suffix appended to the millisecond timestamp to guard against path collisions. The rest
+of the pipeline is identical to the URL tab.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{PDF Pipeline}
+
+\subsection{PDF Fetcher}
+
+\textbf{Source:} \texttt{lib/core/network/pdf\_fetcher.dart}
+
+\texttt{fetchPdfBytes(url)} is the \textbf{single entry point} for all PDF network
+requests. It must always be used; direct \texttt{http.get()} calls for PDF bytes are
+prohibited.
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{4.0cm} L{9.6cm}@{}}
+  \toprule
+  \textbf{Platform / host} & \textbf{Request path} \\
+  \midrule
+  \rowcolor{rowalt}
+  Mobile (any host) & Direct \texttt{http.get(url)}, 180 s timeout \\
+  Web + Supabase host & Direct \texttt{http.get(url)} (same Supabase origin, no CORS
+    issue) \\
+  \rowcolor{rowalt}
+  Web + external host & Proxied: \texttt{http.get(kCorsProxyBase + '?url=' +
+    Uri.encodeComponent(url))} \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+Non-200 responses throw an \texttt{Exception}. Proxy 502 errors include the first
+200 characters of the response body for diagnosis. The constant \texttt{kCorsProxyBase}
+holds the deployed Edge Function URL.
+
+\subsection{pdfPathProvider}
+
+\texttt{pdfPathProvider(url)} is a keepAlive \texttt{FutureProvider.family}:
+
+\begin{itemize}
+  \item \textbf{Web:} Returns \texttt{url} as-is. No filesystem access; \texttt{pdfx}
+    loads from URL directly.
+  \item \textbf{Mobile:} Checks for a cached file at
+    \texttt{appDocs/pdf\_\{url.hashCode\}.pdf}. If absent or empty, downloads via
+    \texttt{fetchPdfBytes()}, then validates:
+    \begin{itemize}
+      \item \texttt{\_looksLikePdf(bytes)}: scans the first 1\,100 bytes for
+        \texttt{\%PDF-} signature.
+      \item \texttt{\_hasEofMarker(bytes)}: scans the final 1\,024 bytes for
+        \texttt{\%\%EOF} trailer.
+    \end{itemize}
+    Both checks must pass; otherwise an exception is thrown and the cached file is not
+    written. This guards against truncated downloads and HTML error pages.
+\end{itemize}
+
+\subsection{Render Backends}
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{2.4cm} L{3.4cm} L{7.8cm}@{}}
+  \toprule
+  \textbf{Platform} & \textbf{Library} & \textbf{Notes} \\
+  \midrule
+  \rowcolor{rowalt}
+  Mobile & \texttt{flutter\_pdfview} & Native Android/iOS PDFView; page callbacks via
+    \texttt{onPageChanged(page, total)} \\
+  Web & \texttt{pdfx} & Renders pages to \texttt{Uint8List} images; used for both the
+    main reader view and all thumbnail generation \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Metadata and Thumbnails}
+
+\texttt{extractPdfMetadata(bytes)} (\texttt{lib/features/library/data/pdf\_metadata.dart})
+uses \texttt{syncfusion\_flutter\_pdf} to read the document info dictionary. It never
+throws; an unreadable PDF returns \texttt{PdfMetadata(author: null, year: null)}.
+
+\texttt{pdfPageImageProvider(url, pageIndex)} renders a page to a 1600\,px-maximum JPEG
+and is disk-cached on mobile. \texttt{pdfThumbnailProvider(url)} is an alias that
+always requests page 0.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Local Cache (Hive)}
+
+\textbf{Box:} \texttt{app\_prefs}, opened synchronously in \texttt{main()} before
+\texttt{runApp()} is called.
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{4.0cm} L{3.4cm} L{6.3cm}@{}}
+  \toprule
+  \textbf{Service} & \textbf{Hive key(s)} & \textbf{Semantics} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{RecentBooksService} & \texttt{recent\_book\_ids} &
+    \texttt{List<String>}, max 10, LRU (insert-at-front + dedupe).
+    Reactive via \texttt{\_box.watch(key:)} \\
+  \texttt{OcrCacheService} & \texttt{ocr\_v1\_\{bookId\}\_\{pageIndex\}} &
+    Per-page OCR text. Schema-versioned for engine swaps.
+    Write failures are logged, never fatal \\
+  \rowcolor{rowalt}
+  \texttt{AppPinService} & \texttt{app\_pin\_hash} &
+    SHA-256-crypt hash string \\
+  \texttt{BiometricAuthService} & \texttt{biometric\_enabled} &
+    Per-user opt-in boolean \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+\textbf{Rule:} Only these four services write to \texttt{app\_prefs}. A new Hive key
+requires a new service in \texttt{lib/core/local/}. No screen or provider may write to
+the box directly.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Reader Feature}
+
+\textbf{Source:} \texttt{lib/features/reader/presentation/reading\_screen.dart}
+
+\subsection{Progress Tracking}
+
+When the user turns a page, \texttt{onPageChanged(page, total)} fires (via
+\texttt{flutter\_pdfview} on mobile; via viewport scroll detection on web). The handler
+calls \texttt{LibraryController.updateProgress()}, which writes
+\texttt{currentPage}, \texttt{totalPages}, \texttt{progress}, and
+\texttt{lastReadAt} to Firestore. If \texttt{page == totalPages - 1} and
+\texttt{book.status != 'finished'}, status is updated to \texttt{'finished'} automatically.
+
+\subsection{Recent Books}
+
+On cold-start open of a book, \texttt{RecentBooksService.markOpened(bookId)} is called
+via \texttt{ref.read(recentBooksServiceProvider)}. This moves the book to position 0 in
+the LRU list, capped at 10 items.
+
+\subsection{PDF Byte Caching on Web}
+
+On web, the reader caches \texttt{\_webPdfBytes} (the raw \texttt{Uint8List}) per
+\texttt{book.link} key. This avoids a re-download on every TTS \texttt{\_speakCurrentPage}
+call, since Syncfusion's text extractor requires bytes rather than a URL.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Notes Feature}
+
+\subsection{Data Flow}
+
+\textbf{Sources:} \texttt{lib/features/library/domain/note\_model.dart},
+\texttt{lib/features/library/data/firestore\_data\_source.dart}
+
+Notes live in a flat Firestore collection \texttt{notes/\{noteId\}} with fields
+\texttt{bookId}, \texttt{title}, \texttt{content}, \texttt{createdAt},
+\texttt{updatedAt}. Ownership resolves transitively: the Firestore rule for a note
+fetches the parent book's \texttt{ownerId} via the \texttt{bookOwner()} helper.
+
+CRUD methods: \texttt{createNote()}, \texttt{updateNote()}, \texttt{deleteNote()},
+\texttt{deleteNotes(List<String> noteIds)} (chunked at 500).
+
+\subsection{Providers and Screens}
+
+\texttt{notesByBookProvider(bookId)} streams notes sorted by \texttt{updatedAt} DESC.
+\texttt{userNotesCountProvider} aggregates note counts across all user books using the
+30-item \texttt{whereIn} chunking pattern described in §6.
+
+Auto-naming: when the user saves a note with a blank title, the screen sets the title
+to ``Note (N)'' where N is the current count of notes for that book.
+
+The desktop reader integrates notes in a right-side panel (MY NOTE tab) with an inline
+editor; the mobile reader routes to \texttt{/book/:id/note}.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Text-to-Speech (TTS)}
+
+\subsection{Engine Abstraction}
+
+\textbf{Source:} \texttt{lib/features/reader/data/tts\_engine.dart}
+
+\texttt{TtsEngine} is a platform-agnostic interface with a factory constructor that
+resolves at compile time:
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{2.2cm} L{3.6cm} L{7.9cm}@{}}
+  \toprule
+  \textbf{Platform} & \textbf{Impl} & \textbf{Key details} \\
+  \midrule
+  \rowcolor{rowalt}
+  Mobile & \texttt{tts\_engine\_io.dart} &
+    \texttt{flutter\_tts} 4.2.0; \texttt{awaitSpeakCompletion(true)} prevents race
+    with auto-advance; \texttt{setProgressHandler} fires per-word boundary events;
+    ``interrupted'' and ``canceled'' errors are filtered \\
+  Web & \texttt{tts\_engine\_web.dart} &
+    W3C \texttt{window.speechSynthesis}; Completer-per-utterance prevents late
+    \texttt{onerror} completing the wrong future; 120\,ms cancel delay before next
+    \texttt{speak()} to let the ``interrupted'' event propagate \\
+  \bottomrule
+\end{tabularx}
+
+\subsection{Voice Selection on Web}
+
+\texttt{\_trySetWebVoice()} scores available voices (prefers Aria, Jenny, Jane, Libby,
+Michelle) and selects the best match. Chrome populates the voice roster asynchronously
+after the first user gesture. If the roster is empty on mount, \texttt{\_trySetWebVoice}
+is retried just-in-time before each \texttt{speak()} call. Firefox does not always
+provide a \texttt{charLength} in word-boundary events; a forward-whitespace-scan
+workaround fills in the missing value.
+
+\subsection{Text Extraction}
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{2.2cm} L{4.2cm} L{7.3cm}@{}}
+  \toprule
+  \textbf{Platform} & \textbf{Source} & \textbf{Indexing} \\
+  \midrule
+  \rowcolor{rowalt}
+  Mobile & \texttt{flutter\_pdf\_text} & 1-indexed pages; \texttt{PdfDoc} handle
+    cached across calls \\
+  Web & Syncfusion \texttt{PdfTextExtractor} & 0-indexed
+    \texttt{startPageIndex/endPageIndex}; bytes cached per \texttt{book.link} \\
+  \bottomrule
+\end{tabularx}
+\vspace{2pt}
+
+All extracted text passes through \texttt{tts\_text\_cleaner.dart}, which normalises
+whitespace, removes soft hyphens, and strips diacritics.
+
+\subsection{Karaoke Word Highlighting}
+
+\textbf{Source:} \texttt{lib/features/reader/presentation/controllers/karaoke\_controller.dart}
+
+\texttt{KaraokeController} maintains \texttt{fullText}, \texttt{currentStart/End}
+(character offsets), \texttt{isSpeaking}, and \texttt{fallbackSentenceMode}. The reading
+screen calls \texttt{onTtsStart(fullText, baseOffset)} before each \texttt{speak()},
+and \texttt{onProgress(text, start, end, word)} on each engine boundary event.
+
+\textbf{Fallback mode:} If no progress event fires within 2 seconds, the controller
+switches to sentence-level highlights generated by splitting \texttt{fullText} on
+\texttt{(?<=[.\,!\,?])\textbackslash{}s+}. Each sentence becomes a separate utterance;
+completion advances the sentence queue. Fallback mode is never re-armed once a real
+boundary event has arrived (\texttt{\_karaokeProgressEverFired} flag).
+
+\textbf{Click-to-seek:} Tapping a word in \texttt{KaraokeTextPane} calls
+\texttt{\_seekTtsTo(wordStart)}, which slices the remaining text from \texttt{wordStart},
+cancels the current utterance, and re-speaks from the new position with
+\texttt{baseOffset} updated accordingly.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{OCR Feature}
+
+\subsection{Conditional Import Pattern}
+
+\textbf{Source:} \texttt{lib/features/library/data/ocr\_data\_source.dart}
+
+The interface declares \texttt{recognize(Uint8List bytes, \{String langs\})} and
+\texttt{dispose()}. A Dart conditional import selects the implementation at compile time:
+
+\begin{lstlisting}[language=Dart]
+// ocr_data_source.dart
+export 'ocr_data_source_io.dart'
+    if (dart.library.js_interop) 'ocr_data_source_web.dart';
+\end{lstlisting}
+
+Never import either \texttt{\_io} or \texttt{\_web} file directly.
+
+\subsection{Mobile Implementation}
+
+\textbf{Source:} \texttt{lib/features/library/data/ocr\_data\_source\_io.dart}
+
+\begin{enumerate}
+  \item Write \texttt{imageBytes} (PNG) to a temp file (lossless for OCR accuracy).
+  \item For payloads $>$ 2\,MB, use \texttt{compute()} to write off-isolate and avoid
+    UI-thread hitch.
+  \item Call \texttt{TesseractOcr.extractText(tempFile.path,
+    OCRConfig(language: 'eng+tha', engine: OCREngine.tesseract))}.
+  \item Delete the temp file in a \texttt{finally} block.
+\end{enumerate}
+
+Trained data (\texttt{tessdata\_best/eng.traineddata},
+\texttt{tha.traineddata}) must be placed in \texttt{assets/tessdata/} before build.
+The plugin copies them to \texttt{appDocs/tessdata/} on first call.
+
+\subsection{Web Implementation}
+
+\textbf{Source:} \texttt{lib/features/library/data/ocr\_data\_source\_web.dart}
+
+\begin{enumerate}
+  \item Lazy-load \texttt{web/ocr/tesseract.min.js} via a \texttt{<script>} tag on the
+    first \texttt{recognize()} call; result cached globally.
+  \item Spawn a Tesseract.js v5 Web Worker once per datasource lifetime
+    (\textasciitilde{}5 s cost). Worker paths:
+    \texttt{workerPath: 'ocr/worker.min.js'},
+    \texttt{corePath: '/ocr/tesseract-core-simd-lstm.wasm.js'},
+    \texttt{langPath: '/ocr/lang/'}.
+    OEM 1 (LSTM-only), PSM 6 (single text block).
+  \item Convert \texttt{Uint8List} $\rightarrow$ \texttt{Blob} $\rightarrow$ object URL.
+  \item Call \texttt{worker.recognize(blobUrl)}; revoke the Blob URL in a
+    \texttt{finally} block.
+  \item On datasource disposal, call \texttt{worker.terminate()} (best-effort).
+\end{enumerate}
+
+\subsection{OCR Provider Pipeline}
+
+\textbf{Source:} \texttt{lib/features/library/presentation/library\_providers.dart}
+(\texttt{ocrPageTextProvider})
+
+\begin{enumerate}
+  \item \textbf{Cache check.} \texttt{OcrCacheService.get(bookId, pageIndex)} returns
+    cached text synchronously if present (even an empty string means OCR was already
+    attempted).
+  \item \textbf{Image render.} \texttt{ocrPageImageProvider(url, pageIndex)} returns a
+    2\,400\,px-maximum lossless PNG (\textasciitilde{}280\,DPI, within Tesseract's
+    recommended 250--400\,DPI range).
+  \item \textbf{Recognition.} \texttt{ocrDataSource.recognize(bytes, langs: 'eng+tha')}.
+  \item \textbf{Text cleaning.} \texttt{cleanForTts()} normalises whitespace and removes
+    artefacts.
+  \item \textbf{Cache write.} \texttt{OcrCacheService.put(bookId, pageIndex, text)}
+    (best-effort; failures are logged).
+  \item \textbf{Invalidate rendered PNG.} \texttt{ref.invalidate(ocrPageImageProvider(...))}
+    releases the lossless PNG from Riverpod's cache, critical for memory during long
+    background sweeps.
+\end{enumerate}
+
+\subsection{Background Pre-OCR Sweep}
+
+After the first successful foreground OCR recognition, \texttt{\_maybeStartBackgroundOcr}
+spawns a loop that iterates all pages except the triggering page and any already-cached
+pages, calling \texttt{ref.read(ocrPageTextProvider(...).future)} sequentially. A
+version token \texttt{\_bgOcrVersion} is incremented on dispose or book-switch; the
+loop checks the token at each iteration start to cancel cleanly. Progress is reported
+to \texttt{bookOcrProgressProvider} \texttt{({done,\,total})?}, which drives a chip in
+the reader app bar.
+
+\subsection{Kill Switch}
+
+\texttt{featureFlagsProvider.ocrFallbackEnabled} (backed by Remote Config key
+\texttt{ocr\_fallback\_enabled}, default \texttt{true}) must be \texttt{true} for any
+OCR path to execute. When \texttt{false}, the reading screen shows a snackbar
+``No readable text (scanned PDF?)'' instead of invoking Tesseract.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Profile Feature}
+
+\textbf{Sources:} \texttt{lib/features/profile/presentation/}
+
+\texttt{ProfileScreen} watches \texttt{userProfileProvider} (real-time Firestore stream)
+for the user's \texttt{name} and displays \texttt{email} from
+\texttt{authStateProvider}. Three stat cards show READ (total book count via
+\texttt{allBooksProvider}), NOTES (\texttt{userNotesCountProvider}), and SHELVES
+(\texttt{shelvesProvider}).
+
+\texttt{EditProfileScreen} presents a single editable field: \texttt{name} (email is
+read-only from Firebase Auth). On save, \texttt{firestoreDataSource.updateUserProfile(uid, name:)} writes the new name to \texttt{users/\{uid\}.name}. There is no avatar field and
+no profile-level biometric toggle.
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Feature Flag System}
+
+\textbf{Source:} \texttt{lib/core/config/feature\_flags.dart}
+
+\texttt{FeatureFlags} wraps \texttt{FirebaseRemoteConfig} with typed getters so app code
+never calls \texttt{FirebaseRemoteConfig.instance} directly.
+
+\begin{lstlisting}[language=Dart]
+bool get ocrFallbackEnabled =>
+    _remoteConfig.getBool('ocr_fallback_enabled');
+\end{lstlisting}
+
+Initialization is \textbf{failure-safe}: a \texttt{try/catch} around \texttt{fetch} and
+\texttt{activate} catches network errors or quota-exceeded exceptions, logs them via
+\texttt{AppLogger.warn}, and falls through to the \texttt{\_defaults} map without
+rethrowing. This ensures a cold-start offline device still launches with sensible
+defaults.
+
+\vspace{4pt}
+\begin{tabularx}{\textwidth}{@{}L{4.4cm} C{1.8cm} L{7.4cm}@{}}
+  \toprule
+  \textbf{Remote Config key} & \textbf{Default} & \textbf{Effect} \\
+  \midrule
+  \rowcolor{rowalt}
+  \texttt{ocr\_fallback\_enabled} & \texttt{true} &
+    Master switch for the entire Tesseract OCR pipeline. Set to \texttt{false} to
+    disable OCR across all clients within the 1-hour TTL, requiring zero redeployment. \\
+  \bottomrule
+\end{tabularx}
+
+% ─────────────────────────────────────────────────────────────────────────────
+\section{Supabase Edge Function --- CORS Proxy}
+
+\textbf{Source:} \texttt{supabase/functions/pdf-proxy/index.ts} (Deno runtime)
+
+\subsection{Purpose}
+
+Flutter Web cannot fetch arbitrary cross-origin PDFs due to browser CORS policy. The
+\texttt{pdf-proxy} Edge Function runs inside the Supabase project and adds permissive
+CORS headers to the upstream response. It is deployed with
+\texttt{--no-verify-jwt} to allow unauthenticated browser requests; SSRF defences
+compensate for the open surface.
+
+\subsection{Request Flow}
+
+\begin{lstlisting}
+Browser  GET /functions/v1/pdf-proxy?url=<encoded-pdf-url>
+            |
+            v
+        ssrfCheck(hostname)  <-- block private IPs, metadata hosts
+            |
+            v
+        fetch(url, {redirect: 'manual', signal: AbortSignal.timeout(120s)})
+            |
+            v
+        validate Content-Type (must be application/pdf or octet-stream)
+        validate Content-Length <= 50 MB
+        streaming cap via TransformStream (abort at 50 MB)
+            |
+            v
+        Response {
+            Content-Type: application/pdf,
+            Access-Control-Allow-Origin: *,
+            Cache-Control: public, max-age=60, must-revalidate
+        }
+\end{lstlisting}
+
+\subsection{SSRF Defences}
+
+\begin{itemize}
+  \item \textbf{Private IP rejection.} DNS A/AAAA records are resolved and checked
+    against all RFC 1918 ranges (\texttt{10/8}, \texttt{172.16/12},
+    \texttt{192.168/16}), loopback (\texttt{127/8}), link-local (\texttt{169.254/16}),
+    and IPv6 ULA. \texttt{localhost}, \texttt{*.local}, \texttt{*.internal}, and
+    \texttt{metadata.*} are blocked by name before any DNS lookup.
+  \item \textbf{Dual-resolver fallback.} System DNS is tried first; for TLDs that may
+    fail (e.g., \texttt{.cr}), Cloudflare DoH (\texttt{1.1.1.1}) is used as a fallback.
+  \item \textbf{Post-fetch re-validation.} The resolved IP is re-checked after the fetch
+    response arrives, blocking DNS-rebinding attacks where the initial resolution returns
+    a public IP but a subsequent lookup returns an internal one.
+  \item \textbf{Redirect rejection.} \texttt{fetch(\{redirect: 'manual'\})} prevents
+    open-redirect chains from routing through attacker-controlled servers. Any redirect
+    returns HTTP 502 to the client.
+\end{itemize}
+
+\end{document}
