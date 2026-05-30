@@ -29,8 +29,6 @@ import 'package:my_pdf/features/reader/presentation/widgets/karaoke_text_pane.da
             height: 400,
             child: KaraokeTextPane(
               onWordTap: onWordTap,
-              currentSpeed: speed,
-              onSpeedChange: onSpeedChange,
             ),
           ),
         ),
