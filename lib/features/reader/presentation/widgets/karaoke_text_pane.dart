@@ -29,10 +29,7 @@ class _Token {
 ///
 class KaraokeTextPane extends ConsumerStatefulWidget {
   final void Function(int wordStart)? onWordTap;
-  const KaraokeTextPane({
-    super.key,
-    this.onWordTap,
-  });
+  const KaraokeTextPane({super.key, this.onWordTap});
 
   @override
   ConsumerState<KaraokeTextPane> createState() => _KaraokeTextPaneState();
@@ -601,4 +598,3 @@ class _TappableWordState extends State<_TappableWord> {
     );
   }
 }
-

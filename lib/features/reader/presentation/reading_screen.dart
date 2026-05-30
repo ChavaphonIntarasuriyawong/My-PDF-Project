@@ -1080,9 +1080,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
       height: paneHeight,
       child: IgnorePointer(
         ignoring: !isVisible,
-        child: KaraokeTextPane(
-          onWordTap: _seekTtsTo,
-        ),
+        child: KaraokeTextPane(onWordTap: _seekTtsTo),
       ),
     );
   }
@@ -1963,12 +1961,7 @@ class _SpeechPanel extends StatelessWidget {
             // [karaokeControllerProvider]. The pane brings its own surface
             // chrome (border, handle, header) so no outer card needed. Bounded
             // height keeps the inner `Flexible` scroll list happy.
-            SizedBox(
-              height: 320,
-              child: KaraokeTextPane(
-                onWordTap: onWordTap,
-              ),
-            ),
+            SizedBox(height: 320, child: KaraokeTextPane(onWordTap: onWordTap)),
           ],
         ],
       ),
