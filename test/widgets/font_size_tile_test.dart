@@ -66,14 +66,18 @@ void main() {
       expect(find.byType(Slider), findsOneWidget);
     });
 
-    testWidgets('Slider initial value matches the provider state', (tester) async {
+    testWidgets('Slider initial value matches the provider state', (
+      tester,
+    ) async {
       await tester.pumpWidget(_buildScreen(initialScale: 1.2));
       await tester.pump();
       final slider = tester.widget<Slider>(find.byType(Slider));
       expect(slider.value, 1.2);
     });
 
-    testWidgets('Slider min and max match FontScaleService constants', (tester) async {
+    testWidgets('Slider min and max match FontScaleService constants', (
+      tester,
+    ) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
       final slider = tester.widget<Slider>(find.byType(Slider));
@@ -97,7 +101,9 @@ void main() {
       expect(find.text('100%'), findsOneWidget);
     });
 
-    testWidgets('percentage label shows 23% at defaultScale (1.0)', (tester) async {
+    testWidgets('percentage label shows 23% at defaultScale (1.0)', (
+      tester,
+    ) async {
       // (1.0 - 0.85) / (1.50 - 0.85) * 100 = 23%
       await tester.pumpWidget(
         _buildScreen(initialScale: FontScaleService.defaultScale),
@@ -120,15 +126,13 @@ void main() {
         _buildScreen(initialScale: FontScaleService.defaultScale),
       );
       await tester.pump();
-      expect(
-        find.bySemanticsLabel(RegExp(r'Font size, \d+%')),
-        findsOneWidget,
-      );
+      expect(find.bySemanticsLabel(RegExp(r'Font size, \d+%')), findsOneWidget);
       handle.dispose();
     });
 
-    testWidgets('Slider semanticFormatterCallback returns N% string',
-        (tester) async {
+    testWidgets('Slider semanticFormatterCallback returns N% string', (
+      tester,
+    ) async {
       await tester.pumpWidget(_buildScreen());
       await tester.pump();
       final slider = tester.widget<Slider>(find.byType(Slider));

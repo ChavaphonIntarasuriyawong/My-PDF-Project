@@ -9,7 +9,9 @@ void main() {
   late Directory tempDir;
 
   setUpAll(() async {
-    tempDir = await Directory.systemTemp.createTemp('font_scale_notifier_test_');
+    tempDir = await Directory.systemTemp.createTemp(
+      'font_scale_notifier_test_',
+    );
     Hive.init(tempDir.path);
   });
 
@@ -59,17 +61,23 @@ void main() {
       expect(raw, 1.15);
     });
 
-    test('setScale clamps below minScale — state reflects clamped value', () async {
-      final c = makeContainer();
-      await c.read(fontScaleNotifierProvider.notifier).setScale(0.0);
-      expect(c.read(fontScaleNotifierProvider), FontScaleService.minScale);
-    });
+    test(
+      'setScale clamps below minScale — state reflects clamped value',
+      () async {
+        final c = makeContainer();
+        await c.read(fontScaleNotifierProvider.notifier).setScale(0.0);
+        expect(c.read(fontScaleNotifierProvider), FontScaleService.minScale);
+      },
+    );
 
-    test('setScale clamps above maxScale — state reflects clamped value', () async {
-      final c = makeContainer();
-      await c.read(fontScaleNotifierProvider.notifier).setScale(99.0);
-      expect(c.read(fontScaleNotifierProvider), FontScaleService.maxScale);
-    });
+    test(
+      'setScale clamps above maxScale — state reflects clamped value',
+      () async {
+        final c = makeContainer();
+        await c.read(fontScaleNotifierProvider.notifier).setScale(99.0);
+        expect(c.read(fontScaleNotifierProvider), FontScaleService.maxScale);
+      },
+    );
 
     test('multiple setScale calls update state each time', () async {
       final c = makeContainer();

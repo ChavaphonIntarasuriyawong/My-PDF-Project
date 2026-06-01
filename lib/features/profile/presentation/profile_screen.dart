@@ -300,10 +300,11 @@ class _FontSizeTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final scale = ref.watch(fontScaleNotifierProvider);
-    final percent = ((scale - FontScaleService.minScale) /
-            (FontScaleService.maxScale - FontScaleService.minScale) *
-            100)
-        .round();
+    final percent =
+        ((scale - FontScaleService.minScale) /
+                (FontScaleService.maxScale - FontScaleService.minScale) *
+                100)
+            .round();
 
     return Semantics(
       label: 'Font size, $percent%',
@@ -364,8 +365,7 @@ class _FontSizeTile extends ConsumerWidget {
                         activeTrackColor: AppColors.primary,
                         inactiveTrackColor: AppColors.progressTrack,
                         thumbColor: AppColors.primary,
-                        overlayColor:
-                            AppColors.primary.withValues(alpha: 0.12),
+                        overlayColor: AppColors.primary.withValues(alpha: 0.12),
                         trackHeight: 3,
                       ),
                       child: Slider(

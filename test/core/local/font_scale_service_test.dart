@@ -63,25 +63,27 @@ void main() {
     });
 
     test('scale returns defaultScale when stored value is not a num', () async {
-      await Hive.box(FontScaleService.boxName).put(
-        'font_scale_factor',
-        'not-a-number',
-      );
+      await Hive.box(
+        FontScaleService.boxName,
+      ).put('font_scale_factor', 'not-a-number');
       expect(FontScaleService().scale, FontScaleService.defaultScale);
     });
 
-    test('scale accepts any value within the valid range without clamping', () async {
-      final svc = FontScaleService();
-      for (final v in [
-        FontScaleService.minScale,
-        1.0,
-        1.2,
-        FontScaleService.maxScale,
-      ]) {
-        await svc.setScale(v);
-        expect(svc.scale, v);
-      }
-    });
+    test(
+      'scale accepts any value within the valid range without clamping',
+      () async {
+        final svc = FontScaleService();
+        for (final v in [
+          FontScaleService.minScale,
+          1.0,
+          1.2,
+          FontScaleService.maxScale,
+        ]) {
+          await svc.setScale(v);
+          expect(svc.scale, v);
+        }
+      },
+    );
 
     test('setScale overwrites a previous value', () async {
       final svc = FontScaleService();
@@ -90,19 +92,25 @@ void main() {
       expect(svc.scale, 1.4);
     });
 
-    test('scale writes to the shared app_prefs box, not a separate box', () async {
-      final svc = FontScaleService();
-      await svc.setScale(1.3);
-      final raw = Hive.box(FontScaleService.boxName).get('font_scale_factor');
-      expect(raw, 1.3);
-    });
+    test(
+      'scale writes to the shared app_prefs box, not a separate box',
+      () async {
+        final svc = FontScaleService();
+        await svc.setScale(1.3);
+        final raw = Hive.box(FontScaleService.boxName).get('font_scale_factor');
+        expect(raw, 1.3);
+      },
+    );
 
-    test('writing scale does not disturb unrelated keys in app_prefs', () async {
-      final box = Hive.box(FontScaleService.boxName);
-      await box.put('recent_book_ids', <String>['b1']);
-      final svc = FontScaleService();
-      await svc.setScale(1.2);
-      expect(box.get('recent_book_ids'), <String>['b1']);
-    });
+    test(
+      'writing scale does not disturb unrelated keys in app_prefs',
+      () async {
+        final box = Hive.box(FontScaleService.boxName);
+        await box.put('recent_book_ids', <String>['b1']);
+        final svc = FontScaleService();
+        await svc.setScale(1.2);
+        expect(box.get('recent_book_ids'), <String>['b1']);
+      },
+    );
   });
 }
