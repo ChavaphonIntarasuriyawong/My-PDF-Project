@@ -2,12 +2,19 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:my_pdf/core/local/font_scale_notifier.dart';
+import 'package:my_pdf/core/local/font_scale_service.dart';
 import 'package:my_pdf/features/auth/domain/user_model.dart';
 import 'package:my_pdf/features/auth/presentation/auth_providers.dart';
 import 'package:my_pdf/features/library/domain/book_model.dart';
 import 'package:my_pdf/features/library/domain/bookshelf_model.dart';
 import 'package:my_pdf/features/library/presentation/library_providers.dart';
 import 'package:my_pdf/features/profile/presentation/profile_screen.dart';
+
+class _FakeFontScaleNotifier extends FontScaleNotifier {
+  @override
+  double build() => FontScaleService.defaultScale;
+}
 
 const _user = UserModel(uid: 'u1', name: 'Alice', email: 'alice@test.com');
 
@@ -57,6 +64,7 @@ Widget _buildScreen({
       allBooksProvider.overrideWith((_) => Stream.value(books)),
       shelvesProvider.overrideWith((_) => Stream.value(shelves)),
       authStateProvider.overrideWith((_) => Stream.value(_user)),
+      fontScaleNotifierProvider.overrideWith(_FakeFontScaleNotifier.new),
     ],
     child: MaterialApp.router(routerConfig: router),
   );
