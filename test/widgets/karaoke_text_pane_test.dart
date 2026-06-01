@@ -14,8 +14,6 @@ import 'package:my_pdf/features/reader/presentation/widgets/karaoke_text_pane.da
 /// queued, and the test framework asserts no Timers remain at teardown.
 ({ProviderContainer container, Widget widget}) _build({
   void Function(int)? onWordTap,
-  double? speed,
-  ValueChanged<double>? onSpeedChange,
 }) {
   final container = ProviderContainer();
   return (
@@ -27,9 +25,7 @@ import 'package:my_pdf/features/reader/presentation/widgets/karaoke_text_pane.da
           body: SizedBox(
             width: 412,
             height: 400,
-            child: KaraokeTextPane(
-              onWordTap: onWordTap,
-            ),
+            child: KaraokeTextPane(onWordTap: onWordTap),
           ),
         ),
       ),
@@ -79,64 +75,6 @@ void main() {
       await tester.pump();
       expect(find.text('Word sync'), findsOneWidget);
       expect(find.text('Sentence sync'), findsNothing);
-      await _settleAndDispose(tester, r.container);
-    });
-
-    testWidgets('renders speed slider when both speed args are non-null', (
-      tester,
-    ) async {
-      double? lastSpeed;
-      final r = _build(speed: 1.0, onSpeedChange: (v) => lastSpeed = v);
-      await tester.pumpWidget(r.widget);
-      await tester.pump();
-      // Speed label format: "1.0x" rendered next to the slider.
-      expect(find.text('1.0x'), findsOneWidget);
-      expect(find.byType(Slider), findsOneWidget);
-      // Mode pill ("Word sync") is hidden when speed slider is mounted to
-      // save horizontal space inside the 412 dp phone frame.
-      expect(find.text('Word sync'), findsNothing);
-      // Sanity: slider is at the configured value.
-      final slider = tester.widget<Slider>(find.byType(Slider));
-      expect(slider.value, 1.0);
-      // Drive the onChanged hook directly — Slider drag gestures need precise
-      // hit math we don't need for wiring assertions.
-      slider.onChanged?.call(1.5);
-      expect(lastSpeed, 1.5);
-      await _settleAndDispose(tester, r.container);
-    });
-
-    testWidgets('hides speed slider when speed args are null', (tester) async {
-      final r = _build();
-      await tester.pumpWidget(r.widget);
-      await tester.pump();
-      expect(find.byType(Slider), findsNothing);
-      expect(find.text('Word sync'), findsOneWidget);
-      await _settleAndDispose(tester, r.container);
-    });
-
-    testWidgets('clamps speed slider value above 2.0 down to 2.0', (
-      tester,
-    ) async {
-      // Stale persisted rate could be outside the slider's bounds — production
-      // clamps to avoid the Slider invariant assertion.
-      final r = _build(speed: 5.0, onSpeedChange: (_) {});
-      await tester.pumpWidget(r.widget);
-      await tester.pump();
-      expect(find.text('2.0x'), findsOneWidget);
-      final slider = tester.widget<Slider>(find.byType(Slider));
-      expect(slider.value, 2.0);
-      await _settleAndDispose(tester, r.container);
-    });
-
-    testWidgets('clamps speed slider value below 0.5 up to 0.5', (
-      tester,
-    ) async {
-      final r = _build(speed: 0.1, onSpeedChange: (_) {});
-      await tester.pumpWidget(r.widget);
-      await tester.pump();
-      expect(find.text('0.5x'), findsOneWidget);
-      final slider = tester.widget<Slider>(find.byType(Slider));
-      expect(slider.value, 0.5);
       await _settleAndDispose(tester, r.container);
     });
 
