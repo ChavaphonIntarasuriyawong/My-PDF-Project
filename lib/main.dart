@@ -11,6 +11,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/config/feature_flags.dart';
 import 'core/constants/app_router.dart';
 import 'core/constants/app_routes.dart';
+import 'core/local/font_scale_notifier.dart';
 import 'core/local/recent_books_service.dart';
 import 'core/theme/app_colors.dart';
 import 'core/theme/app_theme.dart';
@@ -92,12 +93,18 @@ class MyPdfApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = ref.watch(routerProvider);
+    final fontScale = ref.watch(fontScaleNotifierProvider);
     return MaterialApp.router(
       title: 'MyPDF',
       theme: AppTheme.light,
       debugShowCheckedModeBanner: false,
       routerConfig: router,
       builder: (context, child) {
+        // Compose in-app font scale on top of the OS accessibility scale.
+        final composedScaler = TextScaler.linear(
+          MediaQuery.textScalerOf(context).scale(1.0) * fontScale,
+        );
+
         // Web only: pick a layout shell based on viewport width.
         //   < 600           pass-through (mobile)
         //   600 – 1023      existing 412×896 phone frame (tablet preview)
@@ -105,11 +112,24 @@ class MyPdfApp extends ConsumerWidget {
         //                   except `/login` and `/register` which render
         //                   their own centered split-card via DesktopAuthShell.
         // Native mobile / desktop builds always pass through.
-        if (!kIsWeb || child == null) return child ?? const SizedBox.shrink();
-        final width = MediaQuery.of(context).size.width;
-        if (width < 600) return child;
-        if (width < kDesktopBreakpoint) return _PhoneFrame(child: child);
-        return _DesktopRouteAwareShell(router: router, child: child);
+        Widget resolved;
+        if (!kIsWeb || child == null) {
+          resolved = child ?? const SizedBox.shrink();
+        } else {
+          final width = MediaQuery.of(context).size.width;
+          if (width < 600) {
+            resolved = child;
+          } else if (width < kDesktopBreakpoint) {
+            resolved = _PhoneFrame(child: child);
+          } else {
+            resolved = _DesktopRouteAwareShell(router: router, child: child);
+          }
+        }
+
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: composedScaler),
+          child: resolved,
+        );
       },
     );
   }

@@ -10,6 +10,8 @@ import '../../../shared/widgets/app_drawer.dart';
 import '../../auth/domain/user_model.dart';
 import '../../auth/presentation/auth_controller.dart';
 import '../../auth/presentation/auth_providers.dart';
+import '../../../core/local/font_scale_notifier.dart';
+import '../../../core/local/font_scale_service.dart';
 import '../../library/presentation/library_providers.dart';
 
 class ProfileScreen extends ConsumerStatefulWidget {
@@ -152,6 +154,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                             onTap: () => context.push('/profile/edit'),
                           ),
                           const SizedBox(height: 4),
+                          const _FontSizeTile(),
+                          const SizedBox(height: 4),
                           _SettingsRow(
                             icon: Icons.logout,
                             iconBg: AppColors.errorContainer,
@@ -283,6 +287,110 @@ class _SettingsRow extends StatelessWidget {
                   ),
               ],
             ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FontSizeTile extends ConsumerWidget {
+  const _FontSizeTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final scale = ref.watch(fontScaleNotifierProvider);
+    final percent = ((scale - FontScaleService.minScale) /
+            (FontScaleService.maxScale - FontScaleService.minScale) *
+            100)
+        .round();
+
+    return Semantics(
+      label: 'Font size, $percent%',
+      child: Material(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: AppColors.iconBlueTint,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Icon(
+                      Icons.text_fields,
+                      size: 22,
+                      color: AppColors.primary,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Font Size',
+                      style: AppTypography.bodyMedium.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    '$percent%',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Text(
+                    'A',
+                    style: AppTypography.bodySmall.copyWith(
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                  Expanded(
+                    child: SliderTheme(
+                      data: SliderThemeData(
+                        activeTrackColor: AppColors.primary,
+                        inactiveTrackColor: AppColors.progressTrack,
+                        thumbColor: AppColors.primary,
+                        overlayColor:
+                            AppColors.primary.withValues(alpha: 0.12),
+                        trackHeight: 3,
+                      ),
+                      child: Slider(
+                        value: scale,
+                        min: FontScaleService.minScale,
+                        max: FontScaleService.maxScale,
+                        divisions: 13,
+                        semanticFormatterCallback: (v) =>
+                            '${((v - FontScaleService.minScale) / (FontScaleService.maxScale - FontScaleService.minScale) * 100).round()}%',
+                        onChanged: (v) => ref
+                            .read(fontScaleNotifierProvider.notifier)
+                            .setScale(v),
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'A',
+                    style: AppTypography.bodyLarge.copyWith(
+                      color: AppColors.textMuted,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ),
         ),
       ),
@@ -450,6 +558,8 @@ class _DesktopBody extends StatelessWidget {
                         ],
                       ),
                     ),
+                    const SizedBox(height: 16),
+                    const _FontSizeTile(),
                     const SizedBox(height: 16),
                     Container(
                       decoration: BoxDecoration(
