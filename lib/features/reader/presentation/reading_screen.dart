@@ -781,6 +781,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                   max: 1.0,
                   divisions: 9,
                   activeColor: AppColors.primary,
+                  semanticFormatterCallback: (v) => '${(v * 100).round()}%',
                   onChanged: (v) => setSheet(() => rate = v),
                   onChangeEnd: (v) {
                     setState(() => _speechRate = v);
@@ -806,6 +807,7 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                   max: 2.0,
                   divisions: 15,
                   activeColor: AppColors.primary,
+                  semanticFormatterCallback: (v) => v.toStringAsFixed(1),
                   onChanged: (v) => setSheet(() => pitch = v),
                   onChangeEnd: (v) {
                     setState(() => _pitch = v);
@@ -1155,8 +1157,11 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
             if (pdfAsync != null)
               Positioned.fill(
                 child: pdfAsync.when(
-                  loading: () =>
-                      const Center(child: CircularProgressIndicator()),
+                  loading: () => Semantics(
+                    liveRegion: true,
+                    label: 'Loading PDF',
+                    child: const Center(child: CircularProgressIndicator()),
+                  ),
                   error: (e, _) => Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
@@ -1433,12 +1438,16 @@ class _ReadingScreenState extends ConsumerState<ReadingScreen> {
                           // beneath the existing reading-progress bar so layout
                           // doesn't shift when it appears/disappears.
                           if (_ocrInProgress) ...[
-                            const LinearProgressIndicator(
-                              backgroundColor: AppColors.progressTrack,
-                              valueColor: AlwaysStoppedAnimation(
-                                AppColors.primary,
+                            Semantics(
+                              liveRegion: true,
+                              label: 'Preparing OCR',
+                              child: const LinearProgressIndicator(
+                                backgroundColor: AppColors.progressTrack,
+                                valueColor: AlwaysStoppedAnimation(
+                                  AppColors.primary,
+                                ),
+                                minHeight: 2,
                               ),
-                              minHeight: 2,
                             ),
                             Padding(
                               padding: const EdgeInsets.symmetric(
@@ -1700,10 +1709,20 @@ class _DesktopReadingBodyState extends ConsumerState<_DesktopReadingBody> {
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: widget.pdfAsync == null
-                        ? const Center(child: CircularProgressIndicator())
-                        : widget.pdfAsync!.when(
-                            loading: () => const Center(
+                        ? Semantics(
+                            liveRegion: true,
+                            label: 'Loading PDF',
+                            child: const Center(
                               child: CircularProgressIndicator(),
+                            ),
+                          )
+                        : widget.pdfAsync!.when(
+                            loading: () => Semantics(
+                              liveRegion: true,
+                              label: 'Loading PDF',
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
                             ),
                             error: (e, _) => Center(
                               child: Padding(
@@ -2040,6 +2059,8 @@ class _SpeechSliderColumn extends StatelessWidget {
                         min: 0.5,
                         max: 1.5,
                         divisions: 10,
+                        semanticFormatterCallback: (v) =>
+                            '${(v * 100).round()}%',
                         onChanged: onChanged,
                       ),
                     ),
