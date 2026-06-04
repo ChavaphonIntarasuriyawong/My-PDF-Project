@@ -170,20 +170,24 @@ class ShelfContentScreen extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    GestureDetector(
-                      onTap: () => context.canPop()
-                          ? context.pop()
-                          : context.go('/home'),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: const Icon(
-                          Icons.arrow_back,
-                          color: AppColors.primary,
-                          size: 16,
+                    Semantics(
+                      button: true,
+                      label: 'Back',
+                      child: GestureDetector(
+                        onTap: () => context.canPop()
+                            ? context.pop()
+                            : context.go('/home'),
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(
+                            Icons.arrow_back,
+                            color: AppColors.primary,
+                            size: 16,
+                          ),
                         ),
                       ),
                     ),
@@ -198,6 +202,7 @@ class ShelfContentScreen extends ConsumerWidget {
                     if (!_isAll)
                       Builder(
                         builder: (btnCtx) => IconButton(
+                          tooltip: 'Shelf options',
                           icon: const Icon(
                             Icons.more_vert,
                             color: AppColors.primary,
@@ -335,35 +340,39 @@ class _DesktopBody extends StatelessWidget {
                   ],
                 ),
               ),
-              InkWell(
-                onTap: () => context.push('/book/new'),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 20,
-                    vertical: 12,
-                  ),
-                  decoration: BoxDecoration(
-                    gradient: AppColors.primaryGradient,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(
-                        Icons.add_circle,
-                        color: Colors.white,
-                        size: 18,
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        'New Document',
-                        style: AppTypography.labelButton.copyWith(
-                          fontSize: 14,
-                          height: 1.0,
+              Semantics(
+                button: true,
+                label: 'New Document',
+                child: InkWell(
+                  onTap: () => context.push('/book/new'),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 12,
+                    ),
+                    decoration: BoxDecoration(
+                      gradient: AppColors.primaryGradient,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(
+                          Icons.add_circle,
+                          color: Colors.white,
+                          size: 18,
                         ),
-                      ),
-                    ],
+                        const SizedBox(width: 8),
+                        Text(
+                          'New Document',
+                          style: AppTypography.labelButton.copyWith(
+                            fontSize: 14,
+                            height: 1.0,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

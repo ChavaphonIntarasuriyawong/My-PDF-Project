@@ -62,14 +62,18 @@ class AppDrawer extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: onClose,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      child: const Icon(
-                        Icons.close,
-                        size: 20,
-                        color: AppColors.textSecondary,
+                  Semantics(
+                    button: true,
+                    label: 'Close navigation menu',
+                    child: GestureDetector(
+                      onTap: onClose,
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        child: const Icon(
+                          Icons.close,
+                          size: 20,
+                          color: AppColors.textSecondary,
+                        ),
                       ),
                     ),
                   ),
@@ -280,35 +284,41 @@ class _DrawerNavTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
-      child: Material(
-        color: active ? AppColors.surface : Colors.transparent,
-        borderRadius: BorderRadius.circular(4),
-        child: InkWell(
-          onTap: onTap,
+    return Semantics(
+      button: true,
+      label: label,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 2, 16, 2),
+        child: Material(
+          color: active ? AppColors.surface : Colors.transparent,
           borderRadius: BorderRadius.circular(4),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            child: Row(
-              children: [
-                Icon(
-                  icon,
-                  size: 18,
-                  color: active ? AppColors.primary : AppColors.textSecondary,
-                ),
-                const SizedBox(width: 12),
-                Text(
-                  label,
-                  style: TextStyle(
-                    fontFamily: 'Inter',
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13,
-                    letterSpacing: 0.5,
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(4),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    icon,
+                    size: 18,
                     color: active ? AppColors.primary : AppColors.textSecondary,
                   ),
-                ),
-              ],
+                  const SizedBox(width: 12),
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontFamily: 'Inter',
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                      letterSpacing: 0.5,
+                      color: active
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

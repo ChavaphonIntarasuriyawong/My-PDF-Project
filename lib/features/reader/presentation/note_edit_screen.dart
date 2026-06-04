@@ -260,14 +260,18 @@ class _NoteEditTopBar extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Row(
         children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: onClose,
-              borderRadius: BorderRadius.circular(12),
-              child: const Padding(
-                padding: EdgeInsets.all(8),
-                child: Icon(Icons.close, color: AppColors.primary, size: 14),
+          Semantics(
+            button: true,
+            label: 'Close editor',
+            child: Material(
+              color: Colors.transparent,
+              child: InkWell(
+                onTap: onClose,
+                borderRadius: BorderRadius.circular(12),
+                child: const Padding(
+                  padding: EdgeInsets.all(8),
+                  child: Icon(Icons.close, color: AppColors.primary, size: 14),
+                ),
               ),
             ),
           ),

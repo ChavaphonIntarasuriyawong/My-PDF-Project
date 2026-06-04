@@ -81,47 +81,51 @@ class _NavItem extends StatelessWidget {
     final isActive = tab == active;
     final meta = _meta[tab]!;
 
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => onTap(tab),
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-          decoration: BoxDecoration(
-            color: isActive ? AppColors.primary : Colors.transparent,
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: isActive
-                ? [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 15,
-                      offset: const Offset(0, 10),
-                    ),
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.1),
-                      blurRadius: 6,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                meta.icon,
-                color: isActive ? Colors.white : AppColors.textNav,
-                size: 20,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                meta.label.toUpperCase(),
-                style: AppTypography.navLabel.copyWith(
+    return Semantics(
+      button: true,
+      label: meta.label,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => onTap(tab),
+          borderRadius: BorderRadius.circular(8),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+            decoration: BoxDecoration(
+              color: isActive ? AppColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(8),
+              boxShadow: isActive
+                  ? [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 15,
+                        offset: const Offset(0, 10),
+                      ),
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 6,
+                        offset: const Offset(0, 4),
+                      ),
+                    ]
+                  : null,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  meta.icon,
                   color: isActive ? Colors.white : AppColors.textNav,
+                  size: 20,
                 ),
-              ),
-            ],
+                const SizedBox(height: 2),
+                Text(
+                  meta.label.toUpperCase(),
+                  style: AppTypography.navLabel.copyWith(
+                    color: isActive ? Colors.white : AppColors.textNav,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
